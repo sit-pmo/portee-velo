@@ -6,6 +6,8 @@ Carte interactive des temps de trajet à vélo sur l'île d'Oléron et le bassin
 
 Version île d'Oléron seule (affichage et pourcentages limités à l'île) : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
 
+Comparaison côte à côte avec OpenStreetMap seul (même calcul, même départ sous la souris) : **https://sit-pmo.github.io/portee-velo/comparer.html**
+
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
 ## Objectif

@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>À portée de vélo – Comparer les réseaux</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Même palette que index.html ; deux cartes synchronisées côte à côte sous un bandeau */
+:root{
+  --abysse:#005267; --lagon:#08B8DC; --soleil:#FFDE12; --encre:#13252B; --ardoise:#4F6268;
+  --brume:#E4EDEF; --papier:#FFFFFF; --gain:#1F7A4D; --perte:#B4412A;
+  --serif:"Libre Baskerville", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--sans);color:var(--encre);background:#d5dfe2;font-size:15px;line-height:1.4;display:flex;flex-direction:column}
+.bandeau{display:flex;flex-wrap:wrap;align-items:center;gap:10px 22px;padding:12px 16px;background:var(--abysse);color:#fff}
+.bandeau h1{font-family:var(--serif);font-size:1.25rem;margin:0;white-space:nowrap}
+.bandeau p{margin:0;color:#c9edf5;font-size:.86rem;flex:1 1 280px;min-width:0}
+.bandeau a{color:#fff;font-size:.86rem}
+.bascule{display:grid;grid-template-columns:1fr 1fr;background:rgba(255,255,255,.14);border-radius:8px;padding:3px;gap:3px}
+.bascule button{font:inherit;font-size:.84rem;font-weight:600;border:0;border-radius:6px;padding:6px 10px;background:transparent;color:#d9f1f7;cursor:pointer;white-space:nowrap}
+.bascule button[aria-pressed="true"]{background:var(--papier);color:var(--abysse)}
+.bouton{font:inherit;font-size:.84rem;font-weight:600;border:1.5px solid #fff;border-radius:8px;padding:6px 12px;background:transparent;color:#fff;cursor:pointer;white-space:nowrap}
+.bouton[aria-pressed="true"]{background:#fff;color:var(--abysse)}
+.cartes{flex:1;display:flex;min-height:0}
+.volet{position:relative;flex:1;min-width:0}
+.volet+.volet{border-left:3px solid var(--abysse)}
+.volet .carte{position:absolute;inset:0}
+.leaflet-container{font-family:var(--sans);background:#cfdbdf}
+.leaflet-tile-pane{filter:grayscale(1) contrast(.9) brightness(1.07)}
+.leaflet-control-attribution{font-size:10px}
+.etiquette,.fiche{position:absolute;z-index:1000;left:12px;background:var(--papier);border-radius:10px;box-shadow:0 6px 18px rgba(0,40,52,.18)}
+.etiquette{top:12px;padding:7px 12px;font-weight:700;font-size:.92rem;color:var(--abysse)}
+.etiquette small{display:block;font-weight:400;font-size:.76rem;color:var(--ardoise)}
+.fiche{bottom:22px;padding:10px 12px;width:min(230px,calc(100% - 24px))}
+.fiche h2{font-size:.78rem;font-weight:600;color:var(--ardoise);margin:0 0 6px}
+.ligne{display:grid;grid-template-columns:3.6em 1fr 3em 3.4em;gap:6px;align-items:center;font-size:.82rem;margin-bottom:4px}
+.jauge{height:7px;background:var(--brume);border-radius:4px;overflow:hidden}
+.jauge span{display:block;height:100%;background:var(--abysse)}
+.valeur{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.ecart{text-align:right;font-variant-numeric:tabular-nums;font-size:.76rem;font-weight:600}
+.ecart.plus{color:var(--gain)} .ecart.moins{color:var(--perte)}
+.legende{display:flex;align-items:center;gap:6px;font-size:.78rem;color:#d9f1f7}
+.legende .cases{display:grid;grid-template-columns:repeat(8,16px);height:10px;border-radius:3px;overflow:hidden}
+.repere{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;font:700 12px/1 var(--sans);background:var(--abysse);color:#fff;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.erreur{margin:16px;padding:12px;border-radius:8px;background:#fde7e2;color:#7a1f0e}
+button:focus-visible,a:focus-visible{outline:3px solid var(--soleil);outline-offset:2px}
+@media (max-width:720px){
+  .cartes{flex-direction:column}
+  .volet+.volet{border-left:0;border-top:3px solid var(--abysse)}
+  .bandeau p{display:none}
+  .fiche{bottom:10px}
+}
+</style>
+</head>
+<body>
+<header class="bandeau">
+  <h1>Comparer les réseaux</h1>
+  <p>Même calcul, mêmes vitesses : à gauche le réseau des collectivités complété par OSM, à droite OpenStreetMap seul. Déplacez la souris sur l'une des cartes ; cliquez pour fixer le départ.</p>
+  <div class="bascule" role="group" aria-label="Réseau utilisé">
+    <button type="button" data-mode="amenage" aria-pressed="false">Pistes et bandes</button>
+    <button type="button" data-mode="tout" aria-pressed="true">Pistes + routes</button>
+  </div>
+  <button type="button" class="bouton" id="suivre" aria-pressed="true">Suivre la souris</button>
+  <div class="legende" aria-label="Temps de trajet en minutes"><span>5</span><span class="cases" id="cases"></span><span>60 min</span></div>
+  <a href="./">Retour à la carte</a>
+</header>
+<div id="erreur" class="erreur" hidden>Données absentes : <code>data/portee_velo.js</code> et <code>data/portee_velo_osm.js</code> doivent être à côté de cette page.</div>
+<main class="cartes">
+  <section class="volet" aria-label="Carte avec les données des collectivités">
+    <div class="carte" id="carte-a"></div>
+    <div class="etiquette">Collectivités + OSM<small>CCIO, CCBM, compléments OSM vérifiés</small></div>
+    <div class="fiche"><h2 id="titre-a">Surface atteinte</h2><div id="couv-a"></div></div>
+  </section>
+  <section class="volet" aria-label="Carte avec OpenStreetMap seul">
+    <div class="carte" id="carte-b"></div>
+    <div class="etiquette">OpenStreetMap seul<small>sans les données des collectivités</small></div>
+    <div class="fiche"><h2 id="titre-b">Surface atteinte</h2><div id="couv-b"></div></div>
+  </section>
+</main>
+
+<script src="data/portee_velo.js"></script>
+<script src="data/portee_velo_osm.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="coeur.js"></script>
+<script>
+(function comparer() {
+  const $ = s => document.querySelector(s);
+  if (!window.PORTEE_VELO || !window.PORTEE_VELO_OSM) { $("#erreur").hidden = false; return; }
+
+  const SEUILS = [5, 10, 15, 20, 30, 45, 60], ISO = [15, 30, 45, 60], PALIERS = [15, 30, 45];
+  const COULEURS = ["#FFDE12", "#ADD155", "#5AC599", "#08B8DC", "#0485A1", "#005267", "#033848", "#1E2529"];
+  const RGB = COULEURS.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  $("#cases").innerHTML = COULEURS.map(c => `<span style="background:${c}"></span>`).join("");
+
+  // ?territoire=oleron : affichage et pourcentages limités à l'île, comme sur la carte principale
+  const versionOleron = new URLSearchParams(location.search).get("territoire") === "oleron";
+  const fond = "https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}";
+  const etat = { mode: "tout", suivre: true, depart: null, attente: null, image: false, pause: null };
+
+  // Un « volet » par jeu de données : sa propre carte, sa chaleur, ses isolignes et son réseau
+  function creerVolet(D, idCarte, idCouv, attribution) {
+    const P = preparer(D), g = P.grille;
+    if (versionOleron && D.grille.oleron) for (let k = 0; k < g.ile.length; k++) {
+      g.ile[k] = D.grille.oleron[k];
+      if (!D.grille.oleron[k]) g.dedans[k] = 0;
+    }
+    const G = { tout: construireGraphe(P, "tout"), amenage: construireGraphe(P, "amenage") };
+    const carte = L.map(idCarte, { zoomControl: false, zoomSnap: 0.25, attributionControl: true });
+    L.tileLayer(fond, { maxZoom: 19, attribution }).addTo(carte);
+    for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360]]) {
+      const p = carte.createPane(nom); p.style.zIndex = z; p.style.pointerEvents = "none";
+    }
+    const bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
+    const contour = L.geoJSON(versionOleron && D.contour_oleron ? D.contour_oleron : D.contour,
+      { interactive: false, style: { color: "#005267", weight: 1.2, opacity: .7, fill: false } }).addTo(carte);
+    const toile = document.createElement("canvas"); toile.width = g.nx; toile.height = g.ny;
+    const ctx = toile.getContext("2d"), image = ctx.createImageData(g.nx, g.ny);
+    const chaleur = L.imageOverlay(toile.toDataURL(), bornes, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
+    const iso = L.layerGroup().addTo(carte);
+
+    // Réseau : pistes, bandes, et itinéraires sur route issus des collectivités (même symbologie que la carte)
+    const segments = [[], [], []], origines = D.meta.origines || [], o = D.aretes.o || [];
+    const collectivite = new Set(["ccio", "ccbm"].map(n => origines.indexOf(n)).filter(i => i >= 0));
+    for (let e = 0; e < P.m; e++) {
+      const c = P.cls[e];
+      if (c <= 1 || (c === 2 && collectivite.has(o[e])))
+        segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
+    }
+    const style = { renderer: L.canvas({ pane: "reseau", padding: 0.3 }), interactive: false, lineCap: "round" };
+    L.polyline(segments[0], { ...style, color: "#fff", weight: 1.2, opacity: .6 }).addTo(carte);
+    L.polyline(segments[1], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "2 3" }).addTo(carte);
+    L.polyline(segments[2], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "1 4" }).addTo(carte);
+
+    const marqueur = L.marker([0, 0], { interactive: false, keyboard: false,
+      icon: L.divIcon({ className: "", html: '<span class="repere">D</span>', iconSize: [26, 26], iconAnchor: [13, 13] }) });
+    return { D, P, G, g, carte, bornes, contour, ctx, image, toile, chaleur, iso, marqueur, idCouv, minutes: null, parts: null };
+  }
+
+  const volets = [
+    creerVolet(window.PORTEE_VELO, "carte-a", "#couv-a", "Fond © IGN | Réseaux cyclables CdC Île d'Oléron et CC Bassin de Marennes, © contributeurs OpenStreetMap"),
+    creerVolet(window.PORTEE_VELO_OSM, "carte-b", "#couv-b", "Fond © IGN | Réseau © contributeurs OpenStreetMap"),
+  ];
+  if (versionOleron) { $("#titre-a").textContent = $("#titre-b").textContent = "Surface de l'île atteinte"; document.title = "À portée de vélo – Comparer les réseaux (Oléron)"; }
+
+  // ---------- Dessin ----------
+  function dessinerChaleur(v) {
+    const px = v.image.data, min = v.minutes;
+    for (let k = 0; k < min.length; k++) {
+      const m = min[k], o = k * 4;
+      if (Number.isNaN(m)) { px[o + 3] = 0; continue; }
+      if (!isFinite(m)) { px[o] = 96; px[o + 1] = 108; px[o + 2] = 112; px[o + 3] = 120; continue; }
+      let c = 0; while (c < SEUILS.length && m > SEUILS[c]) c++;
+      const [r, ve, b] = RGB[c];
+      px[o] = r; px[o + 1] = ve; px[o + 2] = b; px[o + 3] = 255;
+    }
+    v.ctx.putImageData(v.image, 0, 0);
+    v.chaleur.setUrl(v.toile.toDataURL());
+  }
+  function dessinerIsolignes(v) {
+    v.iso.clearLayers();
+    const f = v.minutes && champIsolignes(v.P, v.minutes), g = v.g;
+    if (!f) return;
+    for (const c of d3.contours().size([g.nx, g.ny]).thresholds(ISO)(f.champ)) {
+      const lignes = [];
+      for (const poly of c.coordinates) for (const anneau of poly) {
+        let cour = [];
+        for (const [x, y] of anneau) {
+          const i = Math.min(g.nx - 1, Math.max(0, Math.floor(x))), j = Math.min(g.ny - 1, Math.max(0, Math.floor(y)));
+          if (f.masque[j * g.nx + i]) cour.push([g.n - y * g.dlat, g.w + x * g.dlon]);
+          else { if (cour.length > 1) lignes.push(cour); cour = []; }
+        }
+        if (cour.length > 1) lignes.push(cour);
+      }
+      if (!lignes.length) continue;
+      const plein = c.value % 30 === 0;
+      L.polyline(lignes, { pane: "iso", interactive: false, color: "#0B2E38", opacity: .8, weight: plein ? 1.8 : 1.1, dashArray: plein ? null : "4 4" }).addTo(v.iso);
+    }
+  }
+  // Pourcentages ; sur la carte de gauche, l'écart en points par rapport à OSM seul
+  function afficherCouvertures() {
+    const [a, b] = volets;
+    for (const v of volets) {
+      const parts = v.parts || [0, 0, 0];
+      $(v.idCouv).innerHTML = PALIERS.map((s, i) => {
+        const p = Math.round(parts[i] * 100);
+        let ecart = "";
+        if (v === a && a.parts && b.parts) {
+          const d = Math.round(a.parts[i] * 100) - Math.round(b.parts[i] * 100);
+          ecart = `<span class="ecart ${d > 0 ? "plus" : d < 0 ? "moins" : ""}" title="écart avec OSM seul">${d > 0 ? "+" : ""}${d} pt${Math.abs(d) > 1 ? "s" : ""}</span>`;
+        }
+        return `<div class="ligne"><span>${s} min</span><span class="jauge"><span style="width:${p}%"></span></span><span class="valeur">${p} %</span>${ecart || "<span></span>"}</div>`;
+      }).join("");
+    }
+  }
+
+  // ---------- Calcul : même départ, deux réseaux ----------
+  function calculer(complet) {
+    for (const v of volets) {
+      const Gm = v.G[etat.mode], acc = accrocher(v.P, Gm, etat.depart.lng, etat.depart.lat);
+      v.marqueur.setLatLng(etat.depart).addTo(v.carte);
+      if (!acc || acc.distM > CFG.accesMaxM[etat.mode]) {
+        v.minutes = new Float32Array(v.g.nx * v.g.ny).map((_, k) => (v.g.dedans[k] ? Infinity : NaN));
+      } else {
+        v.minutes = tempsGrille(v.P, Gm, dijkstra(Gm, acc.noeud, accesSecondes(acc.distM)));
+      }
+      v.parts = couverture(v.P, v.minutes, PALIERS);
+      dessinerChaleur(v);
+      if (complet) dessinerIsolignes(v); else v.iso.clearLayers();
+    }
+    afficherCouvertures();
+  }
+  // Au plus un calcul par image affichée (deux Dijkstra par image)
+  function planifier(ll) {
+    etat.attente = ll;
+    if (etat.image) return;
+    etat.image = true;
+    requestAnimationFrame(() => { etat.image = false; etat.depart = etat.attente; calculer(false); });
+    clearTimeout(etat.pause);
+    etat.pause = setTimeout(() => { if (etat.depart) { for (const v of volets) dessinerIsolignes(v); } }, 300);
+  }
+
+  // ---------- Cartes synchronisées ----------
+  const [ca, cb] = volets.map(v => v.carte);
+  ca.fitBounds(volets[0].contour.getBounds(), { padding: [20, 20] });
+  cb.setView(ca.getCenter(), ca.getZoom(), { animate: false });
+  let synchro = false;
+  for (const [src, dst] of [[ca, cb], [cb, ca]]) {
+    src.on("move", () => {
+      if (synchro) return;
+      synchro = true; dst.setView(src.getCenter(), src.getZoom(), { animate: false }); synchro = false;
+    });
+  }
+  // Emprise bloquée sur la zone de calcul (ou l'île), dézoom limité à la vue d'ensemble
+  const limite = (versionOleron ? volets[0].contour.getBounds() : volets[0].bornes).pad(0.05);
+  for (const c of [ca, cb]) { c.setMaxBounds(limite); c.options.maxBoundsViscosity = 1; c.setMinZoom(ca.getZoom() - 0.5); }
+  L.control.zoom({ position: "topright" }).addTo(cb);
+
+  for (const v of volets) {
+    v.carte.on("mousemove", ev => { if (etat.suivre && v.bornes.contains(ev.latlng)) planifier(ev.latlng); });
+    v.carte.on("click", ev => {
+      if (etat.suivre) { suivre(false); etat.depart = ev.latlng; calculer(true); }
+      else { etat.depart = ev.latlng; calculer(true); }   // départ fixé : un clic le déplace
+    });
+  }
+  function suivre(actif) { etat.suivre = actif; $("#suivre").setAttribute("aria-pressed", String(actif)); }
+  $("#suivre").addEventListener("click", () => suivre(!etat.suivre));
+  // Sur écran tactile, pas de survol : le toucher place le départ
+  if (!window.matchMedia("(hover: hover) and (pointer: fine)").matches) suivre(false);
+
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
+    etat.mode = b.dataset.mode;
+    document.querySelectorAll("[data-mode]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    if (etat.depart) calculer(true);
+  }));
+
+  const [lon, lat] = window.PORTEE_VELO.meta.depart_defaut;
+  etat.depart = L.latLng(lat, lon);
+  calculer(true);
+})();
+</script>
+</body>
+</html>
