@@ -8,11 +8,7 @@ Déplacez la souris sur la carte : les temps de trajet depuis le curseur se reca
 
 ## Objectif
 
-Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, et où il manque des liaisons. La carte sert de démonstrateur pour trois publics :
-
-- **les élus**, pour voir l'effet du réseau existant et des aménagements à venir ;
-- **le tourisme**, pour savoir ce qui est accessible sans voiture depuis un hébergement ;
-- **les services techniques**, pour repérer les discontinuités du réseau.
+Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, et où il manque des liaisons.
 
 Deux modes sont proposés :
 
