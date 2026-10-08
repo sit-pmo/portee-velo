@@ -73,9 +73,9 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 
 .case-reseau{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;font-size:.83rem;color:var(--ardoise);cursor:pointer}
 .case-reseau input{margin:0;accent-color:var(--abysse)}
-.trait-piste,.trait-bande{display:inline-block;width:22px;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px rgba(11,46,56,.7)}
-.trait-piste{height:3px;margin-left:4px}
-.trait-bande{height:2px;margin-left:8px}
+.trait-piste,.trait-bande{display:inline-block;width:26px;height:12px;border-radius:3px;background-color:#0485A1;background-repeat:no-repeat;background-position:center;background-size:100% 2px}
+.trait-piste{margin-left:4px;background-image:linear-gradient(rgba(255,255,255,.75),rgba(255,255,255,.75))}
+.trait-bande{margin-left:8px;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.65) 0 2px,transparent 2px 5px)}
 .legende{display:grid;grid-template-columns:repeat(8,1fr)}
 .legende .case{height:12px}
 .legende .case:first-child{border-radius:3px 0 0 3px}
@@ -179,7 +179,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <p>Vitesse de 15 km/h sur revêtement lisse, 10 à 13 km/h sur stabilisé ou grave, 6 km/h sur sable. Sur route, le temps est majoré pour tenir compte du trafic et des intersections. Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 12 km/h. Ni vent, ni relief.</p>
       <p><strong>Sources.</strong> Réseau cyclable de la CdC de l'Île d'Oléron, complété par OpenStreetMap (© contributeurs, ODbL). Fond Plan IGN. Communes geo.api.gouv.fr. Adresses Géoplateforme. <span id="meta"></span></p>
       <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, dont cette carte reprend le principe, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Code et calculs écrits pour ce projet.</p>
-      <p>Réalisation : SIT du Pôle Marennes-Oléron.</p>
+      <p>Réalisation : SIT du Pôle Marennes-Oléron. Code source : <a href="https://github.com/sit-pmo/portee-velo-oleron" target="_blank" rel="noopener">github.com/sit-pmo/portee-velo-oleron</a>.</p>
     </footer>
   </div>
 </aside>
@@ -454,7 +454,8 @@ if (typeof module !== "undefined") {
   const chaleur = L.imageOverlay(toile.toDataURL(), bornesGrille, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
   const iso = L.layerGroup().addTo(carte);
 
-  // Réseau aménagé (classes 0-1) par-dessus la chaleur : trait blanc bordé de sombre, lisible sur toutes les teintes
+  // Réseau aménagé (classes 0-1) par-dessus la chaleur : trait blanc fin translucide (discret, lisible sur toutes les teintes),
+  // bandes en tirets
   const reseau = L.layerGroup().addTo(carte);
   {
     const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
@@ -464,10 +465,8 @@ if (typeof module !== "undefined") {
       if (c <= 1) segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
     }
     const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
-    L.polyline(segments[0], { ...style, color: "#0B2E38", weight: 3.6, opacity: .55 }).addTo(reseau);
-    L.polyline(segments[1], { ...style, color: "#0B2E38", weight: 2.8, opacity: .5 }).addTo(reseau);
-    L.polyline(segments[0], { ...style, color: "#fff", weight: 1.6, opacity: .95 }).addTo(reseau);
-    L.polyline(segments[1], { ...style, color: "#fff", weight: 1, opacity: .9 }).addTo(reseau);
+    L.polyline(segments[0], { ...style, color: "#fff", weight: 1.2, opacity: .6 }).addTo(reseau);
+    L.polyline(segments[1], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "2 3" }).addTo(reseau);
   }
   $("#voir-reseau").addEventListener("change", ev => {
     if (ev.target.checked) reseau.addTo(carte); else reseau.remove();
