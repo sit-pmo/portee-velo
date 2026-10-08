@@ -37,14 +37,14 @@ Les routes et chemins viennent d'OpenStreetMap. Le réseau consolidé y est racc
 
 | Élément | Hypothèse |
 |---|---|
-| Vitesse sur revêtement lisse (enrobé, béton) | 15 km/h |
-| Vitesse sur stabilisé, grave, bois | 10 à 13 km/h |
+| Vitesse sur revêtement lisse (enrobé, béton) | 20 km/h |
+| Vitesse sur stabilisé, grave, bois | 13 à 17 km/h |
 | Bande cyclable | temps majoré de 10 % |
 | Route ou chemin partagé | temps majoré de 50 % |
 | Route secondaire | temps doublé |
 | Route principale sans aménagement | temps triplé |
 | Sens unique pris à contre-sens | vélo poussé, à 5 km/h |
-| Accès au réseau depuis un point quelconque | à vol d'oiseau, majoré de 30 %, à 12 km/h |
+| Accès au réseau depuis un point quelconque | à vol d'oiseau, majoré de 30 %, à 16 km/h |
 
 Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaque départ, un algorithme de plus court chemin (Dijkstra) calcule le temps vers toutes les voies, puis vers chaque cellule. Tout le calcul se fait dans le navigateur, en 40 à 70 ms : c'est ce qui permet le suivi en direct de la souris.
 

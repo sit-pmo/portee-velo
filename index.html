@@ -179,7 +179,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
     </div>
 
     <footer class="credits">
-      <p>Vitesse de 15 km/h sur revêtement lisse, 10 à 13 km/h sur stabilisé ou grave, 6 km/h sur sable. Sur route, le temps est majoré pour tenir compte du trafic et des intersections. Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 12 km/h. Ni vent, ni relief.</p>
+      <p>Vitesse de 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable. Sur route, le temps est majoré pour tenir compte du trafic et des intersections. Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
       <p><strong>Sources.</strong> Réseaux cyclables de la CdC de l'Île d'Oléron et de la CC du Bassin de Marennes, complétés par OpenStreetMap (© contributeurs, ODbL). Fond Plan IGN. Communes geo.api.gouv.fr. Adresses Géoplateforme. <span id="meta"></span></p>
       <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, dont cette carte reprend le principe, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Code et calculs écrits pour ce projet.</p>
       <p>Réalisation : SIT du Pôle Marennes-Oléron. Code source : <a href="https://github.com/sit-pmo/portee-velo-oleron" target="_blank" rel="noopener">github.com/sit-pmo/portee-velo-oleron</a>.</p>
@@ -199,7 +199,7 @@ const CFG = {
     amenage: [1, 1, Infinity, Infinity, Infinity],
   },
   vitesseContreSensKmh: 5,             // sens unique pris à contre-sens : vélo poussé à pied, plutôt qu'interdit
-  vitesseAccesKmh: 12,
+  vitesseAccesKmh: 16,                 // accès au réseau hors voies (base vélo 20 km/h ×0,8)
   detourAcces: 1.3,
   accesMaxM: { tout: 2000, amenage: 800 },   // 2 km : couvre les marais de la Seudre, à 1,7 km de toute voie
 };
@@ -449,6 +449,10 @@ if (typeof module !== "undefined") {
     style: { color: "#005267", weight: 1, opacity: .5, dashArray: "4 5", fill: false } }).addTo(carte);
   const etroit = () => window.matchMedia("(max-width:720px)").matches;
   carte.fitBounds(contour.getBounds(), etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] });
+  // Emprise bloquée : on ne peut ni partir loin du territoire ni dézoomer au-delà de la vue d'ensemble
+  carte.setMaxBounds(bornesGrille.pad(0.05));
+  carte.options.maxBoundsViscosity = 1;
+  carte.setMinZoom(carte.getZoom() - 0.5);
 
   const toile = document.createElement("canvas");
   toile.width = g.nx; toile.height = g.ny;
