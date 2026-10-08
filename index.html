@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>À portée de vélo – Île d'Oléron</title>
+<title>À portée de vélo – Marennes-Oléron</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -111,12 +111,12 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 </style>
 </head>
 <body>
-<div id="carte" role="application" aria-label="Carte des temps de trajet à vélo sur l'île d'Oléron"></div>
+<div id="carte" role="application" aria-label="Carte des temps de trajet à vélo à Marennes-Oléron"></div>
 
 <aside class="panneau" aria-label="Réglages et résultats">
   <header class="entete">
     <h1>À portée de vélo</h1>
-    <p>Combien de temps pour rejoindre chaque coin de l'île d'Oléron à vélo</p>
+    <p>Combien de temps pour rejoindre chaque coin de l'île d'Oléron et du bassin de Marennes à vélo</p>
   </header>
   <div class="defile">
     <div id="erreur" class="erreur" hidden>
@@ -156,14 +156,14 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
     </div>
 
     <div class="bloc">
-      <h2>Surface de l'île atteinte depuis ce départ</h2>
+      <h2>Surface du territoire atteinte depuis ce départ</h2>
       <div id="couverture" class="couverture"></div>
     </div>
 
     <div class="bloc">
       <h2>Temps de trajet en minutes</h2>
       <div class="legende" id="legende"></div>
-      <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45 min. En gris : hors d'atteinte avec ce réseau. Sur le continent, le calcul s'arrête à 12 km du pont (pointillés).</p>
+      <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45 min. En gris : hors d'atteinte avec ce réseau. Le calcul déborde de 3 km autour du territoire (pointillés).</p>
       <label class="case-reseau" for="voir-reseau">
         <input type="checkbox" id="voir-reseau" checked>
         <span class="trait-piste" aria-hidden="true"></span> Pistes et voies vertes
@@ -177,7 +177,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 
     <footer class="credits">
       <p>Vitesse de 15 km/h sur revêtement lisse, 10 à 13 km/h sur stabilisé ou grave, 6 km/h sur sable. Sur route, le temps est majoré pour tenir compte du trafic et des intersections. Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 12 km/h. Ni vent, ni relief.</p>
-      <p><strong>Sources.</strong> Réseau cyclable de la CdC de l'Île d'Oléron, complété par OpenStreetMap (© contributeurs, ODbL). Fond Plan IGN. Communes geo.api.gouv.fr. Adresses Géoplateforme. <span id="meta"></span></p>
+      <p><strong>Sources.</strong> Réseaux cyclables de la CdC de l'Île d'Oléron et de la CC du Bassin de Marennes, complétés par OpenStreetMap (© contributeurs, ODbL). Fond Plan IGN. Communes geo.api.gouv.fr. Adresses Géoplateforme. <span id="meta"></span></p>
       <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, dont cette carte reprend le principe, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Code et calculs écrits pour ce projet.</p>
       <p>Réalisation : SIT du Pôle Marennes-Oléron. Code source : <a href="https://github.com/sit-pmo/portee-velo-oleron" target="_blank" rel="noopener">github.com/sit-pmo/portee-velo-oleron</a>.</p>
     </footer>
@@ -198,7 +198,7 @@ const CFG = {
   vitesseContreSensKmh: 5,             // sens unique pris à contre-sens : vélo poussé à pied, plutôt qu'interdit
   vitesseAccesKmh: 12,
   detourAcces: 1.3,
-  accesMaxM: { tout: 1500, amenage: 800 },
+  accesMaxM: { tout: 2000, amenage: 800 },   // 2 km : couvre les marais de la Seudre, à 1,7 km de toute voie
 };
 const R_TERRE = 6371008.8, RAD = Math.PI / 180;
 
@@ -227,7 +227,7 @@ function preparer(D) {
     grille: {
       w: g.w, n: g.n, dlon: g.dlon, dlat: g.dlat, nx: g.nx, ny: g.ny,
       dedans: Uint8Array.from(g.dedans),
-      ile: Uint8Array.from(g.ile || g.dedans),   // couverture comptée sur l'île seule
+      ile: Uint8Array.from(g.ile || g.dedans),   // couverture comptée sur le territoire seul (île + bassin de Marennes)
       pro: { tout: Int32Array.from(g.pro_tout), amenage: Int32Array.from(g.pro_amen) },
       dist: { tout: Float32Array.from(g.dist_tout), amenage: Float32Array.from(g.dist_amen) },
     },
@@ -322,7 +322,7 @@ function accrocher(P, G, lon, lat) {
   return meilleur < 0 ? null : { noeud: meilleur, distM: dMin };
 }
 
-// Minutes par cellule : NaN hors de l'île, Infinity si hors d'atteinte
+// Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte
 function tempsGrille(P, G, res) {
   const g = P.grille, N = g.nx * g.ny, out = new Float32Array(N);
   const pro = g.pro[G.mode], dd = g.dist[G.mode], max = CFG.accesMaxM[G.mode];
@@ -365,7 +365,7 @@ function etapes(P, G, arcs) {
   return out;
 }
 
-// Part des cellules de l'île atteintes sous chaque seuil
+// Part des cellules du territoire atteintes sous chaque seuil
 function couverture(P, minutes, seuils) {
   const g = P.grille;
   let total = 0;
@@ -437,7 +437,7 @@ if (typeof module !== "undefined") {
   const carte = L.map("carte", { zoomControl: false, minZoom: 9, zoomSnap: 0.25 });
   L.control.zoom({ position: "topright" }).addTo(carte);
   L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
-    { maxZoom: 19, attribution: "Fond © IGN | Réseau cyclable CdC Île d'Oléron, © contributeurs OpenStreetMap" }).addTo(carte);
+    { maxZoom: 19, attribution: "Fond © IGN | Réseaux cyclables CdC Île d'Oléron et CC Bassin de Marennes, © contributeurs OpenStreetMap" }).addTo(carte);
   for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["trace", 450]]) {
     const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace") p.style.pointerEvents = "none";
   }
@@ -700,7 +700,7 @@ if (typeof module !== "undefined") {
     const res = (fc.features || []).filter(f => zone.contains([f.geometry.coordinates[1], f.geometry.coordinates[0]])).slice(0, 6);
     liste.innerHTML = res.length
       ? res.map((f, i) => `<li><button type="button" data-i="${i}">${echapper(f.properties.name || f.properties.label)}<small>${echapper([f.properties.postcode, f.properties.city].filter(Boolean).join(" "))}</small></button></li>`).join("")
-      : `<li class="vide">Aucune adresse trouvée sur l'île pour « ${echapper(q)} ».</li>`;
+      : `<li class="vide">Aucune adresse trouvée sur le territoire pour « ${echapper(q)} ».</li>`;
     liste.hidden = false;
     liste.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const f = res[+b.dataset.i], ll = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
