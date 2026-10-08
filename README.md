@@ -2,7 +2,7 @@
 
 Carte interactive des temps de trajet à vélo sur l'île d'Oléron et le bassin de Marennes.
 
-👉 **https://sit-pmo.github.io/portee-velo-oleron/**
+👉 **https://sit-pmo.github.io/portee-velo/**
 
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
@@ -52,16 +52,16 @@ Deux choix ont été faits pour qu'aucune zone n'apparaisse coupée à tort en m
 
 ## Comment
 
-La page est statique : un fichier `index.html` (Leaflet et d3 pour la carte, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme) et un fichier de données précalculées `data/oleron_velo.js` (graphe du réseau et grille). Pas de serveur, pas de base de données : GitHub Pages sert les deux fichiers.
+La page est statique : un fichier `index.html` (Leaflet et d3 pour la carte, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme) et un fichier de données précalculées `data/portee_velo.js` (graphe du réseau et grille). Pas de serveur, pas de base de données : GitHub Pages sert les deux fichiers.
 
 Les données sont préparées en amont par le SIT avec des scripts Python (numpy, shapely, pyproj), à partir des bases cyclables des collectivités et d'OpenStreetMap :
 
 1. extraction des aménagements OpenStreetMap et repérage de ceux absents des bases des collectivités ;
 2. vérification de ces compléments dans QGIS ;
 3. fusion en un réseau consolidé ;
-4. construction du graphe (réseau consolidé + routes OSM, raccordements, contrôle des extrémités non raccordées) et de la grille, puis export de `data/oleron_velo.js`.
+4. construction du graphe (réseau consolidé + routes OSM, raccordements, contrôle des extrémités non raccordées) et de la grille, puis export de `data/portee_velo.js`.
 
-Pour mettre la carte à jour, le SIT régénère `data/oleron_velo.js` et le pousse sur ce dépôt : le site se met à jour en une à deux minutes. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
+Pour mettre la carte à jour, le SIT régénère `data/portee_velo.js` et le pousse sur ce dépôt : le site se met à jour en une à deux minutes. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
 
 ## Sources et licences
 
@@ -71,7 +71,7 @@ Pour mettre la carte à jour, le SIT régénère `data/oleron_velo.js` et le pou
 - Fond de carte et recherche d'adresses : [Géoplateforme IGN](https://geoservices.ign.fr).
 - Bibliothèques : [Leaflet](https://leafletjs.com), [d3](https://d3js.org).
 
-Les données dérivées d'OpenStreetMap contenues dans `data/oleron_velo.js` sont diffusées sous ODbL.
+Les données dérivées d'OpenStreetMap contenues dans `data/portee_velo.js` sont diffusées sous ODbL.
 
 ## Inspiration
 

@@ -122,7 +122,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
   </header>
   <div class="defile">
     <div id="erreur" class="erreur" hidden>
-      Données absentes. Lancez <code>build_graph_velo.py</code> : il produit <code>data/oleron_velo.js</code> à côté de cette page.
+      Données absentes. Lancez <code>build_graph_velo.py</code> : il produit <code>data/portee_velo.js</code> à côté de cette page.
     </div>
 
     <div class="bloc">
@@ -182,12 +182,12 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <p>Vitesse de 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable. Sur route, le temps est majoré pour tenir compte du trafic et des intersections. Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
       <p><strong>Sources.</strong> Réseaux cyclables de la CdC de l'Île d'Oléron et de la CC du Bassin de Marennes, complétés par OpenStreetMap (© contributeurs, ODbL). Fond Plan IGN. Communes geo.api.gouv.fr. Adresses Géoplateforme. <span id="meta"></span></p>
       <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, dont cette carte reprend le principe, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Code et calculs écrits pour ce projet.</p>
-      <p>Réalisation : SIT du Pôle Marennes-Oléron. Code source : <a href="https://github.com/sit-pmo/portee-velo-oleron" target="_blank" rel="noopener">github.com/sit-pmo/portee-velo-oleron</a>.</p>
+      <p>Réalisation : SIT du Pôle Marennes-Oléron. Code source : <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">github.com/sit-pmo/portee-velo</a>.</p>
     </footer>
   </div>
 </aside>
 
-<script src="data/oleron_velo.js"></script>
+<script src="data/portee_velo.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
@@ -410,7 +410,7 @@ if (typeof module !== "undefined") {
 
 (function application() {
   if (typeof window === "undefined") return;
-  const D = window.OLERON_VELO;
+  const D = window.PORTEE_VELO;
   if (!D) { document.getElementById("erreur").hidden = false; return; }
 
   const $ = s => document.querySelector(s);
