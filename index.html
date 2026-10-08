@@ -73,9 +73,11 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 
 .case-reseau{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;font-size:.83rem;color:var(--ardoise);cursor:pointer}
 .case-reseau input{margin:0;accent-color:var(--abysse)}
-.trait-piste,.trait-bande{display:inline-block;width:26px;height:12px;border-radius:3px;background-color:#0485A1;background-repeat:no-repeat;background-position:center;background-size:100% 2px}
-.trait-piste{margin-left:4px;background-image:linear-gradient(rgba(255,255,255,.75),rgba(255,255,255,.75))}
-.trait-bande{margin-left:8px;background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.65) 0 2px,transparent 2px 5px)}
+.case-reseau .entree{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.trait-piste,.trait-bande,.trait-itin{display:inline-block;width:26px;height:12px;border-radius:3px;background-color:#0485A1;background-repeat:no-repeat;background-position:center;background-size:100% 2px}
+.trait-piste{background-image:linear-gradient(rgba(255,255,255,.75),rgba(255,255,255,.75))}
+.trait-bande{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.65) 0 2px,transparent 2px 5px)}
+.trait-itin{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.6) 0 1.5px,transparent 1.5px 5px)}
 .legende{display:grid;grid-template-columns:repeat(8,1fr)}
 .legende .case{height:12px}
 .legende .case:first-child{border-radius:3px 0 0 3px}
@@ -166,8 +168,9 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45 min. En gris : hors d'atteinte avec ce réseau. Le calcul déborde de 3 km autour du territoire (pointillés).</p>
       <label class="case-reseau" for="voir-reseau">
         <input type="checkbox" id="voir-reseau" checked>
-        <span class="trait-piste" aria-hidden="true"></span> Pistes et voies vertes
-        <span class="trait-bande" aria-hidden="true"></span> Bandes
+        <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes et voies vertes</span>
+        <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
+        <span class="entree"><span class="trait-itin" aria-hidden="true"></span> Itinéraires sur route</span>
       </label>
     </div>
 
@@ -454,19 +457,25 @@ if (typeof module !== "undefined") {
   const chaleur = L.imageOverlay(toile.toDataURL(), bornesGrille, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
   const iso = L.layerGroup().addTo(carte);
 
-  // Réseau aménagé (classes 0-1) par-dessus la chaleur : trait blanc fin translucide (discret, lisible sur toutes les teintes),
+  // Réseau cyclable par-dessus la chaleur : trait blanc fin translucide (discret, lisible sur toutes les teintes) ;
   // bandes en tirets
   const reseau = L.layerGroup().addTo(carte);
   {
     const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
-    const segments = [[], []];                           // [pistes, bandes]
+    // [pistes, bandes, itinéraires sur route] ; les itinéraires = classe 2 issue des bases des collectivités
+    // (« aucun aménagement » : jalonnés sur chaussée partagée), pas les routes OSM ordinaires
+    const segments = [[], [], []];
+    const origines = D.meta.origines || [], o = D.aretes.o || [];
+    const collectivite = new Set(["ccio", "ccbm"].map(n => origines.indexOf(n)).filter(i => i >= 0));
     for (let e = 0; e < P.m; e++) {
       const c = P.cls[e];
-      if (c <= 1) segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
+      if (c <= 1 || (c === 2 && collectivite.has(o[e])))
+        segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
     }
     const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
     L.polyline(segments[0], { ...style, color: "#fff", weight: 1.2, opacity: .6 }).addTo(reseau);
     L.polyline(segments[1], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "2 3" }).addTo(reseau);
+    L.polyline(segments[2], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "1 4" }).addTo(reseau);
   }
   $("#voir-reseau").addEventListener("change", ev => {
     if (ev.target.checked) reseau.addTo(carte); else reseau.remove();
