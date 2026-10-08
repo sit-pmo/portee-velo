@@ -4,5 +4,6 @@
 !.gitignore
 !.nojekyll
 !index.html
+!README.md
 !data/
 !data/oleron_velo.js
