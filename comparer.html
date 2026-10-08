@@ -96,7 +96,7 @@ button:focus-visible,a:focus-visible{outline:3px solid var(--soleil);outline-off
   if (!window.PORTEE_VELO || !window.PORTEE_VELO_OSM) { $("#erreur").hidden = false; return; }
 
   const SEUILS = [5, 10, 15, 20, 30, 45, 60], ISO = [15, 30, 45, 60], PALIERS = [15, 30, 45];
-  const COULEURS = ["#FFDE12", "#ADD155", "#5AC599", "#08B8DC", "#0485A1", "#005267", "#033848", "#1E2529"];
+  const COULEURS = ["#FFDE12", "#C5D93E", "#8FCB5E", "#5BB86E", "#2E9A5C", "#0485A1", "#005267", "#1E2529"];
   const RGB = COULEURS.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
   $("#cases").innerHTML = COULEURS.map(c => `<span style="background:${c}"></span>`).join("");
 
