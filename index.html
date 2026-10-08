@@ -103,6 +103,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .repere-d{background:var(--abysse);color:#fff;border:3px solid #fff}
 .repere-a{background:var(--soleil);color:var(--encre);border:3px solid var(--encre)}
 
+.replier{display:none}
 @media (max-width:720px){
   .panneau{top:auto;left:0;right:0;bottom:0;width:auto;max-height:52vh;border-radius:14px 14px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
   .entete{padding:12px 18px 10px}
@@ -110,6 +111,10 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
   .entete p{display:none}
   .defile{padding:0 18px 14px}
   .duree{font-size:2.2rem}
+  .entete{position:relative}
+  .replier{display:block;position:absolute;top:6px;right:8px;width:44px;height:44px;border:0;border-radius:8px;background:transparent;color:#fff;font-size:1.5rem;cursor:pointer;transition:transform .2s}
+  .panneau.replie .defile{display:none}
+  .panneau.replie .replier{transform:rotate(180deg)}
 }
 </style>
 </head>
@@ -118,6 +123,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 
 <aside class="panneau" aria-label="Réglages et résultats">
   <header class="entete">
+    <button type="button" class="replier" id="replier" aria-expanded="true" aria-label="Replier le volet">▾</button>
     <h1>À portée de vélo</h1>
     <p>Combien de temps pour rejoindre chaque coin de l'île d'Oléron et du bassin de Marennes à vélo</p>
   </header>
@@ -194,6 +200,12 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="coeur.js"></script>
 <script>
+// Mobile : replier / déplier le volet du bas
+document.getElementById("replier").addEventListener("click", e => {
+  const replie = document.querySelector(".panneau").classList.toggle("replie");
+  e.currentTarget.setAttribute("aria-expanded", String(!replie));
+  e.currentTarget.setAttribute("aria-label", replie ? "Déplier le volet" : "Replier le volet");
+});
 
 (function application() {
   if (typeof window === "undefined") return;
