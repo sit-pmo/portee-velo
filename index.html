@@ -71,6 +71,11 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .couverture .jauge span{display:block;height:100%;background:var(--abysse)}
 .couverture .valeur{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
 
+.case-reseau{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;font-size:.83rem;color:var(--ardoise);cursor:pointer}
+.case-reseau input{margin:0;accent-color:var(--abysse)}
+.trait-piste,.trait-bande{display:inline-block;width:22px;border-radius:2px;background:#fff;box-shadow:0 0 0 1.5px rgba(11,46,56,.7)}
+.trait-piste{height:3px;margin-left:4px}
+.trait-bande{height:2px;margin-left:8px}
 .legende{display:grid;grid-template-columns:repeat(8,1fr)}
 .legende .case{height:12px}
 .legende .case:first-child{border-radius:3px 0 0 3px}
@@ -159,6 +164,11 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <h2>Temps de trajet en minutes</h2>
       <div class="legende" id="legende"></div>
       <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45 min. En gris : hors d'atteinte avec ce réseau. Sur le continent, le calcul s'arrête à 12 km du pont (pointillés).</p>
+      <label class="case-reseau" for="voir-reseau">
+        <input type="checkbox" id="voir-reseau" checked>
+        <span class="trait-piste" aria-hidden="true"></span> Pistes et voies vertes
+        <span class="trait-bande" aria-hidden="true"></span> Bandes
+      </label>
     </div>
 
     <div class="bloc">
@@ -427,8 +437,8 @@ if (typeof module !== "undefined") {
   const carte = L.map("carte", { zoomControl: false, minZoom: 9, zoomSnap: 0.25 });
   L.control.zoom({ position: "topright" }).addTo(carte);
   L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
-    { maxZoom: 19, attribution: "Fond © IGN | Réseau © contributeurs OpenStreetMap" }).addTo(carte);
-  for (const [nom, z] of [["chaleur", 350], ["iso", 360], ["trace", 450]]) {
+    { maxZoom: 19, attribution: "Fond © IGN | Réseau cyclable CdC Île d'Oléron, © contributeurs OpenStreetMap" }).addTo(carte);
+  for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["trace", 450]]) {
     const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace") p.style.pointerEvents = "none";
   }
   const contour = L.geoJSON(D.contour, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
@@ -443,6 +453,25 @@ if (typeof module !== "undefined") {
   const image = ctx.createImageData(g.nx, g.ny);
   const chaleur = L.imageOverlay(toile.toDataURL(), bornesGrille, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
   const iso = L.layerGroup().addTo(carte);
+
+  // Réseau aménagé (classes 0-1) par-dessus la chaleur : trait blanc bordé de sombre, lisible sur toutes les teintes
+  const reseau = L.layerGroup().addTo(carte);
+  {
+    const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
+    const segments = [[], []];                           // [pistes, bandes]
+    for (let e = 0; e < P.m; e++) {
+      const c = P.cls[e];
+      if (c <= 1) segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
+    }
+    const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
+    L.polyline(segments[0], { ...style, color: "#0B2E38", weight: 3.6, opacity: .55 }).addTo(reseau);
+    L.polyline(segments[1], { ...style, color: "#0B2E38", weight: 2.8, opacity: .5 }).addTo(reseau);
+    L.polyline(segments[0], { ...style, color: "#fff", weight: 1.6, opacity: .95 }).addTo(reseau);
+    L.polyline(segments[1], { ...style, color: "#fff", weight: 1, opacity: .9 }).addTo(reseau);
+  }
+  $("#voir-reseau").addEventListener("change", ev => {
+    if (ev.target.checked) reseau.addTo(carte); else reseau.remove();
+  });
   const trace = L.layerGroup().addTo(carte);
 
   const icone = (lettre, cls) => L.divIcon({ className: "", html: `<span class="repere ${cls}">${lettre}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
