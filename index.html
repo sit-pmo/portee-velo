@@ -450,7 +450,18 @@ if (typeof module !== "undefined") {
   const etroit = () => window.matchMedia("(max-width:720px)").matches;
   carte.fitBounds(contour.getBounds(), etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] });
   // Emprise bloquée : on ne peut ni partir loin du territoire ni dézoomer au-delà de la vue d'ensemble
-  carte.setMaxBounds(bornesGrille.pad(0.05));
+  // La butée est élargie du côté du panneau (à gauche sur ordinateur, en bas sur mobile), sinon le panneau
+  // masque le bord du territoire quand on est en butée. Recalculée à chaque zoom : la marge vaut toujours
+  // la taille du panneau à l'écran, quel que soit le zoom.
+  function majButee() {
+    const b = bornesGrille.pad(0.05), vue = carte.getBounds(), taille = carte.getSize();
+    const degParPxLon = (vue.getEast() - vue.getWest()) / taille.x, degParPxLat = (vue.getNorth() - vue.getSouth()) / taille.y;
+    const ouest = etroit() ? b.getWest() : b.getWest() - 420 * degParPxLon;
+    const sud = etroit() ? b.getSouth() - window.innerHeight * .55 * degParPxLat : b.getSouth();
+    carte.setMaxBounds(L.latLngBounds([sud, ouest], [b.getNorth(), b.getEast()]));
+  }
+  majButee();
+  carte.on("zoomend resize", majButee);
   carte.options.maxBoundsViscosity = 1;
   carte.setMinZoom(carte.getZoom() - 0.5);
 
