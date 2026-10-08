@@ -1,0 +1,8 @@
+# Publication GitHub Pages : uniquement ce qui sert au rendu de la carte.
+# Tout est ignoré par défaut, puis on autorise explicitement les fichiers publiés.
+*
+!.gitignore
+!.nojekyll
+!index.html
+!data/
+!data/oleron_velo.js
