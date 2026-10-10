@@ -5,7 +5,9 @@
 !.nojekyll
 !index.html
 !comparer.html
+!simuler.html
 !coeur.js
+!scenario.js
 !README.md
 !LICENSE
 !data/

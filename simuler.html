@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>À portée de vélo – Simuler un aménagement</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+/* Même palette et même panneau que index.html ; orange réservé aux tronçons projetés */
+:root{
+  --abysse:#005267; --lagon:#08B8DC; --soleil:#FFDE12; --encre:#13252B; --ardoise:#4F6268;
+  --brume:#E4EDEF; --papier:#FFFFFF; --projet:#E8590C; --gain:#1F7A4D;
+  --serif:"Libre Baskerville", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--sans);color:var(--encre);background:#d5dfe2;font-size:15px;line-height:1.45}
+#carte{position:fixed;inset:0}
+#carte.dessin{cursor:crosshair}
+.leaflet-container{font-family:var(--sans);background:#cfdbdf}
+#carte.dessin .leaflet-interactive,#carte.dessin.leaflet-grab{cursor:crosshair}
+.leaflet-tile-pane{filter:grayscale(1) contrast(.9) brightness(1.07)}
+.leaflet-control-attribution{font-size:11px}
+
+.panneau{position:absolute;z-index:1000;top:16px;left:16px;bottom:16px;width:min(380px,calc(100vw - 32px));
+  background:var(--papier);border-radius:12px;box-shadow:0 12px 32px rgba(0,40,52,.2);display:flex;flex-direction:column;overflow:hidden}
+.entete{padding:18px 22px 14px;background:var(--abysse);color:#fff;position:relative}
+.entete h1{font-family:var(--serif);font-weight:700;font-size:1.45rem;line-height:1.15;margin:0;letter-spacing:-.01em}
+.entete p{margin:.45rem 0 0;color:#c9edf5;font-size:.88rem;max-width:34ch}
+.defile{overflow-y:auto;padding:2px 22px 18px;flex:1}
+.bloc{padding:14px 0;border-bottom:1px solid var(--brume)}
+.bloc:last-of-type{border-bottom:0}
+h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
+.note{font-size:.83rem;color:var(--ardoise);margin:8px 0 0}
+
+.bascule{display:grid;grid-template-columns:1fr 1fr;background:var(--brume);border-radius:8px;padding:3px;gap:3px}
+.bascule.trois{grid-template-columns:1fr 1fr 1fr}
+.bascule button{font:inherit;font-size:.86rem;font-weight:600;border:0;border-radius:6px;padding:8px 6px;background:transparent;color:var(--ardoise);cursor:pointer}
+.bascule button[aria-pressed="true"]{background:var(--papier);color:var(--abysse);box-shadow:0 1px 3px rgba(0,40,52,.18)}
+.bascule button:disabled{opacity:.45;cursor:default}
+
+.bouton{font:inherit;font-weight:600;font-size:.9rem;width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--abysse);background:#fff;color:var(--abysse);cursor:pointer}
+.bouton:hover{background:#eef8fb}
+.bouton[aria-pressed="true"]{background:var(--abysse);color:#fff}
+.bouton.principal{background:var(--projet);border-color:var(--projet);color:#fff}
+.bouton.principal:hover{background:#cf4f0a}
+.rangee{display:flex;gap:8px;margin-top:8px}
+.rangee .bouton{flex:1;font-size:.84rem;padding:8px 8px}
+.lien-action{font:inherit;font-size:.83rem;background:none;border:0;padding:0;color:var(--abysse);text-decoration:underline;cursor:pointer}
+.liens{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px}
+
+.dessin-actif{margin-top:10px;padding:10px 12px;border-radius:8px;background:#fff1e8;border:1px solid #f6c7aa;font-size:.85rem}
+.dessin-actif p{margin:0 0 4px}
+.dessin-actif kbd{font:600 .74rem var(--sans);background:#fff;border:1px solid #e3b598;border-radius:4px;padding:0 4px}
+
+.troncons{list-style:none;margin:10px 0 0;padding:0}
+.troncons li{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;padding:7px 0;border-top:1px solid var(--brume)}
+.troncons input[type=checkbox]{margin:0;accent-color:var(--projet);width:16px;height:16px}
+.troncons .nom{font:inherit;font-size:.88rem;font-weight:600;border:1px solid transparent;border-radius:5px;padding:2px 5px;width:100%;color:var(--encre);background:transparent}
+.troncons .nom:hover,.troncons .nom:focus{border-color:#c3d3d7;background:#fff}
+.troncons small{display:block;padding-left:6px;color:var(--ardoise);font-size:.76rem}
+.troncons .suppr{font:inherit;font-size:1.1rem;line-height:1;width:30px;height:30px;border:0;border-radius:6px;background:transparent;color:var(--ardoise);cursor:pointer}
+.troncons .suppr:hover{background:var(--brume);color:#7a1f0e}
+.troncons .vide{display:block;color:var(--ardoise);font-size:.85rem;border-top:0;padding:4px 0 0}
+
+.compare .ligne{display:grid;grid-template-columns:3.6em 1fr 6.6em 3.6em;gap:8px;align-items:center;font-size:.86rem;margin-bottom:6px}
+.compare .jauge{position:relative;height:9px;background:var(--brume);border-radius:4px;overflow:hidden}
+.compare .jauge span{position:absolute;left:0;top:0;bottom:0}
+.compare .jauge .p{background:var(--projet)}
+.compare .jauge .e{background:var(--abysse)}
+.compare .valeur{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.compare .valeur b{font-weight:700}
+.compare .ecart{text-align:right;font-variant-numeric:tabular-nums;font-size:.8rem;font-weight:700;color:var(--ardoise)}
+.compare .ecart.plus{color:var(--gain)}
+.cles{display:flex;gap:14px;font-size:.76rem;color:var(--ardoise);margin-top:4px}
+.cles i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+.chiffres{margin:10px 0 0;font-size:.86rem}
+.chiffres b{font-variant-numeric:tabular-nums}
+
+.duree{font-family:var(--serif);font-size:2.2rem;line-height:1;color:var(--abysse);margin:2px 0 4px}
+.duree small{font-family:var(--sans);font-size:.95rem;font-weight:700;color:var(--gain);margin-left:6px}
+.detail{margin:0 0 6px;font-size:.88rem}
+.message{margin:10px 0 0;padding:9px 11px;background:#fff8cc;border-radius:8px;font-size:.87rem}
+
+.legende{display:grid;grid-template-columns:repeat(8,1fr)}
+.legende.gain{grid-template-columns:repeat(7,1fr)}
+.legende .case{height:12px}
+.legende .case:first-child{border-radius:3px 0 0 3px}
+.legende .case:last-child{border-radius:0 3px 3px 0}
+.legende .graduations{grid-column:1/-1;display:grid;grid-template-columns:inherit;font-size:.75rem;color:var(--ardoise);font-variant-numeric:tabular-nums;margin-top:3px}
+.legende .graduations span{display:flex;justify-content:flex-end}
+.legende .graduations i{font-style:normal;transform:translateX(50%)}
+.legende.gain .graduations span{justify-content:center}
+.legende.gain .graduations i{transform:none}
+
+.repere{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;font:700 13px/1 var(--sans);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.repere-d{background:var(--abysse);color:#fff;border:3px solid #fff}
+.repere-a{background:var(--soleil);color:var(--encre);border:3px solid var(--encre)}
+.erreur{margin:14px 0;padding:12px;border-radius:8px;background:#fde7e2;color:#7a1f0e;font-size:.9rem}
+
+button:focus-visible,input:focus-visible,a:focus-visible,.leaflet-marker-icon:focus-visible{outline:3px solid var(--lagon);outline-offset:2px}
+
+.replier{display:none}
+@media (max-width:720px){
+  .panneau{top:auto;left:0;right:0;bottom:0;width:auto;max-height:55vh;border-radius:14px 14px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .entete{padding:12px 18px 10px}
+  .entete h1{font-size:1.2rem}
+  .entete p{display:none}
+  .defile{padding:0 18px 14px}
+  .replier{display:flex;align-items:center;gap:4px;position:absolute;top:6px;right:8px;height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#fff;font:600 .8rem var(--sans);cursor:pointer}
+  .replier .fleche{font-size:1.4rem;line-height:1;transition:transform .2s}
+  .panneau.replie .defile{display:none}
+  .panneau.replie .replier .fleche{transform:rotate(180deg)}
+}
+</style>
+</head>
+<body>
+<div id="carte" role="application" aria-label="Carte de simulation des temps de trajet à vélo"></div>
+
+<aside class="panneau" aria-label="Simulation et résultats">
+  <header class="entete">
+    <button type="button" class="replier" id="replier" aria-expanded="true"><span class="texte">Replier</span> <span class="fleche" aria-hidden="true">▾</span></button>
+    <h1>Simuler un aménagement</h1>
+    <p>Tracez une piste ou une bande : les temps de trajet se recalculent et se comparent au réseau actuel.</p>
+  </header>
+  <div class="defile">
+    <div id="erreur" class="erreur" hidden>Données absentes : <code>data/portee_velo.js</code> doit être à côté de cette page.</div>
+
+    <div class="bloc">
+      <h2>Tronçons projetés</h2>
+      <div class="bascule trois" role="group" aria-label="Type du prochain tronçon">
+        <button type="button" data-type="piste" aria-pressed="true">Piste enrobée</button>
+        <button type="button" data-type="stabilise" aria-pressed="false">Stabilisé</button>
+        <button type="button" data-type="bande" aria-pressed="false">Bande</button>
+      </div>
+      <div class="rangee">
+        <button type="button" class="bouton principal" id="tracer">Tracer un tronçon</button>
+      </div>
+      <div class="dessin-actif" id="aide-dessin" hidden>
+        <p>Cliquez pour poser les points ; ils s'accrochent au réseau quand vous passez près d'une voie (<kbd>Alt</kbd> pour poser librement).</p>
+        <p><kbd>Entrée</kbd> ou double-clic pour terminer, <kbd>Retour arrière</kbd> pour retirer le dernier point, <kbd>Échap</kbd> pour abandonner.</p>
+        <div class="rangee">
+          <button type="button" class="bouton" id="terminer">Terminer</button>
+          <button type="button" class="bouton" id="retirer">Retirer le point</button>
+          <button type="button" class="bouton" id="abandonner">Abandonner</button>
+        </div>
+      </div>
+      <ul class="troncons" id="troncons"></ul>
+      <div class="liens">
+        <button type="button" class="lien-action" id="importer">Importer un GeoJSON</button>
+        <button type="button" class="lien-action" id="exporter">Exporter en GeoJSON</button>
+        <button type="button" class="lien-action" id="effacer-tout">Tout effacer</button>
+      </div>
+      <input type="file" id="fichier" accept=".geojson,.json,application/geo+json,application/json" hidden>
+      <p class="note">Chaque tronçon est raccordé aux voies qu'il croise et, à ses extrémités, à la voie la plus proche à moins de 30 m.</p>
+    </div>
+
+    <div class="bloc">
+      <div class="bascule" role="group" aria-label="Réseau utilisé">
+        <button type="button" data-mode="amenage" aria-pressed="false">Pistes et bandes</button>
+        <button type="button" data-mode="tout" aria-pressed="true">Pistes + routes</button>
+      </div>
+      <p class="note" id="note-mode"></p>
+    </div>
+
+    <div class="bloc" aria-live="polite">
+      <h2 id="titre-compare">Surface atteinte depuis ce départ</h2>
+      <div id="compare" class="compare"></div>
+      <div class="cles"><span><i style="background:var(--abysse)"></i>Réseau actuel</span><span><i style="background:var(--projet)"></i>Gain du projet</span></div>
+      <p class="chiffres" id="chiffres"></p>
+      <p id="message" class="message" hidden></p>
+    </div>
+
+    <div class="bloc" id="bloc-trajet" aria-live="polite">
+      <button type="button" class="bouton" id="suivre" aria-pressed="false" hidden>Suivre la souris</button>
+      <p class="note" id="consigne"></p>
+      <div id="resultat" hidden>
+        <div class="duree" id="duree"></div>
+        <p class="detail" id="detail"></p>
+        <button type="button" class="lien-action" id="effacer-arrivee">Retirer l'arrivée</button>
+      </div>
+    </div>
+
+    <div class="bloc">
+      <div class="bascule trois" role="group" aria-label="Carte affichée">
+        <button type="button" data-vue="projet" aria-pressed="true">Avec projet</button>
+        <button type="button" data-vue="existant" aria-pressed="false">Actuel</button>
+        <button type="button" data-vue="gain" aria-pressed="false">Gain</button>
+      </div>
+      <h2 id="titre-legende" style="margin-top:12px">Temps de trajet en minutes</h2>
+      <div class="legende" id="legende"></div>
+      <p class="note" id="note-legende"></p>
+    </div>
+
+    <div class="bloc">
+      <button type="button" class="bouton" id="partager">Copier le lien de ce scénario</button>
+      <p class="note"><a href="./" id="retour">Retour à la carte</a> · Modèle de calcul identique à la carte principale (vitesses, majorations, accès au réseau).</p>
+    </div>
+  </div>
+</aside>
+
+<script src="data/portee_velo.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="coeur.js"></script>
+<script src="scenario.js"></script>
+<script>
+document.getElementById("replier").addEventListener("click", e => {
+  const replie = document.querySelector(".panneau").classList.toggle("replie");
+  e.currentTarget.setAttribute("aria-expanded", String(!replie));
+  e.currentTarget.querySelector(".texte").textContent = replie ? "Déplier" : "Replier";
+});
+
+(function simuler() {
+  const D = window.PORTEE_VELO;
+  const $ = s => document.querySelector(s);
+  if (!D) { $("#erreur").hidden = false; return; }
+
+  const SEUILS = [5, 10, 15, 20, 30, 45, 60], ISO = [15, 30, 45, 60], PALIERS = [15, 30, 45];
+  const COULEURS = ["#FFDE12", "#C5D93E", "#8FCB5E", "#5BB86E", "#2E9A5C", "#0485A1", "#005267", "#1E2529"];
+  const RGB = COULEURS.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  // Gain : moins d'1 min (inchangé), puis 1-3, 3-5, 5-10, 10-15, plus de 15 min ; jaune = devient accessible
+  const GAINS = [1, 3, 5, 10, 15];
+  const COUL_GAIN = ["#E9EFF1", "#BFE6EF", "#7CCDE1", "#2BA9C8", "#0485A1", "#005267", "#FFDE12"];
+  const RGB_GAIN = COUL_GAIN.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const NOTES = {
+    amenage: `Uniquement les pistes, voies vertes et bandes, existantes ou projetées. En gris, les secteurs à plus de ${CFG.accesMaxM.amenage} m de ce réseau.`,
+    tout: "Pistes et bandes complétées par les routes et chemins, avec un temps majoré selon le type de voie (comme sur la carte principale).",
+  };
+
+  // ---------- Données ----------
+  const P = preparer(D), g = P.grille;
+  const versionOleron = new URLSearchParams(location.search).get("territoire") === "oleron" && !!D.grille.oleron;
+  if (versionOleron) for (let k = 0; k < g.ile.length; k++) { g.ile[k] = D.grille.oleron[k]; if (!D.grille.oleron[k]) g.dedans[k] = 0; }
+  if (versionOleron) { $("#titre-compare").textContent = "Surface de l'île atteinte depuis ce départ"; $("#retour").href = "./" + location.search; }
+  const Gb = { tout: construireGraphe(P, "tout"), amenage: construireGraphe(P, "amenage") };
+  const idx = indexerAretes(P);
+  const kmCellule = (D.meta.pas_m || 100) ** 2 / 1e6;
+  const bornesGrille = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
+
+  const etat = {
+    mode: "tout", vue: "projet", vueChoisie: false, suivre: false, depart: null, arrivee: null,
+    type: "piste", traces: [], dessin: null, compteur: 0,
+    S: null, Gs: {}, base: null, projet: null,
+  };
+
+  // ---------- Carte ----------
+  const carte = L.map("carte", { zoomControl: false, minZoom: 9, zoomSnap: 0.25 });
+  L.control.zoom({ position: "topright" }).addTo(carte);
+  L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+    { maxZoom: 19, attribution: "Fond © IGN | Réseaux cyclables CdC Île d'Oléron et CC Bassin de Marennes, © contributeurs OpenStreetMap" }).addTo(carte);
+  for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["projet", 440], ["trace", 450]]) {
+    const p = carte.createPane(nom); p.style.zIndex = z; p.style.pointerEvents = "none";
+  }
+  const contour = L.geoJSON(versionOleron ? D.contour_oleron : D.contour, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
+  const etroit = () => window.matchMedia("(max-width:720px)").matches;
+  carte.fitBounds(contour.getBounds(), etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] });
+  carte.setMinZoom(carte.getZoom() - 0.5);
+
+  const toile = document.createElement("canvas"); toile.width = g.nx; toile.height = g.ny;
+  const ctx = toile.getContext("2d"), image = ctx.createImageData(g.nx, g.ny);
+  const chaleur = L.imageOverlay(toile.toDataURL(), bornesGrille, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
+  const iso = L.layerGroup().addTo(carte);
+  {
+    const rendu = L.canvas({ pane: "reseau", padding: 0.3 }), segments = [[], [], []];
+    const origines = D.meta.origines || [], o = D.aretes.o || [];
+    const collectivite = new Set(["ccio", "ccbm"].map(n => origines.indexOf(n)).filter(i => i >= 0));
+    for (let e = 0; e < P.m; e++) {
+      const c = P.cls[e];
+      if (c <= 1 || (c === 2 && collectivite.has(o[e]))) segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
+    }
+    const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
+    L.polyline(segments[0], { ...style, color: "#fff", weight: 1.2, opacity: .6 }).addTo(carte);
+    L.polyline(segments[1], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "2 3" }).addTo(carte);
+    L.polyline(segments[2], { ...style, color: "#fff", weight: 1, opacity: .45, dashArray: "1 4" }).addTo(carte);
+  }
+  const coucheProjet = L.layerGroup().addTo(carte), coucheTrajet = L.layerGroup().addTo(carte);
+  const apercu = L.polyline([], { pane: "projet", color: "#E8590C", weight: 2, dashArray: "4 5", interactive: false }).addTo(carte);
+  const repereAccroche = L.circleMarker([0, 0], { pane: "projet", radius: 6, color: "#E8590C", weight: 2, fillColor: "#fff", fillOpacity: 1, interactive: false });
+
+  const icone = (lettre, cls) => L.divIcon({ className: "", html: `<span class="repere ${cls}">${lettre}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+  const marqueurDepart = L.marker([0, 0], { draggable: true, icon: icone("D", "repere-d"), title: "Départ, à faire glisser", zIndexOffset: 1000 });
+  const marqueurArrivee = L.marker([0, 0], { draggable: true, icon: icone("A", "repere-a"), title: "Arrivée, à faire glisser" });
+
+  // ---------- Scénario ----------
+  const tracesCalcul = () => {
+    const l = etat.traces.filter(t => t.actif);
+    if (etat.dessin && etat.dessin.coords.length >= 2) l.push(etat.dessin);
+    return l;
+  };
+  function majScenario() {
+    const l = tracesCalcul();
+    etat.S = l.length ? construireScenario(P, idx, l) : null;
+    etat.Gs = {};
+  }
+  const grapheProjet = mode => etat.Gs[mode] || (etat.Gs[mode] = construireGraphe(etat.S, mode));
+  const videGrille = () => new Float32Array(g.nx * g.ny).map((_, k) => (g.dedans[k] ? Infinity : NaN));
+
+  // ---------- Calcul : réseau actuel et projet, même départ ----------
+  function calculer(complet) {
+    const mode = etat.mode, lon = etat.depart.lng, lat = etat.depart.lat;
+    const accB = accrocher(P, Gb[mode], lon, lat);
+    if (accB && accB.distM <= CFG.accesMaxM[mode]) {
+      const res = dijkstra(Gb[mode], accB.noeud, accesSecondes(accB.distM));
+      etat.base = { res, acc: accB, minutes: tempsGrille(P, Gb[mode], res) };
+    } else etat.base = { res: null, acc: null, minutes: videGrille() };
+
+    if (etat.S) {
+      const Gs = grapheProjet(mode), dp = departProjet(P, Gb[mode], etat.S, Gs, lon, lat);
+      etat.projet = dp ? { ...dp, minutes: tempsGrilleProjet(P, etat.S, mode, dp.res) } : { res: null, acc: null, minutes: videGrille() };
+    } else etat.projet = etat.base;
+
+    afficherMessage(!etat.base.res && !etat.projet.res
+      ? `Ce départ est à plus de ${CFG.accesMaxM[mode]} m du réseau${etat.S ? ", même avec le projet" : ""}. Rapprochez le repère D d'une voie${mode === "amenage" ? " ou passez en mode « Pistes + routes »" : ""}.`
+      : "");
+    dessinerCarte(complet);
+    afficherComparaison();
+    majArrivee();
+    if (complet) majLien();
+  }
+
+  function dessinerCarte(complet) {
+    const px = image.data, b = etat.base.minutes, p = etat.projet.minutes;
+    if (etat.vue === "gain") {
+      for (let k = 0; k < p.length; k++) {
+        const o = k * 4, mp = p[k], mb = b[k];
+        if (Number.isNaN(mp)) { px[o + 3] = 0; continue; }
+        if (!isFinite(mp)) { px[o] = 96; px[o + 1] = 108; px[o + 2] = 112; px[o + 3] = 120; continue; }
+        let c;
+        if (!isFinite(mb)) c = 6;
+        else { const d = mb - mp; c = 0; while (c < GAINS.length && d >= GAINS[c]) c++; }
+        const [r, v, bl] = RGB_GAIN[c];
+        px[o] = r; px[o + 1] = v; px[o + 2] = bl; px[o + 3] = c === 0 ? 150 : 255;
+      }
+    } else {
+      const min = etat.vue === "existant" ? b : p;
+      for (let k = 0; k < min.length; k++) {
+        const m = min[k], o = k * 4;
+        if (Number.isNaN(m)) { px[o + 3] = 0; continue; }
+        if (!isFinite(m)) { px[o] = 96; px[o + 1] = 108; px[o + 2] = 112; px[o + 3] = 120; continue; }
+        let c = 0; while (c < SEUILS.length && m > SEUILS[c]) c++;
+        const [r, v, bl] = RGB[c];
+        px[o] = r; px[o + 1] = v; px[o + 2] = bl; px[o + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    chaleur.setUrl(toile.toDataURL());
+    if (complet && etat.vue !== "gain") dessinerIsolignes(etat.vue === "existant" ? b : p); else iso.clearLayers();
+  }
+
+  function dessinerIsolignes(min) {
+    iso.clearLayers();
+    const f = champIsolignes(P, min);
+    if (!f) return;
+    for (const c of d3.contours().size([g.nx, g.ny]).thresholds(ISO)(f.champ)) {
+      const lignes = [];
+      for (const poly of c.coordinates) for (const anneau of poly) {
+        let cour = [];
+        for (const [x, y] of anneau) {
+          const i = Math.min(g.nx - 1, Math.max(0, Math.floor(x))), j = Math.min(g.ny - 1, Math.max(0, Math.floor(y)));
+          if (f.masque[j * g.nx + i]) cour.push([g.n - y * g.dlat, g.w + x * g.dlon]);
+          else { if (cour.length > 1) lignes.push(cour); cour = []; }
+        }
+        if (cour.length > 1) lignes.push(cour);
+      }
+      if (!lignes.length) continue;
+      const plein = c.value % 30 === 0;
+      L.polyline(lignes, { pane: "iso", interactive: false, color: "#0B2E38", opacity: .8, weight: plein ? 1.8 : 1.1, dashArray: plein ? null : "4 4" }).addTo(iso);
+    }
+  }
+
+  const pct = x => Math.round(x * 100);
+  const fmtKm = m => m >= 1000 ? `${(m / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km` : `${Math.round(m / 10) * 10} m`;
+  const fmtKm2 = x => `${x.toLocaleString("fr-FR", { maximumFractionDigits: x < 10 ? 1 : 0 })} km²`;
+  const fmtMin = s => { const m = Math.round(s / 60); if (m < 1) return "moins d'1 min"; if (m < 60) return `${m} min`; return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`; };
+  const echapper = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  function afficherMessage(t) { const el = $("#message"); el.hidden = !t; el.textContent = t || ""; }
+
+  function afficherComparaison() {
+    const cb = couverture(P, etat.base.minutes, PALIERS), cp = couverture(P, etat.projet.minutes, PALIERS);
+    $("#compare").innerHTML = PALIERS.map((s, i) => {
+      const e = pct(cb[i]), p = pct(cp[i]), d = p - e;
+      return `<div class="ligne"><span>${s} min</span><span class="jauge"><span class="p" style="width:${p}%"></span><span class="e" style="width:${e}%"></span></span>`
+        + `<span class="valeur">${e} % → <b>${p} %</b></span><span class="ecart ${d > 0 ? "plus" : ""}">${d > 0 ? "+" : ""}${d} pt${Math.abs(d) > 1 ? "s" : ""}</span></div>`;
+    }).join("");
+    if (!etat.S) { $("#chiffres").textContent = "Tracez un tronçon ou importez un GeoJSON pour mesurer son effet."; return; }
+    let gagne = 0, nouvelles = 0, somme = 0;
+    const b = etat.base.minutes, p = etat.projet.minutes;
+    for (let k = 0; k < p.length; k++) {
+      if (!g.ile[k] || !g.dedans[k] || !isFinite(p[k])) continue;
+      if (!isFinite(b[k])) { nouvelles++; continue; }
+      const d = b[k] - p[k];
+      if (d >= 1) { gagne++; somme += d; }
+    }
+    const parts = [];
+    if (gagne) parts.push(`<b>${fmtKm2(gagne * kmCellule)}</b> gagnent au moins 1 min (<b>${Math.round(somme / gagne)} min</b> en moyenne)`);
+    if (nouvelles) parts.push(`<b>${fmtKm2(nouvelles * kmCellule)}</b> deviennent accessibles`);
+    $("#chiffres").innerHTML = parts.length
+      ? "Depuis ce départ, " + parts.join(" et ") + "."
+      :"Depuis ce départ, le projet ne fait gagner aucune minute. Déplacez le départ ou vérifiez que les tronçons sont bien raccordés au réseau.";
+  }
+
+  // ---------- Trajet départ → arrivée : avant / après ----------
+  function majArrivee() {
+    coucheTrajet.clearLayers();
+    const aideFixe = etat.suivre ? "Déplacez la souris : les temps suivent. Cliquez pour fixer le départ." : "Cliquez sur la carte pour choisir une arrivée et comparer le trajet. Faites glisser le repère D pour changer de départ.";
+    $("#consigne").textContent = etat.dessin ? "Tracé en cours : le départ reste fixe." : aideFixe;
+    if (!etat.arrivee || etat.dessin) { $("#resultat").hidden = true; $("#consigne").hidden = false; return; }
+    $("#consigne").hidden = true; $("#resultat").hidden = false;
+    const mode = etat.mode, { lat, lng } = etat.arrivee;
+    let avant = null, apres = null;
+    if (etat.base.res) {
+      const acc = accrocher(P, Gb[mode], lng, lat);
+      if (acc && acc.distM <= CFG.accesMaxM[mode] && isFinite(etat.base.res.dist[acc.noeud]))
+        avant = { G: Gb[mode], S: P, res: etat.base.res, noeud: acc.noeud, total: etat.base.res.dist[acc.noeud] + accesSecondes(acc.distM) };
+    }
+    if (etat.S && etat.projet.res) {
+      const Gs = grapheProjet(mode), acc = arriveeProjet(P, Gb[mode], etat.S, Gs, etat.projet.res, lng, lat);
+      if (acc) apres = { G: Gs, S: etat.S, res: etat.projet.res, noeud: acc.noeud, total: acc.total };
+    } else if (!etat.S) apres = avant;
+
+    if (!apres) {
+      $("#duree").textContent = "Hors d'atteinte";
+      $("#detail").textContent = mode === "amenage" ? "Pas de liaison par les pistes et bandes, même avec le projet." : "Cette arrivée est trop loin d'une voie praticable.";
+      return;
+    }
+    const mesurer = t => {
+      const arcs = itineraire(t.G, t.res, t.noeud);
+      let lg = 0, amen = 0, proj = 0;
+      for (const k of arcs) {
+        const e = t.G.arete[k], l = t.S.lm[e];
+        lg += l; if (t.S.cls[e] <= 1) amen += l; if (t.S.nom[e] >= P.noms.length) proj += l;
+      }
+      return { arcs, lg, amen, proj };
+    };
+    const pt = (S, v) => [S.lat[v], S.lon[v]];
+    const ligne = t => { const a = t.arcs; return a.length ? [pt(t.S, t.G.source[a[0]]), ...a.map(k => pt(t.S, t.G.cible[k]))] : [pt(t.S, t.noeud)]; };
+    const mA = mesurer(apres);
+    if (avant && etat.S) {
+      const mB = mesurer(avant);
+      L.polyline(ligne({ ...avant, arcs: mB.arcs }), { pane: "trace", color: "#13252B", weight: 2.5, opacity: .75, dashArray: "6 6", interactive: false }).addTo(coucheTrajet);
+    }
+    L.polyline(ligne({ ...apres, arcs: mA.arcs }), { pane: "trace", color: "#fff", weight: 8, opacity: .95, interactive: false }).addTo(coucheTrajet);
+    L.polyline(ligne({ ...apres, arcs: mA.arcs }), { pane: "trace", color: etat.S ? "#E8590C" : "#005267", weight: 4.5, interactive: false }).addTo(coucheTrajet);
+
+    const gain = avant ? Math.round(avant.total / 60) - Math.round(apres.total / 60) : null;
+    $("#duree").innerHTML = `${fmtMin(apres.total)}${etat.S && gain > 0 ? `<small>−${gain} min</small>` : ""}`;
+    let txt = etat.S ? (avant ? `Actuellement ${fmtMin(avant.total)}${gain > 0 ? "" : " : le projet ne raccourcit pas ce trajet"}. ` : "Trajet impossible sans le projet. ") : "";
+    txt += `${fmtKm(mA.lg)}, dont ${fmtKm(mA.amen)} sur piste ou bande`;
+    if (mA.proj > 0) txt += ` et ${fmtKm(mA.proj)} sur les tronçons projetés`;
+    $("#detail").textContent = txt + (etat.S && avant ? ". En tirets : l'itinéraire actuel." : ".");
+  }
+
+  // ---------- Tronçons : dessin, liste, import / export ----------
+  const longueurM = c => { let l = 0; for (let i = 1; i < c.length; i++) l += distanceM(c[i - 1][0], c[i - 1][1], c[i][0], c[i][1]); return l; };
+  const LIBELLES = { piste: "Piste enrobée", stabilise: "Piste en stabilisé", bande: "Bande cyclable" };
+
+  function dessinerProjet() {
+    coucheProjet.clearLayers();
+    const ll = c => c.map(([lon, lat]) => [lat, lon]);
+    for (const t of etat.traces) {
+      if (t.actif) L.polyline(ll(t.coords), { pane: "projet", color: "#fff", weight: 8, opacity: .95, interactive: false, lineCap: "round", lineJoin: "round" }).addTo(coucheProjet);
+      L.polyline(ll(t.coords), { pane: "projet", color: t.actif ? "#E8590C" : "#7d8b8f", weight: t.actif ? 4 : 3, dashArray: t.type === "bande" ? "8 5" : t.actif ? null : "3 5", interactive: false, lineCap: "round" }).addTo(coucheProjet);
+    }
+    const d = etat.dessin;
+    if (d) {
+      if (d.coords.length > 1) {
+        L.polyline(ll(d.coords), { pane: "projet", color: "#fff", weight: 8, opacity: .95, interactive: false }).addTo(coucheProjet);
+        L.polyline(ll(d.coords), { pane: "projet", color: "#E8590C", weight: 4, dashArray: d.type === "bande" ? "8 5" : null, interactive: false }).addTo(coucheProjet);
+      }
+      d.coords.forEach(([lon, lat], i) => L.circleMarker([lat, lon], { pane: "projet", radius: d.accroches[i] ? 5 : 4, color: "#E8590C", weight: 2, fillColor: d.accroches[i] ? "#E8590C" : "#fff", fillOpacity: 1, interactive: false }).addTo(coucheProjet));
+    }
+  }
+
+  function listerTroncons() {
+    const ul = $("#troncons");
+    if (!etat.traces.length) { ul.innerHTML = `<li class="vide">Aucun tronçon pour l'instant.</li>`; return; }
+    ul.innerHTML = etat.traces.map((t, i) => `<li>
+      <input type="checkbox" data-i="${i}" ${t.actif ? "checked" : ""} aria-label="Prendre en compte ${echapper(t.nom)}">
+      <span><input class="nom" data-i="${i}" value="${echapper(t.nom)}" aria-label="Nom du tronçon"><small>${LIBELLES[t.type]} · ${fmtKm(longueurM(t.coords))}</small></span>
+      <button type="button" class="suppr" data-i="${i}" aria-label="Supprimer ${echapper(t.nom)}" title="Supprimer">×</button></li>`).join("");
+    const km = etat.traces.filter(t => t.actif).reduce((s, t) => s + longueurM(t.coords), 0);
+    ul.insertAdjacentHTML("beforeend", `<li class="vide">${fmtKm(km)} pris en compte dans le calcul.</li>`);
+  }
+  $("#troncons").addEventListener("change", ev => {
+    const i = +ev.target.dataset.i;
+    if (ev.target.type === "checkbox") { etat.traces[i].actif = ev.target.checked; toutRecalculer(); }
+    else if (ev.target.classList.contains("nom")) { etat.traces[i].nom = ev.target.value.trim() || etat.traces[i].nom; }
+  });
+  $("#troncons").addEventListener("click", ev => {
+    const b = ev.target.closest(".suppr");
+    if (!b) return;
+    etat.traces.splice(+b.dataset.i, 1);
+    toutRecalculer();
+  });
+
+  function toutRecalculer() {
+    majScenario(); dessinerProjet(); listerTroncons();
+    $("#effacer-tout").hidden = !etat.traces.length;
+    $("#exporter").hidden = !etat.traces.length;
+    if (etat.depart) calculer(true);
+  }
+
+  // Dessin
+  function commencerDessin() {
+    if (etat.dessin) return terminerDessin();
+    if (etat.suivre) suivre(false);
+    etat.dessin = { type: etat.type, nom: `Tronçon ${++etat.compteur}`, coords: [], accroches: [], actif: true };
+    carte.doubleClickZoom.disable();
+    $("#carte").classList.add("dessin");
+    $("#tracer").textContent = "Terminer le tronçon";
+    $("#aide-dessin").hidden = false;
+    majArrivee();
+  }
+  function finDessin() {
+    etat.dessin = null;
+    carte.doubleClickZoom.enable();
+    $("#carte").classList.remove("dessin");
+    $("#tracer").textContent = "Tracer un tronçon";
+    $("#aide-dessin").hidden = true;
+    apercu.setLatLngs([]); repereAccroche.remove();
+  }
+  function terminerDessin() {
+    const d = etat.dessin;
+    if (!d) return;
+    finDessin();
+    if (d.coords.length >= 2) {
+      etat.traces.push(d);
+      if (!etat.vueChoisie) choisirVue("gain", false);
+    } else etat.compteur--;
+    toutRecalculer();
+  }
+  function abandonnerDessin() { if (!etat.dessin) return; etat.compteur--; finDessin(); toutRecalculer(); }
+  function retirerPoint() {
+    const d = etat.dessin;
+    if (!d || !d.coords.length) return;
+    d.coords.pop(); d.accroches.pop();
+    majScenario(); dessinerProjet(); calculer(true);
+  }
+  // Point sous la souris, accroché au réseau (existant ou projeté) dans un rayon de 14 px
+  function pointAccroche(ev) {
+    const ll = ev.latlng;
+    if (ev.originalEvent && ev.originalEvent.altKey) return { lon: ll.lng, lat: ll.lat, accroche: false };
+    const mpp = 40075016.686 * Math.cos(ll.lat * Math.PI / 180) / 2 ** (carte.getZoom() + 8);
+    const a = accrocheReseau(etat.S || P, idx, ll.lng, ll.lat, Math.min(300, 14 * mpp));
+    return a ? { lon: a.lon, lat: a.lat, accroche: true } : { lon: ll.lng, lat: ll.lat, accroche: false };
+  }
+  function ajouterPoint(ev) {
+    const d = etat.dessin, p = pointAccroche(ev), der = d.coords[d.coords.length - 1];
+    if (der && carte.latLngToContainerPoint([der[1], der[0]]).distanceTo(carte.latLngToContainerPoint([p.lat, p.lon])) < 4) return;   // second clic d'un double-clic
+    d.coords.push([+p.lon.toFixed(6), +p.lat.toFixed(6)]);
+    d.accroches.push(p.accroche);
+    majScenario(); dessinerProjet();
+    if (d.coords.length >= 2) calculer(false);
+  }
+  carte.on("mousemove", ev => {
+    if (!etat.dessin) return;
+    const p = pointAccroche(ev), d = etat.dessin;
+    if (p.accroche) repereAccroche.setLatLng([p.lat, p.lon]).addTo(carte); else repereAccroche.remove();
+    const der = d.coords[d.coords.length - 1];
+    apercu.setLatLngs(der ? [[der[1], der[0]], [p.lat, p.lon]] : []);
+  });
+  carte.on("dblclick", ev => { if (etat.dessin) { L.DomEvent.stop(ev); terminerDessin(); } });
+  document.addEventListener("keydown", ev => {
+    if (!etat.dessin || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (ev.key === "Enter") { ev.preventDefault(); terminerDessin(); }
+    else if (ev.key === "Escape") { ev.preventDefault(); abandonnerDessin(); }
+    else if (ev.key === "Backspace") { ev.preventDefault(); retirerPoint(); }
+  });
+  $("#tracer").addEventListener("click", commencerDessin);
+  $("#terminer").addEventListener("click", terminerDessin);
+  $("#retirer").addEventListener("click", retirerPoint);
+  $("#abandonner").addEventListener("click", abandonnerDessin);
+  document.querySelectorAll("[data-type]").forEach(b => b.addEventListener("click", () => {
+    etat.type = b.dataset.type;
+    document.querySelectorAll("[data-type]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    if (etat.dessin) { etat.dessin.type = etat.type; majScenario(); dessinerProjet(); if (etat.dessin.coords.length >= 2) calculer(true); }
+  }));
+  $("#effacer-tout").addEventListener("click", () => {
+    if (!confirm("Retirer tous les tronçons projetés ?")) return;
+    etat.traces = []; etat.compteur = 0; toutRecalculer();
+  });
+
+  // Import / export GeoJSON (WGS84 ; Lambert 93 reconnu et reprojeté)
+  $("#importer").addEventListener("click", () => $("#fichier").click());
+  $("#fichier").addEventListener("change", async ev => {
+    const f = ev.target.files[0];
+    ev.target.value = "";
+    if (!f) return;
+    let nouv;
+    try { nouv = tracesDepuisGeoJSON(JSON.parse(await f.text())); }
+    catch (e) { afficherMessage(`Fichier illisible (${e.message}). Exportez la couche en GeoJSON depuis QGIS.`); return; }
+    nouv = nouv.filter(t => t.coords.some(([lon, lat]) => bornesGrille.contains([lat, lon])));
+    if (!nouv.length) { afficherMessage("Aucune ligne de ce fichier ne tombe sur le territoire (lignes attendues, en WGS84 ou Lambert 93)."); return; }
+    for (const t of nouv) etat.traces.push({ ...t, nom: t.nom || `Tronçon ${++etat.compteur}`, accroches: [], actif: true });
+    if (!etat.vueChoisie) choisirVue("gain", false);
+    toutRecalculer();
+    carte.fitBounds(L.latLngBounds(nouv.flatMap(t => t.coords.map(([lon, lat]) => [lat, lon]))), { padding: [40, 40] });
+    afficherMessage(`${nouv.length} tronçon${nouv.length > 1 ? "s" : ""} importé${nouv.length > 1 ? "s" : ""} depuis ${f.name}.`);
+  });
+  $("#exporter").addEventListener("click", () => {
+    const gj = { type: "FeatureCollection", features: etat.traces.map(t => ({
+      type: "Feature",
+      properties: { nom: t.nom, type: t.type, libelle: LIBELLES[t.type], actif: t.actif, longueur_m: Math.round(longueurM(t.coords)) },
+      geometry: { type: "LineString", coordinates: t.coords },
+    })) };
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([JSON.stringify(gj, null, 1)], { type: "application/geo+json" }));
+    a.download = "troncons_projetes.geojson";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---------- Vue, mode, départ, arrivée ----------
+  function choisirVue(vue, parUtilisateur = true) {
+    etat.vue = vue;
+    if (parUtilisateur) etat.vueChoisie = true;
+    document.querySelectorAll("[data-vue]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.vue === vue)));
+    const gain = vue === "gain";
+    $("#titre-legende").textContent = gain ? "Minutes gagnées grâce au projet" : vue === "existant" ? "Temps de trajet actuels, en minutes" : "Temps de trajet avec le projet, en minutes";
+    const lg = $("#legende");
+    lg.className = gain ? "legende gain" : "legende";
+    lg.innerHTML = gain
+      ? COUL_GAIN.map(c => `<span class="case" style="background:${c}"></span>`).join("") + `<div class="graduations">${["< 1", "1-3", "3-5", "5-10", "10-15", "15 +", "accès"].map(s => `<span><i>${s}</i></span>`).join("")}</div>`
+      : COULEURS.map(c => `<span class="case" style="background:${c}"></span>`).join("") + `<div class="graduations">${SEUILS.map(s => `<span><i>${s}</i></span>`).join("")}<span></span></div>`;
+    $("#note-legende").textContent = gain
+      ? "Écart entre le réseau actuel et le projet, depuis le départ D. En jaune, les secteurs qui ne sont atteignables qu'avec le projet ; en gris, hors d'atteinte dans les deux cas."
+      : "Lignes pleines à 30 et 60 min, pointillées à 15 et 45 min. En gris : hors d'atteinte.";
+    if (etat.depart) { dessinerCarte(true); majLien(); }
+  }
+  document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => choisirVue(b.dataset.vue)));
+
+  function choisirMode(mode) {
+    etat.mode = mode;
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    $("#note-mode").textContent = NOTES[mode];
+    if (etat.depart) calculer(true);
+  }
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => choisirMode(b.dataset.mode)));
+
+  function definirDepart(ll, complet = true) { etat.depart = L.latLng(ll); marqueurDepart.setLatLng(etat.depart).addTo(carte); calculer(complet); }
+  function definirArrivee(ll) { etat.arrivee = L.latLng(ll); marqueurArrivee.setLatLng(etat.arrivee).addTo(carte); majArrivee(); majLien(); }
+
+  // Au plus un calcul par image affichée (deux Dijkstra : actuel et projet)
+  let enAttente = null, imagePrevue = false, minuteurPause = null;
+  function planifierDepart(ll) {
+    enAttente = ll;
+    if (imagePrevue) return;
+    imagePrevue = true;
+    requestAnimationFrame(() => { imagePrevue = false; etat.depart = enAttente; marqueurDepart.setLatLng(etat.depart); calculer(false); });
+  }
+  marqueurDepart.on("drag", ev => planifierDepart(ev.latlng));
+  marqueurDepart.on("dragend", () => { etat.depart = marqueurDepart.getLatLng(); calculer(true); });
+  marqueurArrivee.on("drag", ev => { etat.arrivee = ev.latlng; majArrivee(); });
+  marqueurArrivee.on("dragend", () => { etat.arrivee = marqueurArrivee.getLatLng(); majArrivee(); majLien(); });
+
+  const survolPossible = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  function suivre(actif) {
+    etat.suivre = actif && survolPossible && !etat.dessin;
+    $("#suivre").setAttribute("aria-pressed", String(etat.suivre));
+    const el = marqueurDepart.getElement();
+    if (el) el.style.pointerEvents = etat.suivre ? "none" : "";
+    majArrivee();
+  }
+  carte.on("mousemove", ev => {
+    if (!etat.suivre || etat.dessin || !bornesGrille.contains(ev.latlng)) return;
+    planifierDepart(ev.latlng);
+    clearTimeout(minuteurPause);
+    minuteurPause = setTimeout(() => { if (etat.suivre) { dessinerCarte(true); majLien(); } }, 300);
+  });
+  carte.on("click", ev => {
+    if (etat.dessin) return ajouterPoint(ev);
+    if (etat.suivre) { suivre(false); definirDepart(ev.latlng); } else definirArrivee(ev.latlng);
+  });
+  $("#suivre").hidden = !survolPossible;
+  $("#suivre").addEventListener("click", () => suivre(!etat.suivre));
+  $("#effacer-arrivee").addEventListener("click", () => { etat.arrivee = null; marqueurArrivee.remove(); majArrivee(); majLien(); });
+
+  // ---------- Lien de partage : départ, arrivée, mode, vue et tronçons ----------
+  // Tronçons : « type + polyligne encodée (1e-5) [+ !sommets accrochés] », séparés par des virgules ; majuscule = désactivé
+  const CODES = { piste: "p", stabilise: "s", bande: "b" }, TYPES = { p: "piste", s: "stabilise", b: "bande" };
+  const fmtLL = ll => `${ll.lat.toFixed(5)},${ll.lng.toFixed(5)}`;
+  function majLien() {
+    const p = [`m=${etat.mode}`, `v=${etat.vue}`, `d=${fmtLL(etat.depart)}`];
+    if (etat.arrivee) p.push(`a=${fmtLL(etat.arrivee)}`);
+    if (etat.traces.length) p.push("t=" + encodeURIComponent(etat.traces.map(t => {
+      const c = CODES[t.type], acc = (t.accroches || []).map((x, i) => (x ? i : -1)).filter(i => i > 0 && i < t.coords.length - 1);
+      return (t.actif ? c : c.toUpperCase()) + encoderLigne(t.coords) + (acc.length ? "!" + acc.join(".") : "");
+    }).join(",")));
+    history.replaceState(null, "", location.search + `#${p.join("&")}`);
+  }
+  function lireLien() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    const ll = s => { const [la, lo] = (s || "").split(",").map(Number); return s && isFinite(la) && isFinite(lo) ? L.latLng(la, lo) : null; };
+    const traces = (h.get("t") || "").split(",").filter(Boolean).map((s, i) => {
+      const [poly, acc] = s.slice(1).split("!"), coords = decoderLigne(poly), accroches = coords.map(() => false);
+      (acc || "").split(".").filter(Boolean).forEach(k => { if (accroches[+k] !== undefined) accroches[+k] = true; });
+      return { type: TYPES[s[0].toLowerCase()] || "piste", actif: s[0] === s[0].toLowerCase(), nom: `Tronçon ${i + 1}`, coords, accroches };
+    }).filter(t => t.coords.length >= 2);
+    return { mode: h.get("m") === "amenage" ? "amenage" : "tout", vue: ["projet", "existant", "gain"].includes(h.get("v")) ? h.get("v") : null, depart: ll(h.get("d")), arrivee: ll(h.get("a")), traces };
+  }
+  $("#partager").addEventListener("click", async () => {
+    const b = $("#partager");
+    try { await navigator.clipboard.writeText(location.href); b.textContent = "Lien copié"; }
+    catch { b.textContent = "Copiez l'adresse de la page"; }
+    setTimeout(() => { b.textContent = "Copier le lien de ce scénario"; }, 2200);
+  });
+
+  // ---------- Démarrage ----------
+  const lien = lireLien();
+  etat.traces = lien.traces; etat.compteur = lien.traces.length;
+  etat.mode = lien.mode;
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === etat.mode)));
+  $("#note-mode").textContent = NOTES[etat.mode];
+  if (lien.vue) etat.vueChoisie = true;
+  choisirVue(lien.vue || (etat.traces.length ? "gain" : "projet"), false);
+  if (lien.arrivee) { etat.arrivee = lien.arrivee; marqueurArrivee.setLatLng(lien.arrivee).addTo(carte); }
+  majScenario(); dessinerProjet(); listerTroncons();
+  $("#effacer-tout").hidden = $("#exporter").hidden = !etat.traces.length;
+  definirDepart(lien.depart || L.latLng(D.meta.depart_defaut[1], D.meta.depart_defaut[0]));
+  suivre(survolPossible && !lien.depart);
+})();
+</script>
+</body>
+</html>

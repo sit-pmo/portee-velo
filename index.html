@@ -185,6 +185,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
     <div class="bloc">
       <button type="button" class="bouton" id="partager">Copier le lien de cette vue</button>
       <p class="note" id="bloc-comparer"><a class="lien-comparer" id="lien-comparer" href="comparer.html">Comparer avec OpenStreetMap seul</a> : deux cartes côte à côte pour voir ce qu'apportent les données des collectivités.</p>
+      <p class="note"><a class="lien-comparer" id="lien-simuler" href="simuler.html">Simuler un aménagement</a> : tracez une piste ou une bande et voyez ce qu'elle change par rapport au réseau actuel.</p>
     </div>
 
     <footer class="credits">
@@ -252,6 +253,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   const contourTerritoire = versionOleron ? D.contour_oleron : D.contour;
   $("#lien-comparer").href = "comparer.html" + location.search;   // garde ?territoire=oleron
+  $("#lien-simuler").href = "simuler.html" + location.search;
   const etat = { mode: "tout", cible: "depart", depart: null, arrivee: null, acc: null, res: null, minutes: null };
 
   // ---------- Carte ----------
