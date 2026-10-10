@@ -8,6 +8,8 @@ Version île d'Oléron seule (affichage et pourcentages limités à l'île) : **
 
 Comparaison côte à côte avec OpenStreetMap seul (même calcul, même départ sous la souris) : **https://sit-pmo.github.io/portee-velo/comparer.html**
 
+Simulation d'aménagements (tracer une piste ou une bande, ou importer un GeoJSON, et comparer avec le réseau actuel) : **https://sit-pmo.github.io/portee-velo/simuler.html**
+
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
 ## Objectif
@@ -54,6 +56,18 @@ Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaqu
 
 Deux choix ont été faits pour qu'aucune zone n'apparaisse coupée à tort en mode « Pistes + routes » : les routes principales restent franchissables (temps triplé plutôt qu'interdites), et les sens uniques restent praticables à pied.
 
+### Simuler un aménagement
+
+La page `simuler.html` permet de tester un projet avant de le réaliser : on trace un ou plusieurs tronçons (piste enrobée, piste en stabilisé à 15 km/h, ou bande cyclable), ou on importe une couche de lignes en GeoJSON (WGS84 ou Lambert 93, par exemple les tronçons « en projet » des bases des collectivités). Le calcul se refait à chaque point posé, avec le même modèle que la carte principale, et compare deux réseaux depuis le même départ :
+
+- **Avec projet / Actuel** : les temps de trajet de chaque réseau ;
+- **Gain** : les minutes gagnées grâce au projet, et en jaune les secteurs qui ne deviennent atteignables qu'avec lui ;
+- la surface atteinte en 15, 30 et 45 min avant et après, et pour un trajet départ → arrivée la durée actuelle et la durée avec le projet.
+
+Raccordement des tronçons projetés : un nœud est créé à chaque croisement avec une voie existante ou un autre tronçon projeté, et chaque extrémité est reliée à la voie la plus proche à moins de 30 m (et, si elle diffère, à la piste ou bande la plus proche). À l'écran, les points posés s'accrochent au réseau ; touche Alt pour poser un point librement. Le lien de partage contient les tronçons ; l'export GeoJSON permet de les reprendre dans QGIS.
+
+Tout reste dans le navigateur : rien n'est envoyé ni enregistré ailleurs que dans le lien.
+
 ## Comment
 
 La page est statique : un fichier `index.html` (Leaflet et d3 pour la carte, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme) et un fichier de données précalculées `data/portee_velo.js` (graphe du réseau et grille). Pas de serveur, pas de base de données : GitHub Pages sert les deux fichiers.
@@ -79,7 +93,7 @@ Les données dérivées d'OpenStreetMap contenues dans `data/portee_velo.js` son
 
 ## Licence
 
-Le code (`index.html`, `comparer.html`, `coeur.js` et les scripts de préparation) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
+Le code (`index.html`, `comparer.html`, `simuler.html`, `coeur.js`, `scenario.js` et les scripts de préparation) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
 
 ## Inspiration
 

@@ -73,8 +73,9 @@ function construireGraphe(P, mode) {
   return { mode, n, nArcs, off, cible, source, poids, arete, actif };
 }
 
-// Dijkstra avec tas binaire ; pred[v] = arc par lequel on arrive en v
-function dijkstra(G, src, t0) {
+// Dijkstra avec tas binaire ; pred[v] = arc par lequel on arrive en v.
+// autres (facultatif) : départs supplémentaires [[noeud, t0], ...] (utilisé par la simulation de projets)
+function dijkstra(G, src, t0, autres) {
   const dist = new Float64Array(G.n).fill(Infinity), pred = new Int32Array(G.n).fill(-1);
   let cap = 4096, hn = new Int32Array(cap), hd = new Float64Array(cap), taille = 0;
   const pousser = (v, d) => {
@@ -88,6 +89,7 @@ function dijkstra(G, src, t0) {
     hn[i] = v; hd[i] = d;
   };
   dist[src] = t0; pousser(src, t0);
+  if (autres) for (const [v, t] of autres) if (t < dist[v]) { dist[v] = t; pousser(v, t); }
   while (taille > 0) {
     const u = hn[0], d = hd[0];
     taille--;
