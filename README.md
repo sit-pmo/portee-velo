@@ -77,6 +77,10 @@ Pour mettre la carte à jour, le SIT régénère `data/portee_velo.js` et le pou
 
 Les données dérivées d'OpenStreetMap contenues dans `data/portee_velo.js` sont diffusées sous ODbL.
 
+## Licence
+
+Le code (`index.html`, `comparer.html`, `coeur.js` et les scripts de préparation) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
+
 ## Inspiration
 
 Cette carte reprend le principe d'[À portée de tram](https://tram.camilleroux.com/) de Camille Roux, lui-même issu du [NYC Transit Time Cartogram](https://castrio.me/nyc/) d'Anthony Castrio et de sa [déclinaison parisienne](https://github.com/JulesGrandin/paris-temps-transport) par Jules Grandin. Le code et les calculs ont été écrits pour ce projet : le réseau est ici cyclable, et non de transport en commun.
