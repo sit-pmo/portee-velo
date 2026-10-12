@@ -668,31 +668,46 @@ function aretesProches(P, points, maxM) {
   return out;
 }
 
-function voieAuClic(P, lon, lat, maxM) {
-  const eMin = areteProche(P, lon, lat, maxM, 1);
-  if (eMin < 0) return null;
-  // Adjacence des voies de classe ≥ 1 (degré = nombre de voies au nœud)
+// Voies entre carrefours : arêtes de classe ≥ 1 enchaînées par les nœuds où passent exactement deux voies de
+// classe ≥ 1 (les pistes ne coupent pas). Unité de « Aménager une voie » et du classement D4.
+// Rend { voie (indice par arête, -1 pour une piste), liste (nœuds de chaque voie dans l'ordre), arete (une par voie) }.
+function voies(P) {
   const off = new Uint32Array(P.n + 1);
   for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
   for (let v = 0; v < P.n; v++) off[v + 1] += off[v];
   const adj = new Int32Array(off[P.n]), cur = off.slice(0, P.n);
   for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
-  const vu = new Set([eMin]);
+  const voie = new Int32Array(P.m).fill(-1), liste = [], arete = [];
   // Nœuds rencontrés depuis v en s'éloignant de l'arête e, jusqu'au carrefour inclus
-  const prolonger = (v, e) => {
+  const prolonger = (v, e, id) => {
     const l = [];
     for (;;) {
       if (off[v + 1] - off[v] !== 2) break;
       const suite = adj[off[v]] === e ? adj[off[v] + 1] : adj[off[v]];
-      if (vu.has(suite)) break;                          // boucle refermée
-      vu.add(suite);
+      if (voie[suite] >= 0) break;                       // boucle refermée
+      voie[suite] = id;
       v = P.a[suite] === v ? P.b[suite] : P.a[suite]; e = suite;
       l.push(v);
     }
     return l;
   };
-  const avant = prolonger(P.a[eMin], eMin).reverse(), apres = prolonger(P.b[eMin], eMin);
-  return [...avant, P.a[eMin], P.b[eMin], ...apres].map(v => [P.lon[v], P.lat[v]]);
+  for (let e = 0; e < P.m; e++) {
+    if (P.cls[e] < 1 || voie[e] >= 0) continue;
+    const id = liste.length;
+    voie[e] = id;
+    const avant = prolonger(P.a[e], e, id).reverse(), apres = prolonger(P.b[e], e, id);
+    liste.push([...avant, P.a[e], P.b[e], ...apres]);
+    arete.push(e);
+  }
+  return { voie, liste, arete: Int32Array.from(arete) };
+}
+
+// Voie (de voies(P)) qui contient l'arête de classe ≥ 1 la plus proche du clic
+function voieAuClic(P, lon, lat, maxM) {
+  const eMin = areteProche(P, lon, lat, maxM, 1);
+  if (eMin < 0) return null;
+  const { voie, liste } = voies(P);
+  return liste[voie[eMin]].map(v => [P.lon[v], P.lat[v]]);
 }
 
 // Grille : les cellules à maxM au plus du nœud v (lon, lat) le prennent si elles en sont plus proches que de leur nœud
@@ -1052,6 +1067,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
