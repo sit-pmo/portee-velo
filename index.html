@@ -792,13 +792,53 @@ document.getElementById("replier").addEventListener("click", e => {
     ].filter(Boolean).join(" "));
   }
   function montrerInfo(texte, html = false) { const el = $("#sim-info"); el.hidden = !texte; if (html) el.innerHTML = texte; else el.textContent = texte; }
-  function selectionner(i) { sim.selection = i; dessinerTroncons(); }
+  // Sélection d'un tronçon (i = -1 : aucune) : poignées sur ses sommets (glisser = déplacer, clic droit / appui long =
+  // supprimer) et au milieu de chaque segment (glisser = insérer un sommet). Recalcul au lâcher seulement : P′ et ses
+  // graphes coûtent ~50 à 100 ms ; pendant le glisser, seuls le trait et l'indicateur de raccord suivent.
+  const couchePoignees = L.layerGroup().addTo(carte);
+  function selectionner(i) {
+    sim.selection = i;
+    dessinerTroncons();
+    couchePoignees.clearLayers();
+    if (i < 0 || !sim.troncons[i]) return;
+    const t = sim.troncons[i];
+    const trait = L.polyline(t.map(([lon, lat]) => [lat, lon]), { pane: "trace", color: "#7B2CBF", weight: 3, interactive: false }).addTo(couchePoignees);
+    const retracer = () => trait.setLatLngs(t.map(([x, y]) => [y, x]));
+    t.forEach(([lon, lat], j) => {
+      const m = L.marker([lat, lon], { pane: "trace", draggable: true, icon: iconeSommet(estRaccorde(lon, lat)), title: "Glisser pour déplacer, clic droit pour supprimer" });
+      let dernier = 0;
+      m.on("drag", ev => {
+        t[j] = [ev.latlng.lng, ev.latlng.lat]; retracer();
+        const now = performance.now();       // indicateur de raccord au plus toutes les 100 ms (parcours des nœuds)
+        if (now - dernier > 100) { dernier = now; m.setIcon(iconeSommet(estRaccorde(ev.latlng.lng, ev.latlng.lat))); }
+      });
+      m.on("dragend", majSimulation);
+      m.on("contextmenu", ev => {
+        L.DomEvent.stop(ev);
+        t.splice(j, 1);
+        if (t.length < 2) { sim.troncons.splice(i, 1); sim.selection = -1; }
+        majSimulation();
+      });
+      m.on("click", L.DomEvent.stop);
+      m.addTo(couchePoignees);
+    });
+    for (let j = 1; j < t.length; j++) {
+      const mil = [(t[j - 1][1] + t[j][1]) / 2, (t[j - 1][0] + t[j][0]) / 2];
+      const m = L.marker(mil, { pane: "trace", draggable: true, title: "Glisser pour ajouter un sommet",
+        icon: L.divIcon({ className: "", html: '<div class="milieu-sim"></div>', iconSize: [9, 9], iconAnchor: [4.5, 4.5] }) });
+      m.on("dragstart", () => { t.splice(j, 0, [mil[1], mil[0]]); });
+      m.on("drag", ev => { t[j] = [ev.latlng.lng, ev.latlng.lat]; retracer(); });
+      m.on("dragend", majSimulation);
+      m.on("click", L.DomEvent.stop);
+      m.addTo(couchePoignees);
+    }
+  }
 
   // Toute modification du scénario passe par ici : P′ refaite, carte redessinée, recalcul complet
   function majSimulation() {
     if (sim.selection >= sim.troncons.length) sim.selection = -1;
     preparerSimulation();
-    dessinerTroncons();
+    selectionner(sim.selection);               // redessine les tronçons et, s'il y en a un de sélectionné, ses poignées
     majLegendeGain();
     if (etat.depart && vue.P) calculer(true);
   }
