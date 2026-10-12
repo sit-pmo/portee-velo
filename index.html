@@ -370,10 +370,10 @@ document.getElementById("replier").addEventListener("click", e => {
     get amenage() { return this._amenage || (this._amenage = construireGraphe(P, "amenage")); },
     get confort() { return this._confort || (this._confort = construireGraphe(P, "confort")); } });
   function preparerSimulation() {
-    if (!vue.P || !sim.troncons.length) { vue.sim = null; sim.nonRaccordes = []; sim.isoles = []; return; }
+    if (!vue.P || !sim.troncons.length) { vue.sim = null; sim.nonRaccordes = []; sim.isoles = []; sim.horsZone = []; return; }
     const r = ajouterTroncons(vue.P, sim.troncons);   // vue.P porte déjà le masque territoire et l'alias confort
     vue.sim = { P: r.P, G: graphes(r.P) };
-    sim.nonRaccordes = r.nonRaccordes; sim.isoles = r.isoles;
+    sim.nonRaccordes = r.nonRaccordes; sim.isoles = r.isoles; sim.horsZone = r.horsZone;
   }
 
   // ---------- Carte ----------
@@ -585,8 +585,8 @@ document.getElementById("replier").addEventListener("click", e => {
     if (!etat.arrivee) { $("#resultat").hidden = true; $("#consigne").hidden = false; return; }
     $("#consigne").hidden = true; $("#resultat").hidden = false;
     const s = aff(), Gm = s.G && s.G[etat.mode], { lat, lng } = etat.arrivee;
-    const acc = etat.res && accrocher(s.P, Gm, lng, lat);
-    if (acc && isFinite(etat.res.dist[acc.noeud])) { dessinerTrajet(s.P, Gm, etat.res, etat.acc, acc); return; }
+    const acc = etat.res && meilleure(etat.res, departs(s.P, Gm, lng, lat));
+    if (acc) { dessinerTrajet(s.P, Gm, etat.res, etat.acc, acc); return; }
     $("#etapes").innerHTML = "";
     // Tuiles présentes sous l'arrivée (17 et 25 km autour) : l'itinéraire peut se calculer
     const tuilee = chargeur.existe.has(chargeur.tuileDe(lng, lat).join("_"));
@@ -612,11 +612,13 @@ document.getElementById("replier").addEventListener("click", e => {
       // Couloir : mêmes tronçons simulés que la carte (sauf en vue « Avant »)
       const Pc = sim.troncons.length && sim.vue !== "avant" ? ajouterTroncons(f.P, sim.troncons).P : f.P;
       const G = construireGraphe(Pc, mode);
-      const accD = accrocher(Pc, G, d.lng, d.lat), accA = accrocher(Pc, G, a.lng, a.lat);
-      if (!accD || !accA) break;
-      const res = dijkstra(G, accD.noeud, accesSecondes(accD.distM), Infinity, accA.noeud);
-      if (isFinite(res.dist[accA.noeud])) {
-        dessinerTrajet(Pc, G, res, accD, accA);
+      const accsD = departs(Pc, G, d.lng, d.lat), accsA = departs(Pc, G, a.lng, a.lat);
+      if (!accsD.length || !accsA.length) break;
+      // Arrêt à l'arrivée quand elle n'a qu'un nœud possible ; avec deux (piste simulée), calcul complet du couloir
+      const res = dijkstra(G, sourcesDijkstra(accsD), 0, Infinity, accsA.length === 1 ? accsA[0].noeud : -1);
+      const accA = meilleure(res, accsA);
+      if (accA) {
+        dessinerTrajet(Pc, G, res, accsD, accA);
         if (f.partielle) $("#detail").textContent += ". Une partie du réseau n'a pas pu être chargée : itinéraire peut-être plus long que nécessaire.";
         return;
       }
@@ -627,9 +629,18 @@ document.getElementById("replier").addEventListener("click", e => {
       : "Aucun itinéraire trouvé entre ces deux points, ou l'arrivée est trop loin d'une voie praticable.";
   }
 
-  function dessinerTrajet(P, Gm, res, accD, acc) {
+  // Nœud d'arrivée possible (voir departs) au meilleur temps total, accès compris ; null si aucun n'est atteint
+  function meilleure(res, accs) {
+    let m = null, tm = Infinity;
+    for (const a of accs) { const t = res.dist[a.noeud] + accesSecondes(a.distM); if (t < tm) { tm = t; m = a; } }
+    return m;
+  }
+
+  // accsD : départs possibles (voir departs) ; celui d'où part réellement l'itinéraire sert aux tirets et à la distance
+  function dessinerTrajet(P, Gm, res, accsD, acc) {
     trace.clearLayers();
     const arcs = itineraire(Gm, res, acc.noeud);
+    const racine = arcs.length ? Gm.source[arcs[0]] : acc.noeud, accD = accsD.find(x => x.noeud === racine) || accsD[0];
     const total = res.dist[acc.noeud] + accesSecondes(acc.distM);
     let long = 0, amenage = 0;
     for (const k of arcs) { const e = Gm.arete[k]; long += P.lm[e]; if (P.cls[e] <= 1) amenage += P.lm[e]; }
@@ -658,9 +669,10 @@ document.getElementById("replier").addEventListener("click", e => {
   // Calcul sur une fenêtre s = { P, G } : temps le plus rapide et, en confort, temps tranquille
   function calculerSur(s) {
     const Gm = s.G[etat.mode], { lng, lat } = etat.depart;
-    const acc = accrocher(s.P, Gm, lng, lat);
-    if (!acc) return null;
-    const res = dijkstra(Gm, acc.noeud, accesSecondes(acc.distM), LIMITE_S);
+    // Départ : nœud accroché et, avec des tronçons simulés, aussi celui d'avant (une piste ne rallonge jamais un trajet)
+    const acc = departs(s.P, Gm, lng, lat);
+    if (!acc.length) return null;
+    const res = dijkstra(Gm, sourcesDijkstra(acc), 0, LIMITE_S);
     // Trajet tranquille borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
     const minConf = confortActif() ? minutesTranquilles(s.P, s.G.confort, lng, lat, LIMITE_S * CFG.confort.surcout[1]) : null;
     return { acc, res, minutes: tempsGrille(s.P, Gm, res), minConf };
@@ -785,10 +797,13 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#sim-vue").hidden = $("#sim-effacer").hidden = !n;
     $("#sim-exporter").disabled = !n;
     // Tronçon sans aucun raccord : sans effet (injoignable) ; extrémité libre d'un tronçon raccordé : rejointe à vol d'oiseau
+    // Hors de la fenêtre calculée autour du départ : on ne peut pas juger leur raccord (voir ajouterTroncons)
     const isoles = (sim.isoles || []).map(i => i + 1), libres = sim.nonRaccordes.length - 2 * isoles.length;
+    const dehors = (sim.horsZone || []).map(i => i + 1);
     montrerInfo([
       isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur un carrefour (point plein).` : "",
       libres > 0 ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "",
+      dehors.length ? `Tronçon${dehors.length > 1 ? "s" : ""} ${dehors.length > 8 ? `(${dehors.length})` : dehors.join(", ")} hors de la zone calculée autour du départ : déplacez le départ vers ${dehors.length > 1 ? "eux" : "lui"} pour voir ${dehors.length > 1 ? "leur" : "son"} effet.` : "",
     ].filter(Boolean).join(" "));
   }
   function montrerInfo(texte, html = false) { const el = $("#sim-info"); el.hidden = !texte; if (html) el.innerHTML = texte; else el.textContent = texte; }
@@ -798,6 +813,7 @@ document.getElementById("replier").addEventListener("click", e => {
   const couchePoignees = L.layerGroup().addTo(carte);
   function selectionner(i) {
     sim.selection = i;
+    if (i >= 0 && etat.suivre) suivre(false);  // le départ ne suit plus la souris pendant qu'on va chercher les poignées
     dessinerTroncons();
     couchePoignees.clearLayers();
     if (i < 0 || !sim.troncons[i]) return;
@@ -863,7 +879,7 @@ document.getElementById("replier").addEventListener("click", e => {
   async function importer(fichier) {
     let r;
     try { r = lireGeoJSON(JSON.parse(await fichier.text())); }
-    catch { montrerInfo(`« ${fichier.name} » n'est pas un GeoJSON lisible.`); return; }
+    catch (e) { montrerInfo(`« ${fichier.name} » : ${/projection/.test(e.message) ? e.message : "ce n'est pas un GeoJSON lisible"}.`); return; }
     if (!r.troncons.length) { montrerInfo(`Aucune ligne dans « ${fichier.name} »${r.ignores ? ` (${r.ignores} géométrie(s) ignorée(s))` : ""}.`); return; }
     sim.troncons.push(...r.troncons); sim.selection = -1;
     majSimulation();
@@ -921,7 +937,8 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#sim-consigne").hidden = true;
     carte.getContainer().style.cursor = "";
     if (garder && t.length >= 2) { sim.troncons.push(t); majSimulation(); }
-    suivre(outil.suiviAvant);
+    // Départ laissé fixe après un tracé : rétablir le suivi ferait sauter D au premier mouvement et brouillerait les gains
+    if (!garder || t.length < 2) suivre(outil.suiviAvant);
   }
   $("#sim-tracer").addEventListener("click", () => (outil.actif ? finirTrace(true) : commencerTrace()));
   $("#sim-terminer").addEventListener("click", () => finirTrace(true));
