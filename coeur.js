@@ -502,6 +502,100 @@ function versGeoJSON(troncons) {
   })) };
 }
 
+// Pour chaque point, nœud de P le plus proche à maxM au plus (-1 sinon). Seaux de maxM de côté, remplis avec les
+// seuls nœuds du rectangle englobant les points : un parcours de P.n, puis 3 × 3 seaux par point.
+function noeudsProches(P, points, maxM) {
+  const out = new Int32Array(points.length).fill(-1);
+  if (!points.length) return out;
+  let w = Infinity, e = -Infinity, s = Infinity, n = -Infinity;
+  for (const [lon, lat] of points) { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); }
+  const pasLat = maxM / (R_TERRE * RAD), pasLon = pasLat / Math.cos(Math.max(Math.abs(s), Math.abs(n)) * RAD);
+  w -= pasLon; e += pasLon; s -= pasLat; n += pasLat;
+  const seaux = new Map(), cle = (i, j) => `${i}_${j}`;
+  for (let v = 0; v < P.n; v++) {
+    const lo = P.lon[v], la = P.lat[v];
+    if (lo < w || lo > e || la < s || la > n) continue;
+    const c = cle(Math.floor(lo / pasLon), Math.floor(la / pasLat));
+    if (!seaux.has(c)) seaux.set(c, []);
+    seaux.get(c).push(v);
+  }
+  points.forEach(([lon, lat], p) => {
+    const i0 = Math.floor(lon / pasLon), j0 = Math.floor(lat / pasLat);
+    let dMin = maxM;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      for (const v of seaux.get(cle(i0 + di, j0 + dj)) || []) {
+        const d = distanceM(lon, lat, P.lon[v], P.lat[v]);
+        if (d <= dMin) { dMin = d; out[p] = v; }
+      }
+    }
+  });
+  return out;
+}
+
+// Grille : les cellules à maxM au plus du nœud v (lon, lat) le prennent si elles en sont plus proches que de leur nœud
+function rattacher(g, pro, dist, v, lon, lat, maxM) {
+  const dLat = maxM / (R_TERRE * RAD), dLon = dLat / Math.cos(lat * RAD);
+  const i0 = Math.max(0, Math.floor((lon - dLon - g.w) / g.dlon)), i1 = Math.min(g.nx - 1, Math.floor((lon + dLon - g.w) / g.dlon));
+  const j0 = Math.max(0, Math.floor((g.n - lat - dLat) / g.dlat)), j1 = Math.min(g.ny - 1, Math.floor((g.n - lat + dLat) / g.dlat));
+  for (let j = j0; j <= j1; j++) {
+    const clat = g.n - (j + 0.5) * g.dlat;
+    for (let i = i0; i <= i1; i++) {
+      const k = j * g.nx + i, d = distanceM(g.w + (i + 0.5) * g.dlon, clat, lon, lat);
+      if (d <= maxM && d < dist[k]) { pro[k] = v; dist[k] = d; }
+    }
+  }
+}
+
+// Fenêtre P′ = P + tronçons simulés (P n'est pas modifié : il sert à l'« avant »). Chaque sommet devient un nœud,
+// raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; les segments sont
+// découpés tous les CFG.pasTronconM mètres ; les cellules proches se rattachent aux nouveaux nœuds (une piste en site
+// propre doit servir aux cellules qu'elle traverse). Extrémités sans nœud proche rendues dans nonRaccordes.
+// ponytail: copie complète des tableaux de la fenêtre (quelques dizaines de ms pour 1 M de nœuds), refaite à chaque
+// modification du scénario ; à remplacer par un graphe additionnel si le scénario devait changer pendant le survol.
+function ajouterTroncons(P, troncons) {
+  if (!troncons.length) return { P, nonRaccordes: [] };
+  const nLon = [], nLat = [], ea = [], eb = [], el = [], nonRaccordes = [];
+  const nouveau = (lon, lat) => { nLon.push(lon); nLat.push(lat); return P.n + nLon.length - 1; };
+  const lier = (u, v, l) => { ea.push(u); eb.push(v); el.push(l); };
+  const proches = noeudsProches(P, troncons.flat(), CFG.raccordMaxM);
+  let iSommet = 0;
+  for (const t of troncons) {
+    let prec = -1;
+    t.forEach(([lon, lat], j) => {
+      const v = nouveau(lon, lat), q = proches[iSommet++];
+      if (q >= 0) lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q]));
+      else if (j === 0 || j === t.length - 1) nonRaccordes.push([lon, lat]);
+      if (prec >= 0) {
+        const [lo0, la0] = t[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
+        let u = prec;
+        for (let s = 1; s < k; s++) { const w = nouveau(lo0 + (lon - lo0) * s / k, la0 + (lat - la0) * s / k); lier(u, w, d / k); u = w; }
+        lier(u, v, d / k);
+      }
+      prec = v;
+    });
+  }
+  const dn = nLon.length, dm = ea.length, n = P.n + dn, m = P.m + dm;
+  const etendre = (Type, src, extra) => { const t = new Type(src.length + extra.length); t.set(src); t.set(extra, src.length); return t; };
+  const rempli = (k, v) => new Array(k).fill(v);
+  const Q = {
+    ...P, n, m,
+    lon: etendre(Float64Array, P.lon, nLon), lat: etendre(Float64Array, P.lat, nLat),
+    a: etendre(Int32Array, P.a, ea), b: etendre(Int32Array, P.b, eb), lm: etendre(Float32Array, P.lm, el),
+    cls: etendre(Uint8Array, P.cls, rempli(dm, 0)), sens: etendre(Uint8Array, P.sens, rempli(dm, 0)),
+    vit: etendre(Uint8Array, P.vit, rempli(dm, CFG.vitesseSimuleeKmh)),
+    nom: etendre(Int32Array, P.nom, rempli(dm, P.noms.length)), noms: [...P.noms, "Piste (simulée)"],
+  };
+  if (P.global) Q.global = etendre(Float64Array, P.global, rempli(dn, -1));
+  const g = P.grille, pro = {}, dist = {};
+  for (const mode of ["tout", "amenage"]) {
+    pro[mode] = g.pro[mode].slice(); dist[mode] = g.dist[mode].slice();
+    for (let v = P.n; v < n; v++) rattacher(g, pro[mode], dist[mode], v, Q.lon[v], Q.lat[v], CFG.accesMaxM[mode]);
+  }
+  if (g.pro.confort === g.pro.tout) { pro.confort = pro.tout; dist.confort = dist.tout; }   // alias posé par la page
+  Q.grille = { ...g, pro, dist };
+  return { P: Q, nonRaccordes };
+}
+
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
 // Grille de France en degrés ; doit suivre LON0, LAT0, DLON, DLAT, CELLULES_TUILE de format_tuile.py
 const GRILLE_FRANCE = { lon0: -5.5, lat0: 51.5, dlon: 0.00125, dlat: 0.0009, cellulesTuile: 100, pasDistM: 10 };
@@ -732,6 +826,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, ajouterTroncons, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
