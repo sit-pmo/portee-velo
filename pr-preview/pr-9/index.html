@@ -1164,6 +1164,8 @@ document.getElementById("replier").addEventListener("click", e => {
     }
     return c.M;
   }
+  // Libellés BPE en capitales (« BOULANGERIE-PÂTISSERIE ») → « Boulangerie-pâtisserie »
+  const phrase = t => (t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t);
   const fmtNb = v => (v >= 1000 ? Math.round(v / 10) * 10 : Math.round(v)).toLocaleString("fr-FR");
   const fmtMinPanier = m => (m <= 60 ? `${Math.max(1, Math.round(m))} min` : "> 1 h");
   // complet = départ fixé (clic, fin de glisser) : on calcule aussi l'« avant » des tronçons simulés pour le gain
@@ -1216,7 +1218,7 @@ document.getElementById("replier").addEventListener("click", e => {
     for (const p of pts) {
       const i = p.cellule, d = acces.domaines[p.d], coul = COUL_DOMAINES[d ? d.code : ""] || "#888";
       const bon = M.pistes[i] <= seuilAcces || M.tranquille[i] <= seuilAcces, route = !bon && M.tous[i] <= seuilAcces;
-      const type = acces.types[p.t] ? acces.types[p.t][1] : "";
+      const type = acces.types[p.t] ? phrase(acces.types[p.t][1]) : "";
       const statut = bon ? (M.pistes[i] <= seuilAcces ? "par les pistes" : "tranquillement") : route ? "par la route seulement" : `au-delà de ${seuilAcces} min`;
       L.circleMarker([p.lat, p.lon], { renderer: renduEquip, pane: "equip", radius: bon ? 4.5 : 3.5, weight: bon ? 1.2 : 1.5,
         color: bon ? "#fff" : coul, fillColor: bon || route ? coul : "#fff", fillOpacity: bon ? .95 : route ? .4 : .85, opacity: .95 })
