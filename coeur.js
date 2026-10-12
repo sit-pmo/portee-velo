@@ -366,13 +366,16 @@ function couverture(P, minutes, seuils) {
   return compte.map(c => (total ? c / total : 0));
 }
 
-// Surface (km²) des cellules comptées (g.ile) atteintes sous chaque seuil. Grille en degrés : l'aire d'une
-// cellule dépend de la latitude de sa ligne (cos φ) ; c'est le score de la version France (km² terrestres).
+// Aire (km²) d'une cellule de la ligne j : grille en degrés, l'aire dépend de la latitude de la ligne (cos φ)
+function aireLigneKm2(g, j) {
+  return (g.dlat * RAD * R_TERRE / 1000) * (g.dlon * RAD * R_TERRE / 1000) * Math.cos((g.n - (j + 0.5) * g.dlat) * RAD);
+}
+
+// Surface (km²) des cellules comptées (g.ile) atteintes sous chaque seuil ; c'est le score de la version France (km² terrestres).
 function surfaceKm2(P, minutes, seuils) {
-  const g = P.grille, kmLat = g.dlat * RAD * R_TERRE / 1000, kmLon = g.dlon * RAD * R_TERRE / 1000;
-  const surf = seuils.map(() => 0);
+  const g = P.grille, surf = seuils.map(() => 0);
   for (let j = 0; j < g.ny; j++) {
-    const aire = kmLat * kmLon * Math.cos((g.n - (j + 0.5) * g.dlat) * RAD);
+    const aire = aireLigneKm2(g, j);
     for (let i = 0, k = j * g.nx; i < g.nx; i++, k++) {
       if (!g.ile[k]) continue;
       const m = minutes[k];
@@ -380,6 +383,29 @@ function surfaceKm2(P, minutes, seuils) {
     }
   }
   return surf;
+}
+
+// Simulation : km² gagnés sous chaque seuil (après − avant)
+function gainSurface(P, minAvant, minApres, seuils) {
+  const a = surfaceKm2(P, minAvant, seuils), b = surfaceKm2(P, minApres, seuils);
+  return b.map((x, i) => x - a[i]);
+}
+
+// Simulation, confort : km² passés au bleu (depuis gris, orange, ou non atteints en limiteMin) et passés d'orange à
+// gris. avant / apres = { min, minConf } (temps le plus rapide et temps tranquille par cellule, en minutes).
+function gainConfort(P, avant, apres, limiteMin = 60) {
+  const g = P.grille, out = { bleu: 0, gris: 0 };
+  const teinte = (r, k) => (r.min[k] <= limiteMin ? teinteConfort(r.min[k], r.minConf[k]) : -1);
+  for (let j = 0; j < g.ny; j++) {
+    const aire = aireLigneKm2(g, j);
+    for (let i = 0, k = j * g.nx; i < g.nx; i++, k++) {
+      if (!g.ile[k]) continue;
+      const x = teinte(avant, k), y = teinte(apres, k);
+      if (y === 0 && x !== 0) out.bleu += aire;
+      else if (y === 1 && x === 2) out.gris += aire;
+    }
+  }
+  return out;
 }
 
 // Champ continu pour les isolignes : les cellules hors réseau ou en mer reçoivent la valeur
@@ -826,6 +852,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, ajouterTroncons, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, ajouterTroncons, gainSurface, gainConfort, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
