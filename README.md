@@ -34,7 +34,7 @@ Pour mesurer l'effet d'une future piste avant de la financer, par exemple sur un
 - **Tracer un tronçon** : cliquez les sommets de la piste, double-clic (ou Entrée) pour terminer. La piste est raccordée à chaque voie qu'elle croise, et à la voie la plus proche de chaque sommet posé à moins de 25 m (point plein ; cercle creux sinon). Un tronçon qui ne croise rien et dont aucun sommet n'est raccordé reste sans effet.
 - **Importer** un GeoJSON de lignes, en WGS84 ou en Lambert 93 (reconnu automatiquement), par exemple un projet dessiné dans QGIS ; **Exporter** pour reprendre les tracés ailleurs.
 - **Aménager une voie** : chaque clic sur une route la transforme en piste jusqu'aux deux carrefours les plus proches ; cliquez la suite pour la prolonger, Échap pour arrêter.
-- **Modifier** : cliquez un tronçon, puis faites glisser ses sommets ; cliquez sur son trait (ou sur une poignée de milieu) pour ajouter un sommet, clic droit pour en supprimer un.
+- **Modifier** : cliquez un tronçon, puis faites glisser ses sommets ; cliquez sur son trait (ou sur une poignée de milieu) pour ajouter un sommet, clic droit pour en supprimer un. La liste des tronçons se replie d'un clic sur son titre (nombre et longueur totale).
 
 La piste simulée compte comme une piste existante (20 km/h, double sens). La carte montre l'**Après** ; **Avant** revient à l'existant ; **Gain** ne colore que les secteurs améliorés : minutes gagnées en « Temps », passage au bleu en « Temps et confort » (une piste le long d'une route change surtout le confort). Le bandeau chiffre le gain en km² atteints (en points de % dans les vues territoire) et en km² passés au bleu.
 
