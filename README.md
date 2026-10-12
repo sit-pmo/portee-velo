@@ -68,6 +68,8 @@ Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaqu
 
 La page est statique : `index.html` (Leaflet et d3, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme), `coeur.js` (le calcul) et le dossier `tuiles/` : le graphe du réseau et la grille, découpés en 380 tuiles d'environ 10 km (22 Mo en tout). La page ne charge que les 5 × 5 tuiles autour du départ. Pas de serveur, pas de base de données : GitHub Pages sert les fichiers.
 
+Publication : à chaque push sur `main`, un workflow copie les fichiers publiés sur la branche `gh-pages`, que sert GitHub Pages. Chaque pull request a son aperçu, publié sous `https://sit-pmo.github.io/portee-velo/pr-preview/pr-<numéro>/` (lien en commentaire de la PR) et retiré à sa fermeture.
+
 Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB, numpy, shapely, pyproj), à partir des extraits OpenStreetMap de Geofabrik (Poitou-Charentes, Aquitaine, Pays de la Loire) et du réseau consolidé des collectivités. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
 
 ## Sources et licences

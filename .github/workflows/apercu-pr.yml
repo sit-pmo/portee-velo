@@ -1,0 +1,36 @@
+# Aperçu de chaque pull request : publié sous https://sit-pmo.github.io/portee-velo/pr-preview/pr-<numéro>/,
+# mis à jour à chaque push, lien posté en commentaire dans la PR, supprimé à la fermeture de la PR.
+# Suppose que GitHub Pages publie la branche gh-pages (voir publier.yml).
+name: Aperçu des pull requests
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, closed]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: apercu-pr-${{ github.event.number }}
+  cancel-in-progress: false
+
+jobs:
+  apercu:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rassembler les fichiers publiés
+        if: github.event.action != 'closed'
+        run: |
+          mkdir _site
+          cp index.html coeur.js .nojekyll _site/
+          cp -r tuiles _site/
+
+      - name: Publier ou retirer l'aperçu
+        uses: rossjrw/pr-preview-action@v1
+        with:
+          source-dir: _site
+          preview-branch: gh-pages
+          umbrella-dir: pr-preview
