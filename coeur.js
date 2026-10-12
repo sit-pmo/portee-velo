@@ -582,6 +582,52 @@ function noeudsProches(P, points, maxM) {
   return out;
 }
 
+// « Aménager une voie en un clic » (12/10/2026) : voie existante (bande ou route, classe ≥ 1) la plus proche de
+// (lon, lat) à maxM au plus, suivie dans les deux sens jusqu'aux carrefours (nœud où ne passent pas exactement deux
+// voies de classe ≥ 1 ; les pistes ne coupent pas). Rend les sommets [[lon, lat], ...], null si aucune voie.
+// ponytail: un chemin de service ou une entrée de parking OSM compte comme carrefour (bout de voie court) : on reclique
+// sur la suite ; filtrer par nom de voie si ça gêne.
+function voieAuClic(P, lon, lat, maxM) {
+  const kx = Math.cos(lat * RAD) * RAD * R_TERRE, ky = RAD * R_TERRE;   // degrés → mètres autour du clic
+  const dLon = maxM / kx, dLat = maxM / ky;
+  let eMin = -1, dMin = maxM;
+  for (let e = 0; e < P.m; e++) {
+    if (P.cls[e] < 1) continue;
+    const a = P.a[e], b = P.b[e];
+    if (Math.max(P.lon[a], P.lon[b]) < lon - dLon || Math.min(P.lon[a], P.lon[b]) > lon + dLon ||
+        Math.max(P.lat[a], P.lat[b]) < lat - dLat || Math.min(P.lat[a], P.lat[b]) > lat + dLat) continue;
+    // Distance point-segment dans le plan local (mètres)
+    const ax = (P.lon[a] - lon) * kx, ay = (P.lat[a] - lat) * ky, bx = (P.lon[b] - lon) * kx, by = (P.lat[b] - lat) * ky;
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const s = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    const d = Math.hypot(ax + s * dx, ay + s * dy);
+    if (d <= dMin) { dMin = d; eMin = e; }
+  }
+  if (eMin < 0) return null;
+  // Adjacence des voies de classe ≥ 1 (degré = nombre de voies au nœud)
+  const off = new Uint32Array(P.n + 1);
+  for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
+  for (let v = 0; v < P.n; v++) off[v + 1] += off[v];
+  const adj = new Int32Array(off[P.n]), cur = off.slice(0, P.n);
+  for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
+  const vu = new Set([eMin]);
+  // Nœuds rencontrés depuis v en s'éloignant de l'arête e, jusqu'au carrefour inclus
+  const prolonger = (v, e) => {
+    const l = [];
+    for (;;) {
+      if (off[v + 1] - off[v] !== 2) break;
+      const suite = adj[off[v]] === e ? adj[off[v] + 1] : adj[off[v]];
+      if (vu.has(suite)) break;                          // boucle refermée
+      vu.add(suite);
+      v = P.a[suite] === v ? P.b[suite] : P.a[suite]; e = suite;
+      l.push(v);
+    }
+    return l;
+  };
+  const avant = prolonger(P.a[eMin], eMin).reverse(), apres = prolonger(P.b[eMin], eMin);
+  return [...avant, P.a[eMin], P.b[eMin], ...apres].map(v => [P.lon[v], P.lat[v]]);
+}
+
 // Grille : les cellules à maxM au plus du nœud v (lon, lat) le prennent si elles en sont plus proches que de leur nœud
 function rattacher(g, pro, dist, v, lon, lat, maxM) {
   const dLat = maxM / (R_TERRE * RAD), dLon = dLat / Math.cos(lat * RAD);
@@ -891,6 +937,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================

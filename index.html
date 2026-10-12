@@ -139,7 +139,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .trait-sim{display:inline-block;width:26px;height:6px;border-radius:3px;vertical-align:middle;background:repeating-linear-gradient(90deg,#7B2CBF 0 8px,#fff 8px 12px)}
 .sommet-sim{width:12px;height:12px;border-radius:50%;border:2.5px solid #7B2CBF;background:#fff;box-shadow:0 0 0 1.5px #fff;box-sizing:border-box}
 .sommet-sim.raccorde{background:#7B2CBF}
-.milieu-sim{width:9px;height:9px;border-radius:50%;background:#7B2CBF;opacity:.5;border:1.5px solid #fff;box-sizing:border-box}
+.milieu-sim{width:11px;height:11px;border-radius:50%;background:#7B2CBF;opacity:.7;cursor:copy;border:1.5px solid #fff;box-sizing:border-box}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -202,11 +202,13 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <h2>Simuler un aménagement</h2>
       <div class="sim-actions">
         <button type="button" class="bouton" id="sim-tracer" aria-pressed="false">Tracer un tronçon</button>
+        <button type="button" class="bouton" id="sim-voie" aria-pressed="false">Aménager une voie</button>
         <button type="button" class="bouton petit" id="sim-importer">Importer (GeoJSON)</button>
         <button type="button" class="bouton petit" id="sim-exporter" disabled>Exporter</button>
         <input type="file" id="sim-fichier" accept=".geojson,.json,application/geo+json,application/json" hidden>
       </div>
       <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets, sur les carrefours pour raccorder la piste (point plein = raccordé à moins de 25 m). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
+      <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
       <ul class="sim-liste" id="sim-liste"></ul>
       <div class="bascule trois" id="sim-vue" role="group" aria-label="Comparer avant et après les tronçons" hidden>
         <button type="button" data-vue="avant" aria-pressed="false">Avant</button>
@@ -218,7 +220,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <p class="note" id="sim-gain-vide" hidden></p>
       <p class="note" id="sim-info" hidden></p>
       <button type="button" class="lien-action" id="sim-effacer" hidden>Tout effacer</button>
-      <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets.</p>
+      <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets, puis sur son trait pour en ajouter un.</p>
     </div>
 
     <div class="bloc" id="legende-maquette" hidden>
@@ -786,7 +788,12 @@ document.getElementById("replier").addEventListener("click", e => {
       const ll = t.map(([lon, lat]) => [lat, lon]), choisi = i === sim.selection;
       L.polyline(ll, { pane: "trace", color: "#fff", weight: choisi ? 10 : 8, opacity: .9, interactive: false }).addTo(coucheTroncons);
       L.polyline(ll, { pane: "trace", color: "#7B2CBF", weight: choisi ? 6 : 5, dashArray: "10 6", lineCap: "butt" })
-        .on("click", ev => { if (outil.actif) return; L.DomEvent.stop(ev); selectionner(i); }).addTo(coucheTroncons);   // en tracé : le clic pose un sommet
+        .on("click", ev => {
+          if (outil.actif || voie.actif) return;   // en tracé : le clic pose un sommet ; en aménagement : prend la voie
+          L.DomEvent.stop(ev);
+          if (choisi) insererSommet(t, ev.latlng); // tronçon déjà sélectionné : le clic ajoute un sommet sur le trait
+          else selectionner(i);
+        }).addTo(coucheTroncons);
     });
     for (const [lon, lat] of sim.nonRaccordes)
       L.circleMarker([lat, lon], { pane: "trace", radius: 6, color: "#7B2CBF", weight: 2.5, fillColor: "#fff", fillOpacity: 1, interactive: false }).addTo(coucheTroncons);
@@ -843,14 +850,27 @@ document.getElementById("replier").addEventListener("click", e => {
     });
     for (let j = 1; j < t.length; j++) {
       const mil = [(t[j - 1][1] + t[j][1]) / 2, (t[j - 1][0] + t[j][0]) / 2];
-      const m = L.marker(mil, { pane: "trace", draggable: true, title: "Glisser pour ajouter un sommet",
-        icon: L.divIcon({ className: "", html: '<div class="milieu-sim"></div>', iconSize: [9, 9], iconAnchor: [4.5, 4.5] }) });
+      const m = L.marker(mil, { pane: "trace", draggable: true, title: "Cliquer ou glisser pour ajouter un sommet",
+        icon: L.divIcon({ className: "", html: '<div class="milieu-sim"></div>', iconSize: [11, 11], iconAnchor: [5.5, 5.5] }) });
       m.on("dragstart", () => { t.splice(j, 0, [mil[1], mil[0]]); });
       m.on("drag", ev => { t[j] = [ev.latlng.lng, ev.latlng.lat]; retracer(); });
       m.on("dragend", majSimulation);
-      m.on("click", L.DomEvent.stop);
+      m.on("click", ev => { L.DomEvent.stop(ev); t.splice(j, 0, [mil[1], mil[0]]); majSimulation(); });
       m.addTo(couchePoignees);
     }
+  }
+  // Ajoute un sommet au point cliqué, projeté sur le segment le plus proche à l'écran (le clic tombe rarement pile sur le trait)
+  function insererSommet(t, latlng) {
+    const p = carte.latLngToLayerPoint(latlng);
+    let meilleur = Infinity, jMeilleur = 1, proj = p;
+    for (let j = 1; j < t.length; j++) {
+      const a = carte.latLngToLayerPoint([t[j - 1][1], t[j - 1][0]]), b = carte.latLngToLayerPoint([t[j][1], t[j][0]]);
+      const q = L.LineUtil.closestPointOnSegment(p, a, b), d = p.distanceTo(q);
+      if (d < meilleur) { meilleur = d; jMeilleur = j; proj = q; }
+    }
+    const ll = carte.layerPointToLatLng(proj);
+    t.splice(jMeilleur, 0, [ll.lng, ll.lat]);
+    majSimulation();
   }
 
   // Toute modification du scénario passe par ici : P′ refaite, carte redessinée, recalcul complet
@@ -924,6 +944,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   function commencerTrace() {
     if (outil.actif) return;
+    finirVoie();
     outil.actif = true; outil.sommets = []; outil.raccords = []; outil.suiviAvant = etat.suivre;
     suivre(false); carte.doubleClickZoom.disable();
     selectionner(-1);
@@ -952,6 +973,40 @@ document.getElementById("replier").addEventListener("click", e => {
     else if (ev.key === "Escape") finirTrace(false);
     else if (ev.key === "Backspace") { ev.preventDefault(); outil.sommets.pop(); dessinerTraceEnCours(); }
   });
+
+  // ---------- Aménager une voie en un clic ----------
+  // Chaque clic transforme la route sous le curseur (entre deux carrefours) en tronçon simulé ordinaire ; sommets
+  // simplifiés (~2 m) pour ménager le lien t=. Mode laissé actif pour enchaîner les clics.
+  const voie = { actif: false, suiviAvant: false, ajoute: false };
+  function commencerVoie() {
+    if (voie.actif) return;
+    finirTrace(false);
+    voie.actif = true; voie.ajoute = false; voie.suiviAvant = etat.suivre;
+    suivre(false); selectionner(-1);
+    $("#sim-voie").setAttribute("aria-pressed", "true");
+    $("#sim-consigne-voie").hidden = false;
+    carte.getContainer().style.cursor = "pointer";
+  }
+  function finirVoie() {
+    if (!voie.actif) return;
+    voie.actif = false;
+    $("#sim-voie").setAttribute("aria-pressed", "false");
+    $("#sim-consigne-voie").hidden = true;
+    carte.getContainer().style.cursor = "";
+    if (!voie.ajoute) suivre(voie.suiviAvant);   // rien d'aménagé : on rend le suivi ; sinon départ fixe (comme après un tracé)
+  }
+  function amenagerVoie(ll) {
+    if (!vue.P) return;
+    // Tolérance de 12 px à l'écran, ramenée en mètres au zoom courant
+    const tolM = carte.distance(ll, carte.containerPointToLatLng(carte.latLngToContainerPoint(ll).add([12, 0])));
+    const t = voieAuClic(vue.P, ll.lng, ll.lat, Math.max(5, tolM));
+    if (!t) { montrerInfo("Aucune route sous le clic : zoomez ou cliquez plus près du trait."); return; }
+    const pts = t.map(([lon, lat]) => carte.project([lat, lon], 18));       // ~0,6 m par pixel au zoom 18
+    const simple = L.LineUtil.simplify(pts, 3).map(p => { const q = carte.unproject(p, 18); return [q.lng, q.lat]; });
+    sim.troncons.push(simple); voie.ajoute = true; majSimulation();
+  }
+  $("#sim-voie").addEventListener("click", () => (voie.actif ? finirVoie() : commencerVoie()));
+  document.addEventListener("keydown", ev => { if (voie.actif && ev.key === "Escape") finirVoie(); });
 
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
   let demande = 0;
@@ -1025,6 +1080,7 @@ document.getElementById("replier").addEventListener("click", e => {
   });
   carte.on("click", ev => {
     if (outil.actif) { outil.sommets.push([ev.latlng.lng, ev.latlng.lat]); dessinerTraceEnCours(); return; }
+    if (voie.actif) { amenagerVoie(ev.latlng); return; }
     if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
     if (etat.suivre || !etat.depart) { suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);
