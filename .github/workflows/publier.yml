@@ -1,0 +1,34 @@
+# Site principal : à chaque push sur main, copie les fichiers publiés à la racine de la branche gh-pages
+# (source de GitHub Pages). Les aperçus de PR (dossier pr-preview/, voir apercu-pr.yml) sont laissés en place.
+name: Publier le site
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publier-site
+  cancel-in-progress: false
+
+jobs:
+  publier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rassembler les fichiers publiés
+        run: |
+          mkdir _site
+          cp index.html coeur.js README.md LICENSE .nojekyll _site/
+          cp -r tuiles _site/
+
+      - name: Publier sur gh-pages
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          branch: gh-pages
+          folder: _site
+          clean-exclude: pr-preview/

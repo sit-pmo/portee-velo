@@ -4,6 +4,9 @@
 *
 !.gitignore
 !.nojekyll
+!.github/
+!.github/workflows/
+!.github/workflows/*.yml
 !index.html
 !coeur.js
 !README.md
