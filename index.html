@@ -775,7 +775,8 @@ document.getElementById("replier").addEventListener("click", e => {
     + `<div class="graduations">${SEUILS.map(s => `<span><i>${s}</i></span>`).join("")}<span></span></div>`;
   const NOMS_REGIONS = { "poitou-charentes": "Poitou-Charentes", "aquitaine": "Aquitaine", "pays-de-la-loire": "Pays de la Loire" };
   const regions = index.sources.map(s => s.replace(".parquet", "")).map(s => NOMS_REGIONS[s] || s);
-  $("#meta").textContent = `Données © contributeurs OpenStreetMap, extraits Geofabrik ${regions.join(", ")} ; tuiles générées le ${index.genere.slice(0, 10).split("-").reverse().join("/")}.`;
+  const coll = index.collectivites ? " ; sur Marennes-Oléron, réseau cyclable des communautés de communes de l'île d'Oléron et du bassin de Marennes" : "";
+  $("#meta").textContent = `Données © contributeurs OpenStreetMap, extraits Geofabrik ${regions.join(", ")}${coll} ; tuiles générées le ${index.genere.slice(0, 10).split("-").reverse().join("/")}.`;
   afficherCouverture(null);
 
   const lien = lireLien();
