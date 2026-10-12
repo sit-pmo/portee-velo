@@ -177,9 +177,9 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
     </div>
 
     <div class="bloc">
-      <h2>Surface de terre atteinte depuis ce départ</h2>
+      <h2 id="titre-couverture">Surface de terre atteinte depuis ce départ</h2>
       <div id="couverture" class="couverture"></div>
-      <p class="note">Barre : part du disque qu'on couvrirait à 20 km/h en ligne droite (5 km de rayon en 15 min). La mer ne compte pas.</p>
+      <p class="note" id="note-couverture">Barre : part du disque qu'on couvrirait à 20 km/h en ligne droite (5 km de rayon en 15 min). La mer ne compte pas.</p>
     </div>
 
     <div class="bloc" id="legende-maquette" hidden>
@@ -284,14 +284,36 @@ document.getElementById("replier").addEventListener("click", e => {
       : `Données indisponibles (${e.message}).`;
     return;
   }
+  // ---------- Vue d'un territoire (comme l'ancienne carte Marennes-Oléron) : ?territoire=oleron (l'île),
+  // ?territoire=pmo (les 14 communes). Seul le territoire est coloré, l'emprise est bloquée dessus et la
+  // couverture est en % de ses cellules de 100 m (centre dans le contour). Sans paramètre : tout le département.
+  const TERRITOIRE = new URLSearchParams(location.search).get("territoire");
+  let terr = null;
+  if (["oleron", "pmo"].includes(TERRITOIRE)) {
+    try { terr = (await fetch("tuiles/territoires.json").then(r => r.json()))[TERRITOIRE]; } catch { terr = null; }
+  }
+  const zone = terr ? terr.geometrie : contourDep.geometrie;
+  // Masque du territoire sur la grille des tuiles (tuiler.py : centre dans le contour et sur la terre), en plages
+  // alternées 0 / 1 ; total = dénominateur des % (tout le territoire, pas seulement la fenêtre chargée)
+  let masqueZone = null;
+  if (terr) {
+    const { i0, j0, nx, ny, total, plages } = terr.masque, m = new Uint8Array(nx * ny);
+    for (let k = 0, pos = 0; k < plages.length; k += 2) { pos += plages[k]; m.fill(1, pos, pos + plages[k + 1]); pos += plages[k + 1]; }
+    masqueZone = { i0, j0, nx, ny, m, total };
+    document.title = `À portée de vélo – ${terr.nom.replace(/^l'/, "L'")}`;
+    $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${terr.chapeau}, et dans quel confort, d'après les réseaux des collectivités et OpenStreetMap`;
+    $("#titre-couverture").textContent = `Surface ${TERRITOIRE === "oleron" ? "de l'île" : "du territoire"} atteinte depuis ce départ`;
+    $("#note-couverture").textContent = `Part des cellules de 100 m ${TERRITOIRE === "oleron" ? "de l'île" : "des 14 communes"} atteintes.`;
+  }
+
   const chargeur = new ChargeurTuiles({ index, lire: (tx, ty) => fetch(`tuiles/${tx}_${ty}.bin`).then(r => {
     if (!r.ok) throw new Error(`tuile ${tx}_${ty} : ${r.status}`);
     return r.arrayBuffer();
   }) });
 
-  // Point dans le contour du département (Polygon ou MultiPolygon, règle pair-impair)
-  const anneaux = (contourDep.geometrie.type === "Polygon" ? [contourDep.geometrie.coordinates] : contourDep.geometrie.coordinates).flat();
-  function dansDepartement(ll) {
+  // Point dans la zone (département, ou territoire demandé ; Polygon ou MultiPolygon, règle pair-impair)
+  const anneaux = (zone.type === "Polygon" ? [zone.coordinates] : zone.coordinates).flat();
+  function dansZone(ll) {
     let dedans = false;
     for (const a of anneaux) for (let i = 0, j = a.length - 1; i < a.length; j = i++) {
       const [xi, yi] = a[i], [xj, yj] = a[j];
@@ -312,14 +334,16 @@ document.getElementById("replier").addEventListener("click", e => {
   for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["trace", 450]]) {
     const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace") p.style.pointerEvents = "none";
   }
-  const contour = L.geoJSON(contourDep.geometrie, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
+  const contour = L.geoJSON(zone, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
   const etroit = () => window.matchMedia("(max-width:720px)").matches;
   const marges = () => etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] };
 
   carte.fitBounds(contour.getBounds(), marges());
-  carte.setMaxBounds(contour.getBounds().pad(0.3));
+  carte.setMaxBounds(contour.getBounds().pad(terr ? 0.15 : 0.3));
   carte.options.maxBoundsViscosity = 1;
-  const DEPART_DEFAUT = L.latLng(46.1595, -1.1513);   // La Rochelle, mairie
+  if (terr) carte.setMinZoom(carte.getZoom() - 0.5);  // pas de dézoom au-delà de la vue d'ensemble du territoire
+  // Départ par défaut : mairie de La Rochelle ; sur Marennes-Oléron, celle de Saint-Pierre-d'Oléron
+  const DEPART_DEFAUT = terr ? L.latLng(45.9443, -1.3063) : L.latLng(46.1595, -1.1513);
 
   let toile = null, ctx = null, image = null, chaleur = null;
   // Calque Leaflet qui affiche directement un <canvas> (au lieu d'une image PNG) : à chaque image du survol,
@@ -355,6 +379,16 @@ document.getElementById("replier").addEventListener("click", e => {
     vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
     vue.G = { tout: construireGraphe(f.P, "tout"), amenage: construireGraphe(f.P, "amenage") };
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
+    if (masqueZone) {   // vue territoire : cellules hors du territoire ni colorées ni comptées
+      const g = vue.g, gr = index.grille, z = masqueZone;
+      const di = Math.round((g.w - gr.lon0) / gr.dlon) - z.i0, dj = Math.round((gr.lat0 - g.n) / gr.dlat) - z.j0;
+      const m = new Uint8Array(g.nx * g.ny);
+      for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++) {
+        const zi = i + di, zj = j + dj, k = j * g.nx + i;
+        m[k] = zi >= 0 && zj >= 0 && zi < z.nx && zj < z.ny && z.m[zj * z.nx + zi] ? 1 : 0;
+      }
+      g.dedans = g.ile = m;
+    }
     const g = vue.g, bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
     if (!toile || toile.width !== g.nx || toile.height !== g.ny) {
       // Nouvelle taille de fenêtre (bord de la zone tuilée) : nouveau canvas, donc nouveau calque
@@ -480,6 +514,15 @@ document.getElementById("replier").addEventListener("click", e => {
   // km² de terre atteints, avec une barre rapportée au disque parcouru à 20 km/h en ligne droite
   function afficherCouverture(min) {
     const seuils = [15, 30, 45];
+    if (masqueZone) {   // vue territoire : % des cellules du territoire, comme l'ancienne carte
+      const n = seuils.map(() => 0), g = vue.g;
+      if (min) for (let k = 0; k < min.length; k++) if (g.ile[k]) for (let i = 0; i < seuils.length; i++) if (min[k] <= seuils[i]) n[i]++;
+      $("#couverture").innerHTML = seuils.map((s, i) => {
+        const p = Math.round(n[i] / masqueZone.total * 100);
+        return `<div class="ligne"><span>${s} min</span><span class="jauge"><span style="width:${p}%"></span></span><span class="valeur">${p} %</span></div>`;
+      }).join("");
+      return;
+    }
     const km2 = min ? surfaceKm2(vue.P, min, seuils) : seuils.map(() => 0);
     $("#couverture").innerHTML = seuils.map((s, i) => {
       const disque = Math.PI * (20 * s / 60) ** 2, p = Math.min(100, Math.round(km2[i] / disque * 100));
@@ -606,7 +649,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
   let demande = 0;
   async function placerDepart(ll, complet) {
-    if (!dansDepartement(ll)) { afficherMessage("Le départ doit être en Charente-Maritime."); return; }
+    if (!dansZone(ll)) { afficherMessage(`Le départ doit être ${terr ? "sur " + terr.nom : "en Charente-Maritime"}.`); return; }
     const id = ++demande;
     etat.depart = ll;
     marqueurDepart.setLatLng(ll).addTo(carte);
@@ -653,7 +696,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   carte.on("mousemove", ev => {
     // Survol en direct : seulement dans le 17 et au zoom détaillé (ailleurs, rien ne bouge)
-    if (!etat.suivre || !dansDepartement(ev.latlng)) return;
+    if (!etat.suivre || !dansZone(ev.latlng)) return;
     planifierDepart(ev.latlng);
     clearTimeout(minuteurPause);
     minuteurPause = setTimeout(() => { if (etat.suivre && etat.minutes && vue.P) { dessinerIsolignes(etat.minutes); majLien(); } }, 300);
@@ -728,7 +771,7 @@ document.getElementById("replier").addEventListener("click", e => {
       } catch (e) { if (e.name === "AbortError") return; }
     }
     if (!fc) { liste.innerHTML = `<li class="vide">Le service d'adresses ne répond pas. Placez le repère directement sur la carte.</li>`; liste.hidden = false; return; }
-    const res = (fc.features || []).filter(f => dansDepartement(L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]))).slice(0, 6);
+    const res = (fc.features || []).filter(f => dansZone(L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]))).slice(0, 6);
     liste.innerHTML = res.length
       ? res.map((f, i) => `<li><button type="button" data-i="${i}">${echapper(f.properties.name || f.properties.label)}<small>${echapper([f.properties.postcode, f.properties.city].filter(Boolean).join(" "))}</small></button></li>`).join("")
       : `<li class="vide">Aucune adresse trouvée en Charente-Maritime pour « ${echapper(q)} ».</li>`;
