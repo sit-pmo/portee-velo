@@ -123,6 +123,23 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 @keyframes tourne{to{transform:rotate(1turn)}}
 @media (prefers-reduced-motion:reduce){.chargement::before{animation:none;border-top-color:var(--ardoise)}}
 .couverture .ligne{grid-template-columns:4.2em 1fr 5.2em}
+/* Simulation de tronçons (12/10/2026) */
+.sim-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sim-actions #sim-tracer{grid-column:1/-1}
+.bouton.petit{font-size:.84rem;padding:7px 8px}
+.bouton:disabled{opacity:.45;cursor:default;background:#fff}
+.sim-liste{list-style:none;margin:10px 0 0;padding:0}
+.sim-liste li{display:flex;align-items:center;gap:8px;padding:5px 0 5px 10px;border-left:4px solid #7B2CBF;margin-bottom:3px;font-size:.86rem}
+.sim-liste li[aria-current="true"]{background:#f3ecfb}
+.sim-liste .nom{flex:1;cursor:pointer}
+.sim-liste .retirer{font:inherit;border:0;background:none;color:var(--ardoise);cursor:pointer;padding:2px 8px;font-size:1rem}
+.bascule.trois{grid-template-columns:1fr 1fr 1fr;margin-top:10px}
+.sim-gains{margin-top:10px;font-size:.88rem;font-variant-numeric:tabular-nums}
+.sim-gains strong{color:#5A189A}
+.trait-sim{display:inline-block;width:26px;height:6px;border-radius:3px;vertical-align:middle;background:repeating-linear-gradient(90deg,#7B2CBF 0 8px,#fff 8px 12px)}
+.sommet-sim{width:12px;height:12px;border-radius:50%;border:2.5px solid #7B2CBF;background:#fff;box-shadow:0 0 0 1.5px #fff;box-sizing:border-box}
+.sommet-sim.raccorde{background:#7B2CBF}
+.milieu-sim{width:9px;height:9px;border-radius:50%;background:#7B2CBF;opacity:.5;border:1.5px solid #fff;box-sizing:border-box}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -179,6 +196,28 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <h2 id="titre-couverture">Surface de terre atteinte depuis ce départ</h2>
       <div id="couverture" class="couverture"></div>
       <p class="note" id="note-couverture">Barre : part du disque qu'on couvrirait à 20 km/h en ligne droite (5 km de rayon en 15 min). La mer ne compte pas.</p>
+    </div>
+
+    <div class="bloc" id="bloc-sim">
+      <h2>Simuler un aménagement</h2>
+      <div class="sim-actions">
+        <button type="button" class="bouton" id="sim-tracer" aria-pressed="false">Tracer un tronçon</button>
+        <button type="button" class="bouton petit" id="sim-importer">Importer (GeoJSON)</button>
+        <button type="button" class="bouton petit" id="sim-exporter" disabled>Exporter</button>
+        <input type="file" id="sim-fichier" accept=".geojson,.json,application/geo+json,application/json" hidden>
+      </div>
+      <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets, sur les carrefours pour raccorder la piste (point plein = raccordé à moins de 25 m). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
+      <ul class="sim-liste" id="sim-liste"></ul>
+      <div class="bascule trois" id="sim-vue" role="group" aria-label="Comparer avant et après les tronçons" hidden>
+        <button type="button" data-vue="avant" aria-pressed="false">Avant</button>
+        <button type="button" data-vue="apres" aria-pressed="true">Après</button>
+        <button type="button" data-vue="gain" aria-pressed="false">Gain</button>
+      </div>
+      <div id="sim-gains" class="sim-gains" hidden></div>
+      <div id="sim-legende-gain" hidden></div>
+      <p class="note" id="sim-info" hidden></p>
+      <button type="button" class="lien-action" id="sim-effacer" hidden>Tout effacer</button>
+      <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets.</p>
     </div>
 
     <div class="bloc" id="legende-maquette" hidden>
@@ -319,6 +358,23 @@ document.getElementById("replier").addEventListener("click", e => {
   const vue = { P: null, G: null, g: null, centre: null, partielle: false };
   const etat = { mode: "tout", symbo: "vitesse", cible: "depart", depart: null, arrivee: null, acc: null, res: null, minutes: null };
 
+  // ---------- Simulation de tronçons : scénario, fenêtre augmentée (P′) et graphes ----------
+  // vue.sim = { P: P′, G } pour la fenêtre courante (null sans tronçon) ; aff() = ce que la carte montre
+  const sim = { troncons: [], vue: "apres", selection: -1, nonRaccordes: [], tropLong: false };
+  vue.sim = null;
+  const aff = () => (vue.sim && sim.vue !== "avant" ? vue.sim : vue);
+  // Graphes d'une fenêtre : « tout » tout de suite, « pistes » (~400 ms avec les liaisons entre pistes) et
+  // « confort » à la première demande : en mode « Pistes + routes », un changement de tuile ne paie que « tout »
+  const graphes = P => ({ tout: construireGraphe(P, "tout"),
+    get amenage() { return this._amenage || (this._amenage = construireGraphe(P, "amenage")); },
+    get confort() { return this._confort || (this._confort = construireGraphe(P, "confort")); } });
+  function preparerSimulation() {
+    if (!vue.P || !sim.troncons.length) { vue.sim = null; sim.nonRaccordes = []; return; }
+    const r = ajouterTroncons(vue.P, sim.troncons);   // vue.P porte déjà le masque territoire et l'alias confort
+    vue.sim = { P: r.P, G: graphes(r.P) };
+    sim.nonRaccordes = r.nonRaccordes;
+  }
+
   // ---------- Carte ----------
   const carte = L.map("carte", { zoomControl: false, minZoom: 8, zoomSnap: 0.25 });
   L.control.zoom({ position: "topright" }).addTo(carte);
@@ -370,10 +426,7 @@ document.getElementById("replier").addEventListener("click", e => {
     vue.partielle = f.partielle;
     if (f.P === vue.P) return;
     vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
-    // Graphe « pistes » construit au premier accès seulement (~400 ms avec les liaisons entre pistes) : en mode
-    // « Pistes + routes », un changement de tuile ne paie que le graphe « tout »
-    const Pf = f.P;
-    vue.G = { tout: construireGraphe(Pf, "tout"), get amenage() { return this._amenage || (this._amenage = construireGraphe(Pf, "amenage")); } };
+    vue.G = graphes(f.P);
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
     if (masqueZone) {   // vue territoire : cellules hors du territoire ni colorées ni comptées
       const g = vue.g, gr = index.grille, z = masqueZone;
@@ -385,6 +438,7 @@ document.getElementById("replier").addEventListener("click", e => {
       }
       g.dedans = g.ile = m;
     }
+    preparerSimulation();                      // après le masque : P′ en hérite
     const g = vue.g, bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
     if (!toile || toile.width !== g.nx || toile.height !== g.ny) {
       // Nouvelle taille de fenêtre (bord de la zone tuilée) : nouveau canvas, donc nouveau calque
@@ -413,11 +467,8 @@ document.getElementById("replier").addEventListener("click", e => {
   // arcs exposés de l'arbre des plus courts chemins, pondérés par la surface sans alternative tranquille (orange)
   // Symbologie effective : le confort n'a de sens qu'en mode « Pistes + routes »
   const confortActif = () => etat.symbo === "confort" && etat.mode === "tout";
-  // Graphe du trajet tranquille, construit à la première demande dans une fenêtre
-  const grapheConfort = () => vue.G.confort || (vue.G.confort = construireGraphe(vue.P, "confort"));
-
   function dessinerConfort(min, minConf, complet) {
-    const P = vue.P, G = vue.G.tout, res = etat.res, g = vue.g, pro = g.pro.tout;
+    const { P, G: Gs } = aff(), G = Gs.tout, res = etat.res, pro = P.grille.pro.tout;
     const charge = new Float32Array(P.n);
     // Couleur des cellules : teinte = surcoût du trajet tranquille (bleu / gris / orange), clarté = temps
     const px = image.data;
@@ -468,7 +519,7 @@ document.getElementById("replier").addEventListener("click", e => {
 
   function dessinerIsolignes(min) {
     iso.clearLayers();
-    const g = vue.g, f = champIsolignes(vue.P, min);
+    const P = aff().P, g = P.grille, f = champIsolignes(P, min);
     if (!f) return;
     const contours = d3.contours().size([g.nx, g.ny]).thresholds(ISO)(f.champ);
     for (const c of contours) {
@@ -532,9 +583,9 @@ document.getElementById("replier").addEventListener("click", e => {
     trace.clearLayers();
     if (!etat.arrivee) { $("#resultat").hidden = true; $("#consigne").hidden = false; return; }
     $("#consigne").hidden = true; $("#resultat").hidden = false;
-    const Gm = vue.G && vue.G[etat.mode], { lat, lng } = etat.arrivee;
-    const acc = etat.res && accrocher(vue.P, Gm, lng, lat);
-    if (acc && isFinite(etat.res.dist[acc.noeud])) { dessinerTrajet(vue.P, Gm, etat.res, etat.acc, acc); return; }
+    const s = aff(), Gm = s.G && s.G[etat.mode], { lat, lng } = etat.arrivee;
+    const acc = etat.res && accrocher(s.P, Gm, lng, lat);
+    if (acc && isFinite(etat.res.dist[acc.noeud])) { dessinerTrajet(s.P, Gm, etat.res, etat.acc, acc); return; }
     $("#etapes").innerHTML = "";
     // Tuiles présentes sous l'arrivée (17 et 25 km autour) : l'itinéraire peut se calculer
     const tuilee = chargeur.existe.has(chargeur.tuileDe(lng, lat).join("_"));
@@ -557,12 +608,14 @@ document.getElementById("replier").addEventListener("click", e => {
       const f = await chargeur.couloir(d.lng, d.lat, a.lng, a.lat, demi);
       if (id !== demandeLoin) return;          // départ, arrivée ou mode changé entre-temps
       if (!f.P) continue;
-      const G = construireGraphe(f.P, mode);
-      const accD = accrocher(f.P, G, d.lng, d.lat), accA = accrocher(f.P, G, a.lng, a.lat);
+      // Couloir : mêmes tronçons simulés que la carte (sauf en vue « Avant »)
+      const Pc = sim.troncons.length && sim.vue !== "avant" ? ajouterTroncons(f.P, sim.troncons).P : f.P;
+      const G = construireGraphe(Pc, mode);
+      const accD = accrocher(Pc, G, d.lng, d.lat), accA = accrocher(Pc, G, a.lng, a.lat);
       if (!accD || !accA) break;
       const res = dijkstra(G, accD.noeud, accesSecondes(accD.distM), Infinity, accA.noeud);
       if (isFinite(res.dist[accA.noeud])) {
-        dessinerTrajet(f.P, G, res, accD, accA);
+        dessinerTrajet(Pc, G, res, accD, accA);
         if (f.partielle) $("#detail").textContent += ". Une partie du réseau n'a pas pu être chargée : itinéraire peut-être plus long que nécessaire.";
         return;
       }
@@ -598,35 +651,142 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#detail").textContent = `${fmtKm(distance)}, dont ${fmtKm(amenage)} sur piste ou bande cyclable (${Math.round(distance ? amenage / distance * 100 : 0)} %)`;
     // Les tuiles ne portent pas les noms de rue : étapes par type de voie
     $("#etapes").innerHTML = etapes(P, Gm, arcs).map(et =>
-      `<li style="--c:${CLASSES[et.cls].couleur}"><span class="nom">${CLASSES[et.cls].nom}</span><span class="chiffre">${fmtKm(et.m)}</span><span class="chiffre">${fmtMin(et.s)}</span></li>`).join("");
+      `<li style="--c:${CLASSES[et.cls].couleur}"><span class="nom">${echapper(P.noms[et.nom] || CLASSES[et.cls].nom)}</span><span class="chiffre">${fmtKm(et.m)}</span><span class="chiffre">${fmtMin(et.s)}</span></li>`).join("");
+  }
+
+  // Calcul sur une fenêtre s = { P, G } : temps le plus rapide et, en confort, temps tranquille
+  function calculerSur(s) {
+    const Gm = s.G[etat.mode], { lng, lat } = etat.depart;
+    const acc = accrocher(s.P, Gm, lng, lat);
+    if (!acc) return null;
+    const res = dijkstra(Gm, acc.noeud, accesSecondes(acc.distM), LIMITE_S);
+    // Trajet tranquille borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
+    const minConf = confortActif() ? minutesTranquilles(s.P, s.G.confort, lng, lat, LIMITE_S * CFG.confort.surcout[1]) : null;
+    return { acc, res, minutes: tempsGrille(s.P, Gm, res), minConf };
   }
 
   function calculer(complet) {
-    const P = vue.P, Gm = vue.G[etat.mode], g = vue.g;
-    const acc = accrocher(P, Gm, etat.depart.lng, etat.depart.lat);
-    if (!acc) {
+    const g = vue.g;
+    // Sans tronçon : un seul calcul. Avec : avant (P) et après (P′) à chaque image, pour le bandeau et la vue Gain
+    // (mesuré sur Oléron : 23 ms sans tronçon, ~45 ms avec, temps et confort compris)
+    etat.apres = vue.sim ? calculerSur(vue.sim) : null;
+    etat.avant = calculerSur(vue);
+    const r = vue.sim && sim.vue !== "avant" ? etat.apres : etat.avant;
+    if (!r) {
       etat.res = null; etat.acc = null;
       dessinerChaleur(new Float32Array(g.nx * g.ny).map((_, k) => (g.dedans[k] ? Infinity : NaN)));
-      iso.clearLayers(); afficherCouverture(null);
+      iso.clearLayers(); maillons.clearLayers(); afficherCouverture(null); afficherGains();
       afficherMessage(`Ce départ est à plus de ${CFG.accesMaxM[etat.mode]} m du réseau. Rapprochez le repère D d'une voie${etat.mode === "amenage" ? " ou passez en mode « Pistes + routes »" : ""}.`);
       majArrivee(complet); if (complet) majLien();
       return;
     }
     afficherMessage("");
-    etat.acc = acc;
-    etat.res = dijkstra(Gm, acc.noeud, accesSecondes(acc.distM), LIMITE_S);
-    etat.minutes = tempsGrille(P, Gm, etat.res);
+    etat.acc = r.acc; etat.res = r.res; etat.minutes = r.minutes;
     afficherCouverture(etat.minutes);
-    if (!confortActif()) { dessinerChaleur(etat.minutes); maillons.clearLayers(); }
-    else {
-      // Trajet tranquille, borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
-      const minConf = minutesTranquilles(P, grapheConfort(), etat.depart.lng, etat.depart.lat, LIMITE_S * CFG.confort.surcout[1]);
-      dessinerConfort(etat.minutes, minConf, complet);
-    }
+    afficherGains();
+    if (vue.sim && sim.vue === "gain") { dessinerGain(etat.avant, etat.apres); maillons.clearLayers(); }
+    else if (!confortActif()) { dessinerChaleur(etat.minutes); maillons.clearLayers(); }
+    else dessinerConfort(etat.minutes, r.minConf, complet);
     if (complet) { dessinerIsolignes(etat.minutes); majLien(); }
     else iso.clearLayers();
     majArrivee(complet);
   }
+
+  // ---------- Simulation : bandeau de gains, tronçons dessinés et listés, import / export ----------
+  function dessinerGain(avant, apres) { dessinerChaleur(apres ? apres.minutes : etat.minutes); }   // vue Gain : tâche suivante
+
+  // Bandeau : km² gagnés à 15 / 30 / 45 min (vue territoire : points de %), et en confort km² passés au bleu
+  function afficherGains() {
+    const el = $("#sim-gains");
+    el.hidden = !vue.sim;
+    if (!vue.sim) return;
+    const a = etat.avant, b = etat.apres, seuils = [15, 30, 45];
+    if (!a || !b) { el.textContent = "Gains : départ hors du réseau."; return; }
+    const signe = (x, d = 1) => x.toLocaleString("fr-FR", { maximumFractionDigits: d, signDisplay: "always" });
+    let morceaux;
+    if (masqueZone) {
+      const g = vue.g, n = (min, s) => { let c = 0; for (let k = 0; k < min.length; k++) if (g.ile[k] && min[k] <= s) c++; return c; };
+      morceaux = seuils.map(s => `${signe((n(b.minutes, s) - n(a.minutes, s)) / masqueZone.total * 100)} pt à ${s} min`);
+    } else {
+      const gs = gainSurface(vue.P, a.minutes, b.minutes, seuils);
+      morceaux = gs.map((x, i) => `${signe(x)} km² à ${seuils[i]} min`);
+    }
+    let html = `<strong>Gains</strong> : ${morceaux.join(" · ")}`;
+    if (confortActif() && a.minConf && b.minConf) {
+      const gc = gainConfort(vue.P, { min: a.minutes, minConf: a.minConf }, { min: b.minutes, minConf: b.minConf });
+      const km = x => x.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+      html += `<br>${km(gc.bleu)} km² passés au bleu, ${km(gc.gris)} km² d'orange à gris (moins d'1 h)`;
+    }
+    el.innerHTML = html;
+  }
+
+  // Calque des tronçons simulés : violet épais tireté (convention « projet ») sous halo blanc, cliquables
+  const coucheTroncons = L.layerGroup().addTo(carte);
+  function dessinerTroncons() {
+    coucheTroncons.clearLayers();
+    sim.troncons.forEach((t, i) => {
+      const ll = t.map(([lon, lat]) => [lat, lon]), choisi = i === sim.selection;
+      L.polyline(ll, { pane: "trace", color: "#fff", weight: choisi ? 10 : 8, opacity: .9, interactive: false }).addTo(coucheTroncons);
+      L.polyline(ll, { pane: "trace", color: "#7B2CBF", weight: choisi ? 6 : 5, dashArray: "10 6", lineCap: "butt" })
+        .on("click", ev => { L.DomEvent.stop(ev); selectionner(i); }).addTo(coucheTroncons);
+    });
+    for (const [lon, lat] of sim.nonRaccordes)
+      L.circleMarker([lat, lon], { pane: "trace", radius: 6, color: "#7B2CBF", weight: 2.5, fillColor: "#fff", fillOpacity: 1, interactive: false }).addTo(coucheTroncons);
+    // Liste du panneau
+    $("#sim-liste").innerHTML = sim.troncons.map((t, i) =>
+      `<li aria-current="${i === sim.selection}"><span class="nom" data-i="${i}">Tronçon ${i + 1} · ${fmtKm(longueurTroncon(t))}</span><button type="button" class="retirer" data-i="${i}" aria-label="Supprimer le tronçon ${i + 1}">✕</button></li>`).join("");
+    const n = sim.troncons.length;
+    $("#sim-vue").hidden = $("#sim-effacer").hidden = !n;
+    $("#sim-exporter").disabled = !n;
+    const libres = sim.nonRaccordes.length;
+    montrerInfo(libres ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "");
+  }
+  function montrerInfo(texte, html = false) { const el = $("#sim-info"); el.hidden = !texte; if (html) el.innerHTML = texte; else el.textContent = texte; }
+  function selectionner(i) { sim.selection = i; dessinerTroncons(); }
+
+  // Toute modification du scénario passe par ici : P′ refaite, carte redessinée, recalcul complet
+  function majSimulation() {
+    if (sim.selection >= sim.troncons.length) sim.selection = -1;
+    preparerSimulation();
+    dessinerTroncons();
+    if (etat.depart && vue.P) calculer(true);
+  }
+
+  $("#sim-liste").addEventListener("click", ev => {
+    const i = Number(ev.target.dataset.i);
+    if (!Number.isInteger(i) || ev.target.dataset.i === undefined) return;
+    if (ev.target.classList.contains("retirer")) { sim.troncons.splice(i, 1); sim.selection = -1; majSimulation(); }
+    else { selectionner(i); carte.fitBounds(L.latLngBounds(sim.troncons[i].map(([lon, lat]) => [lat, lon])).pad(0.3)); }
+  });
+  $("#sim-effacer").addEventListener("click", () => { sim.troncons = []; sim.selection = -1; majSimulation(); });
+  document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => {
+    sim.vue = b.dataset.vue;
+    document.querySelectorAll("[data-vue]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    if (etat.depart && vue.P) calculer(true);
+  }));
+
+  // Import : fichier choisi ou glissé sur la carte ; Lambert 93 reconnu par lireGeoJSON
+  async function importer(fichier) {
+    let r;
+    try { r = lireGeoJSON(JSON.parse(await fichier.text())); }
+    catch { montrerInfo(`« ${fichier.name} » n'est pas un GeoJSON lisible.`); return; }
+    if (!r.troncons.length) { montrerInfo(`Aucune ligne dans « ${fichier.name} »${r.ignores ? ` (${r.ignores} géométrie(s) ignorée(s))` : ""}.`); return; }
+    sim.troncons.push(...r.troncons); sim.selection = -1;
+    majSimulation();
+    carte.fitBounds(L.latLngBounds(r.troncons.flat().map(([lon, lat]) => [lat, lon])).pad(0.2));
+    if (r.ignores) montrerInfo(`${r.troncons.length} tronçon(s) importé(s), ${r.ignores} géométrie(s) ignorée(s) (seules les lignes comptent).`);
+  }
+  $("#sim-importer").addEventListener("click", () => $("#sim-fichier").click());
+  $("#sim-fichier").addEventListener("change", ev => { if (ev.target.files[0]) importer(ev.target.files[0]); ev.target.value = ""; });
+  const zoneDepot = carte.getContainer();
+  zoneDepot.addEventListener("dragover", ev => { ev.preventDefault(); });
+  zoneDepot.addEventListener("drop", ev => { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if (f) importer(f); });
+  $("#sim-exporter").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(versGeoJSON(sim.troncons), null, 1)], { type: "application/geo+json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "troncons-simules.geojson"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
 
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
   let demande = 0;
