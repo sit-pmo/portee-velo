@@ -215,6 +215,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       </div>
       <div id="sim-gains" class="sim-gains" hidden></div>
       <div id="sim-legende-gain" hidden></div>
+      <p class="note" id="sim-gain-vide" hidden></p>
       <p class="note" id="sim-info" hidden></p>
       <button type="button" class="lien-action" id="sim-effacer" hidden>Tout effacer</button>
       <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets.</p>
@@ -693,7 +694,52 @@ document.getElementById("replier").addEventListener("click", e => {
   }
 
   // ---------- Simulation : bandeau de gains, tronçons dessinés et listés, import / export ----------
-  function dessinerGain(avant, apres) { dessinerChaleur(apres ? apres.minutes : etat.minutes); }   // vue Gain : tâche suivante
+  // Vue « Gain » : seules les cellules améliorées sont colorées, le reste transparent.
+  // Temps : minutes gagnées (1–2, 2–5, 5–10, > 10), magenta = atteinte en moins d'1 h alors qu'elle ne l'était pas.
+  // Confort : bleu = passée au bleu, gris = passée d'orange à gris. Gain < 1 min ignoré (bruit des arrondis d'accès).
+  const GAIN_PALIERS = [2, 5, 10, Infinity];
+  const GAIN_COUL = ["#E9D5FF", "#C084FC", "#9333EA", "#581C87"].map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const GAIN_NOUV = [194, 24, 91];
+  function dessinerGain(avant, apres) {
+    const px = image.data, N = px.length / 4;
+    if (!avant || !apres) { for (let k = 0; k < N; k++) px[k * 4 + 3] = 0; ctx.putImageData(image, 0, 0); return; }
+    const conf = confortActif() && avant.minConf && apres.minConf;
+    const bleu = MAQ_PAL[0][3], gris = MAQ_PAL[1][3];
+    let colorees = 0;
+    for (let k = 0; k < N; k++) {
+      const o = k * 4, a = avant.minutes[k], b = apres.minutes[k];
+      let c = null;
+      if (b <= MAQ_MIN) {
+        if (conf) {
+          const x = a <= MAQ_MIN ? teinteConfort(a, avant.minConf[k]) : -1, y = teinteConfort(b, apres.minConf[k]);
+          if (y === 0 && x !== 0) c = [bleu.r, bleu.g, bleu.b];
+          else if (y === 1 && x === 2) c = [gris.r, gris.g, gris.b];
+        } else if (!(a <= MAQ_MIN)) c = GAIN_NOUV;
+        else if (a - b >= 1) c = GAIN_COUL[GAIN_PALIERS.findIndex(s => a - b <= s)];
+      }
+      if (!c) { px[o + 3] = 0; continue; }
+      px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255; colorees++;
+    }
+    ctx.putImageData(image, 0, 0);
+    // Carte vide : le dire (ex. piste le long d'une route aussi rapide : rien à gagner en temps, voir « Temps et confort »)
+    const vide = $("#sim-gain-vide");
+    vide.hidden = colorees > 0;
+    vide.textContent = conf ? "Depuis ce départ, aucun secteur ne devient plus tranquille."
+      : "Depuis ce départ, aucun secteur ne gagne 1 min ou plus. Une piste le long d'une route change surtout le confort : essayez « Temps et confort ».";
+  }
+  // Légende de la vue Gain (selon temps / confort), à la place des légendes habituelles
+  function majLegendeGain() {
+    const el = $("#sim-legende-gain");
+    el.hidden = !(vue.sim && sim.vue === "gain");
+    $("#legende-vitesse").hidden = !el.hidden || confortActif();
+    $("#legende-maquette").hidden = !el.hidden || !confortActif();
+    if (el.hidden) { $("#sim-gain-vide").hidden = true; return; }
+    const pastille = (rgb, texte) => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;white-space:nowrap"><span style="width:14px;height:12px;border-radius:2px;background:rgb(${rgb.join(",")})"></span>${texte}</span>`;
+    const b = MAQ_PAL[0][3], g = MAQ_PAL[1][3];
+    el.innerHTML = `<p class="note">${confortActif()
+      ? pastille([b.r, b.g, b.b], "passée au bleu") + pastille([g.r, g.g, g.b], "orange → gris")
+      : ["1–2", "2–5", "5–10", "> 10"].map((t, i) => pastille(GAIN_COUL[i], `${t} min`)).join("") + pastille(GAIN_NOUV, "nouvellement à moins d'1 h")}</p>`;
+  }
 
   // Bandeau : km² gagnés à 15 / 30 / 45 min (vue territoire : points de %), et en confort km² passés au bleu
   function afficherGains() {
@@ -749,6 +795,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (sim.selection >= sim.troncons.length) sim.selection = -1;
     preparerSimulation();
     dessinerTroncons();
+    majLegendeGain();
     if (etat.depart && vue.P) calculer(true);
   }
 
@@ -762,6 +809,7 @@ document.getElementById("replier").addEventListener("click", e => {
   document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => {
     sim.vue = b.dataset.vue;
     document.querySelectorAll("[data-vue]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    majLegendeGain();
     if (etat.depart && vue.P) calculer(true);
   }));
 
@@ -883,6 +931,7 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#bascule-symbo").style.gridTemplateColumns = seul ? "1fr" : "";
     $("#legende-maquette").hidden = !confortActif();
     $("#legende-vitesse").hidden = confortActif();
+    majLegendeGain();                          // vue Gain : sa légende remplace les deux autres
   }
   function choisirSymbo(symbo) {
     etat.symbo = symbo; majSymbo();
