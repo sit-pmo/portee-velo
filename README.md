@@ -42,7 +42,7 @@ Les tronçons voyagent dans le lien « Copier le lien de cette vue » (jusqu'à 
 
 ## Maillons manquants de l'île (vue Oléron)
 
-Avec `?territoire=oleron`, le bloc « Maillons manquants de l'île » classe les voies qui coupent le plus souvent l'accès tranquille. Pour chaque départ d'une grille régulière de 250 m couvrant l'île, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs d'une même route sont regroupés. « Vue cumulée » les dessine (épaisseur selon la part de l'île), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
+Avec `?territoire=oleron`, le bloc « Maillons manquants de l'île » classe les voies qui coupent le plus souvent l'accès tranquille. Pour chaque départ d'une grille régulière de 250 m couvrant l'île, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
 

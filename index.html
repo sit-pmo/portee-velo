@@ -1012,9 +1012,13 @@ document.getElementById("replier").addEventListener("click", e => {
   // % de l'île → épaisseur ; paliers tirés du classement du 12/10/2026 (maximum 18 %, une trentaine de voies ≥ 5 %)
   const PALIERS_D4 = [[10, 8], [5, 5], [2, 3]];
   function installerD4(D) {
-    if (!D || !Array.isArray(D.voies) || !D.voies.length) return;      // fichier absent ou vide : bloc caché
-    const comptes = D.departs - D.ignores;
-    d4.voies = D.voies.map(v => ({ ...v, coords: decoderTroncons(v.g)[0], pct: Math.round(v.score / comptes * 100) }));
+    // Fichier absent, vide ou incomplet : bloc caché ; voies sans géométrie, classe ou départ lisibles écartées
+    const comptes = D && D.departs - D.ignores;
+    if (!D || !Array.isArray(D.voies) || !(comptes > 0)) return;
+    d4.voies = D.voies.filter(v => typeof v.g === "string" && CLASSES[v.cls] && Array.isArray(v.d) && v.d.length === 2 && v.d.every(isFinite))
+      .map(v => ({ ...v, coords: decoderTroncons(v.g)[0], pct: Math.round(v.score / comptes * 100) }))
+      .filter(v => v.coords && v.coords.length >= 2);
+    if (!d4.voies.length) return;
     $("#d4-note").textContent = `Score : part des départs, sur une grille de ${D.pasM} m couvrant l'île, depuis lesquels cette voie est un maillon manquant (trait noir).`
       + (D.osm !== index.genere ? ` Classement calculé sur les données du ${D.osm}.` : "");
     $("#bloc-d4").hidden = false;
@@ -1028,7 +1032,10 @@ document.getElementById("replier").addEventListener("click", e => {
       const p = PALIERS_D4.find(([s]) => v.pct >= s), w = p ? p[1] : 2, ll = v.coords.map(([lon, lat]) => [lat, lon]);
       L.polyline(ll, { pane: "d4", color: "#fff", weight: w + 3, opacity: .9, interactive: false }).addTo(coucheD4);
       L.polyline(ll, { pane: "d4", color: i === d4.choisi ? "#7B2CBF" : "#111", weight: w, opacity: .95 })
-        .on("click", ev => { L.DomEvent.stop(ev); choisirD4(i, false); }).addTo(coucheD4);
+        .on("click", ev => {
+          if (outil.actif || voie.actif) return;   // en tracé ou aménagement, le clic passe à la carte (sommet, voie)
+          L.DomEvent.stop(ev); choisirD4(i, false);
+        }).addTo(coucheD4);
     });
   }
   function basculerD4(actif) {
@@ -1037,7 +1044,10 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#d4-liste").hidden = !actif;
     $("#d4-amenager").hidden = !actif || d4.choisi < 0;
     for (const nom of ["chaleur", "iso"]) carte.getPane(nom).style.display = actif ? "none" : "";   // vue indépendante du départ
-    if (actif && etat.suivre) suivre(false);
+    // Vue indépendante du départ : pas de suivi de la souris (bouton caché), rendu en quittant s'il était actif
+    if (actif) { d4.suiviAvant = etat.suivre; suivre(false); }
+    else if (d4.suiviAvant) { d4.suiviAvant = false; suivre(true); }
+    $("#suivre").hidden = actif || !survolPossible;
     dessinerD4();
   }
   function choisirD4(i, zoomer) {
@@ -1055,11 +1065,15 @@ document.getElementById("replier").addEventListener("click", e => {
     basculerD4(false);
     if (etat.mode !== "tout") choisirMode("tout");            // le confort n'existe qu'en « Pistes + routes »
     if (etat.symbo !== "confort") choisirSymbo("confort");
-    sim.troncons.push(v.coords.map(p => p.slice()));
+    // Voie déjà simulée (second clic) : pas de doublon. Autres tronçons présents : le gain les inclut, on le dit
+    const deja = sim.troncons.some(t => encoderTroncons([t]) === v.g);
+    if (!deja) sim.troncons.push(v.coords.map(p => p.slice()));
     majSimulation();
     $('[data-vue="gain"]').click();
     suivre(false);
     placerDepart(L.latLng(v.d[1], v.d[0]), true);
+    const autres = sim.troncons.length - 1;
+    if (autres > 0) montrerInfo(`Le gain affiché inclut aussi ${autres > 1 ? `les ${autres} autres tronçons simulés` : "l'autre tronçon simulé"}. « Tout effacer » puis « Aménager » pour isoler cette voie.`);
   });
   if (TERRITOIRE === "oleron")
     fetch("tuiles/maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
@@ -1137,6 +1151,7 @@ document.getElementById("replier").addEventListener("click", e => {
   carte.on("click", ev => {
     if (outil.actif) { outil.sommets.push([ev.latlng.lng, ev.latlng.lat]); dessinerTraceEnCours(); return; }
     if (voie.actif) { amenagerVoie(ev.latlng); return; }
+    if (d4.actif) return;                                        // vue cumulée : ni départ ni arrivée (carte cachée)
     if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
     if (etat.suivre || !etat.depart) { suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);
