@@ -30,6 +30,12 @@ const CFG = {
   liaisonFacteur: [0, 0, 1, 2, 2, 1, 1, 2],
   morceauMinM: 1000,                   // mode pistes : un départ ne s'accroche qu'à un morceau d'au moins 1 km de voies (longueur comptée dans la fenêtre chargée).
                                        // Avant le 11/10/2026 : 200 nœuds, ce qui écartait la piste de Sauzelle (3 km, 187 nœuds)
+  // Simulation de tronçons (12/10/2026) : sommet raccordé au nœud existant le plus proche à 25 m au plus (comme
+  // RACCORD_MAX_M de la carte d'origine) ; segments découpés tous les 100 m pour que les cellules longées aient un
+  // nœud proche ; piste simulée classe 0, double sens, 20 km/h (vitesse de base)
+  raccordMaxM: 25,
+  pasTronconM: 100,
+  vitesseSimuleeKmh: 20,
 };
 const R_TERRE = 6371008.8, RAD = Math.PI / 180;
 
@@ -182,7 +188,11 @@ function dijkstra(G, src, t0, limite = Infinity, but = -1) {
     while (i > 0) { const p = (i - 1) >> 1; if (hd[p] <= d) break; hn[i] = hn[p]; hd[i] = hd[p]; i = p; }
     hn[i] = v; hd[i] = d;
   };
-  dist[src] = t0; pousser(src, t0);
+  // src : un nœud (départ au temps t0), ou une liste [[nœud, temps de départ], …] (départ d'avant et départ sur une
+  // piste simulée, voir departs) ; res.src = premier nœud
+  const sources = Array.isArray(src) ? src : [[src, t0]];
+  for (const [v, t] of sources) if (t < dist[v]) { dist[v] = t; pousser(v, t); }
+  if (Array.isArray(src)) src = src.length ? src[0][0] : -1;
   while (taille > 0) {
     const u = hn[0], d = hd[0];
     taille--;
@@ -239,6 +249,19 @@ function accrocher(P, G, lon, lat) {
   return meilleur < 0 || dMin > max ? null : { noeud: meilleur, distM: dMin };
 }
 
+// Départs possibles depuis (lon, lat) : le nœud accroché sur la grille et, dans une fenêtre avec tronçons simulés
+// (grille.secours), aussi celui de la grille d'avant. Sans ce second départ, une piste simulée plus proche du départ
+// mais reliée au réseau loin de là rallongeait les trajets (relecture du 12/10/2026). Liste vide : aucune voie.
+function departs(P, G, lon, lat) {
+  const a = accrocher(P, G, lon, lat), out = a ? [a] : [], s = P.grille.secours;
+  if (s) {
+    const b = accrocher({ ...P, grille: { ...P.grille, pro: s.pro, dist: s.dist } }, G, lon, lat);
+    if (b && (!a || b.noeud !== a.noeud)) out.push(b);
+  }
+  return out;
+}
+const sourcesDijkstra = d => d.map(a => [a.noeud, accesSecondes(a.distM)]);
+
 // Arêtes d'une classe (pistes, ou bandes) regroupées en lignes continues : on suit chaque enchaînement de nœuds
 // de degré 2. Une ligne par arête donnait des dizaines de milliers de tracés à Leaflet (150 à 290 ms par fenêtre).
 function lignesReseau(P, c) {
@@ -276,8 +299,8 @@ function expose(c) { return CFG.confort.classes[c] >= 2; }
 // (graphe du mode « confort », même réseau que « tout »). Les arcs exposés à moins de departLibreM du départ (deux
 // extrémités, à vol d'oiseau) reprennent le temps du mode « tout » le temps du calcul, puis leurs poids d'origine.
 function minutesTranquilles(P, Gc, lon, lat, limiteS) {
-  const acc = accrocher(P, Gc, lon, lat);
-  if (!acc) return new Float32Array(P.grille.nx * P.grille.ny).fill(Infinity);
+  const dep = departs(P, Gc, lon, lat);
+  if (!dep.length) return new Float32Array(P.grille.nx * P.grille.ny).fill(Infinity);
   const r = CFG.confort.departLibreM, dLat = r / 111000, dLon = dLat / Math.cos(lat * RAD);
   const proche = v => Math.abs(P.lat[v] - lat) < dLat && Math.abs(P.lon[v] - lon) < dLon && distanceM(lon, lat, P.lon[v], P.lat[v]) <= r;
   const libres = [], sauves = [];
@@ -291,7 +314,7 @@ function minutesTranquilles(P, Gc, lon, lat, limiteS) {
       }
     }
   }
-  const min = tempsGrille(P, Gc, dijkstra(Gc, acc.noeud, accesSecondes(acc.distM), limiteS));
+  const min = tempsGrille(P, Gc, dijkstra(Gc, sourcesDijkstra(dep), 0, limiteS));
   libres.forEach((k, i) => { Gc.poids[k] = sauves[i]; });   // valeurs d'origine (une division dériverait en Float32)
   return min;
 }
@@ -303,16 +326,18 @@ function teinteConfort(m, mc) {
   return mc <= Math.max(m * s.surcout[0], m + s.surcoutMin) ? 0 : mc <= m * s.surcout[1] ? 1 : 2;
 }
 
-// Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte
+// Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte.
+// Fenêtre avec tronçons simulés (g.secours = grille d'avant) : la cellule garde le meilleur de son nœud d'avant et
+// du nœud simulé qui l'a reprise ; un nœud simulé injoignable dans ce mode (piste reliée seulement par une route, en
+// mode pistes) ne rallonge donc jamais un temps.
 function tempsGrille(P, G, res) {
   const g = P.grille, N = g.nx * g.ny, out = new Float32Array(N);
   const pro = g.pro[G.mode], dd = g.dist[G.mode], max = CFG.accesMaxM[G.mode];
+  const sp = g.secours && g.secours.pro[G.mode], sd = g.secours && g.secours.dist[G.mode];
+  const temps = (v, d) => (v >= 0 && d <= max && isFinite(res.dist[v]) ? (res.dist[v] + accesSecondes(d)) / 60 : Infinity);
   for (let k = 0; k < N; k++) {
     if (!g.dedans[k]) { out[k] = NaN; continue; }
-    const v = pro[k];
-    if (v < 0 || dd[k] > max) { out[k] = Infinity; continue; }
-    const t = res.dist[v];
-    out[k] = isFinite(t) ? (t + accesSecondes(dd[k])) / 60 : Infinity;
+    out[k] = sp ? Math.min(temps(pro[k], dd[k]), temps(sp[k], sd[k])) : temps(pro[k], dd[k]);
   }
   return out;
 }
@@ -360,13 +385,16 @@ function couverture(P, minutes, seuils) {
   return compte.map(c => (total ? c / total : 0));
 }
 
-// Surface (km²) des cellules comptées (g.ile) atteintes sous chaque seuil. Grille en degrés : l'aire d'une
-// cellule dépend de la latitude de sa ligne (cos φ) ; c'est le score de la version France (km² terrestres).
+// Aire (km²) d'une cellule de la ligne j : grille en degrés, l'aire dépend de la latitude de la ligne (cos φ)
+function aireLigneKm2(g, j) {
+  return (g.dlat * RAD * R_TERRE / 1000) * (g.dlon * RAD * R_TERRE / 1000) * Math.cos((g.n - (j + 0.5) * g.dlat) * RAD);
+}
+
+// Surface (km²) des cellules comptées (g.ile) atteintes sous chaque seuil ; c'est le score de la version France (km² terrestres).
 function surfaceKm2(P, minutes, seuils) {
-  const g = P.grille, kmLat = g.dlat * RAD * R_TERRE / 1000, kmLon = g.dlon * RAD * R_TERRE / 1000;
-  const surf = seuils.map(() => 0);
+  const g = P.grille, surf = seuils.map(() => 0);
   for (let j = 0; j < g.ny; j++) {
-    const aire = kmLat * kmLon * Math.cos((g.n - (j + 0.5) * g.dlat) * RAD);
+    const aire = aireLigneKm2(g, j);
     for (let i = 0, k = j * g.nx; i < g.nx; i++, k++) {
       if (!g.ile[k]) continue;
       const m = minutes[k];
@@ -374,6 +402,29 @@ function surfaceKm2(P, minutes, seuils) {
     }
   }
   return surf;
+}
+
+// Simulation : km² gagnés sous chaque seuil (après − avant)
+function gainSurface(P, minAvant, minApres, seuils) {
+  const a = surfaceKm2(P, minAvant, seuils), b = surfaceKm2(P, minApres, seuils);
+  return b.map((x, i) => x - a[i]);
+}
+
+// Simulation, confort : km² passés au bleu (depuis gris, orange, ou non atteints en limiteMin) et passés d'orange à
+// gris. avant / apres = { min, minConf } (temps le plus rapide et temps tranquille par cellule, en minutes).
+function gainConfort(P, avant, apres, limiteMin = 60) {
+  const g = P.grille, out = { bleu: 0, gris: 0 };
+  const teinte = (r, k) => (r.min[k] <= limiteMin ? teinteConfort(r.min[k], r.minConf[k]) : -1);
+  for (let j = 0; j < g.ny; j++) {
+    const aire = aireLigneKm2(g, j);
+    for (let i = 0, k = j * g.nx; i < g.nx; i++, k++) {
+      if (!g.ile[k]) continue;
+      const x = teinte(avant, k), y = teinte(apres, k);
+      if (y === 0 && x !== 0) out.bleu += aire;
+      else if (y === 1 && x === 2) out.gris += aire;
+    }
+  }
+  return out;
 }
 
 // Champ continu pour les isolignes : les cellules hors réseau ou en mer reçoivent la valeur
@@ -395,6 +446,219 @@ function champIsolignes(P, minutes) {
     }
   }
   return { champ, masque };
+}
+
+// ======================= SCÉNARIO DE TRONÇONS SIMULÉS =======================
+// Un tronçon = [[lon, lat], …] (WGS84, au moins 2 sommets) ; un scénario = liste de tronçons.
+
+// Lambert 93 (EPSG:2154) → [lon, lat] WGS84 : projection conique conforme inverse, ellipsoïde GRS80, constantes
+// IGN (notice ALG0004, latitude isométrique inverse par itération). RGF93 ≡ WGS84 au mètre : pas de changement de datum.
+function l93VersWgs84(x, y) {
+  const n = 0.7256077650, c = 11754255.426, xs = 700000, ys = 12655612.050, e = 0.0818191910428158;
+  const dx = x - xs, dy = ys - y, R = Math.hypot(dx, dy);
+  const lon = 3 + Math.atan(dx / dy) / n / RAD;
+  const L = -Math.log(R / c) / n;                       // latitude isométrique
+  let phi = 2 * Math.atan(Math.exp(L)) - Math.PI / 2;
+  for (let i = 0; i < 20; i++) {
+    const s = e * Math.sin(phi);
+    const suivant = 2 * Math.atan(((1 + s) / (1 - s)) ** (e / 2) * Math.exp(L)) - Math.PI / 2;
+    if (Math.abs(suivant - phi) < 1e-12) { phi = suivant; break; }
+    phi = suivant;
+  }
+  return [lon, phi / RAD];
+}
+
+// Scénario ↔ texte du lien (t=) : polyline encodée de Google (précision 1e-5, lat puis lon, compatible avec les
+// outils existants), un texte par tronçon, séparés par des virgules (hors de l'alphabet 63..126 de l'algorithme).
+function encoderTroncons(troncons) {
+  const enc = v => {
+    v = v < 0 ? ~(v << 1) : v << 1;
+    let s = "";
+    while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+    return s + String.fromCharCode(v + 63);
+  };
+  return troncons.map(t => {
+    let pla = 0, plo = 0, s = "";
+    for (const [lon, lat] of t) {
+      const la = Math.round(lat * 1e5), lo = Math.round(lon * 1e5);
+      s += enc(la - pla) + enc(lo - plo); pla = la; plo = lo;
+    }
+    return s;
+  }).join(",");
+}
+// Inverse d'encoderTroncons ; lève une erreur sur un texte illisible, tronqué ou un tronçon de moins de 2 sommets
+function decoderTroncons(s) {
+  if (!s) return [];
+  return s.split(",").map(p => {
+    let i = 0, la = 0, lo = 0;
+    const lire = () => {
+      let v = 0, dec = 0, c;
+      do {
+        if (i >= p.length) throw new Error("tronçon tronqué");
+        c = p.charCodeAt(i++) - 63;
+        if (c < 0 || c > 63) throw new Error("caractère hors alphabet");
+        v |= (c & 0x1f) << dec; dec += 5;
+      } while (c >= 0x20);
+      return v & 1 ? ~(v >> 1) : v >> 1;
+    };
+    const t = [];
+    while (i < p.length) { la += lire(); lo += lire(); t.push([lo / 1e5, la / 1e5]); }
+    if (t.length < 2) throw new Error("tronçon de moins de 2 sommets");
+    return t;
+  });
+}
+
+// GeoJSON (FeatureCollection, Feature ou géométrie) → tronçons WGS84. LineString et MultiLineString gardées (une
+// partie = un tronçon), le reste compté dans `ignores`. Lambert 93 reconnu au champ crs (2154) ou, sans crs (export
+// QGIS courant), à une coordonnée hors des bornes des degrés (|x| > 1000). Toute autre projection (crs CC46, 3857…)
+// lève une erreur « projection non reconnue » : sans ce contrôle, les tronçons tombaient à des centaines de km.
+function lireGeoJSON(o) {
+  const lignes = [];
+  let ignores = 0;
+  const geometrie = g => {
+    if (!g) ignores++;
+    else if (g.type === "LineString") lignes.push(g.coordinates);
+    else if (g.type === "MultiLineString") lignes.push(...g.coordinates);
+    else if (g.type === "GeometryCollection") g.geometries.forEach(geometrie);
+    else ignores++;
+  };
+  const parcourir = x => x.type === "FeatureCollection" ? x.features.forEach(parcourir) : x.type === "Feature" ? geometrie(x.geometry) : geometrie(x);
+  parcourir(o);
+  const nonReconnue = () => new Error("projection non reconnue : WGS84 (EPSG:4326) ou Lambert 93 (EPSG:2154) attendus");
+  const crs = String((o.crs && o.crs.properties && o.crs.properties.name) || "");
+  if (crs && !/2154|4326|CRS84/.test(crs)) throw nonReconnue();
+  const l93 = /2154/.test(crs) || lignes.some(l => l.some(c => Math.abs(c[0]) > 1000));
+  const troncons = [];
+  for (const l of lignes) {
+    const t = l.map(c => (l93 ? l93VersWgs84(c[0], c[1]) : [c[0], c[1]])).filter(([x, y]) => isFinite(x) && isFinite(y));
+    if (t.length >= 2) troncons.push(t); else ignores++;
+  }
+  // Emprise large de la France métropolitaine : au-delà, ce n'était pas du Lambert 93 (ou pas du WGS84)
+  if (troncons.some(t => t.some(([x, y]) => x < -6 || x > 10 || y < 41 || y > 52))) throw nonReconnue();
+  return { troncons, ignores };
+}
+
+function longueurTroncon(t) {
+  let l = 0;
+  for (let i = 1; i < t.length; i++) l += distanceM(t[i - 1][0], t[i - 1][1], t[i][0], t[i][1]);
+  return l;
+}
+
+// Tronçons → FeatureCollection WGS84 (export, à reprendre dans QGIS)
+function versGeoJSON(troncons) {
+  return { type: "FeatureCollection", features: troncons.map((t, i) => ({
+    type: "Feature", properties: { nom: `Tronçon simulé ${i + 1}`, longueur_m: Math.round(longueurTroncon(t)) },
+    geometry: { type: "LineString", coordinates: t.map(([lon, lat]) => [lon, lat]) },
+  })) };
+}
+
+// Pour chaque point, nœud de P le plus proche à maxM au plus (-1 sinon). Seaux de maxM de côté, remplis avec les
+// seuls nœuds du rectangle englobant les points : un parcours de P.n, puis 3 × 3 seaux par point.
+function noeudsProches(P, points, maxM) {
+  const out = new Int32Array(points.length).fill(-1);
+  if (!points.length) return out;
+  let w = Infinity, e = -Infinity, s = Infinity, n = -Infinity;
+  for (const [lon, lat] of points) { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); }
+  const pasLat = maxM / (R_TERRE * RAD), pasLon = pasLat / Math.cos(Math.max(Math.abs(s), Math.abs(n)) * RAD);
+  w -= pasLon; e += pasLon; s -= pasLat; n += pasLat;
+  const seaux = new Map(), cle = (i, j) => `${i}_${j}`;
+  for (let v = 0; v < P.n; v++) {
+    const lo = P.lon[v], la = P.lat[v];
+    if (lo < w || lo > e || la < s || la > n) continue;
+    const c = cle(Math.floor(lo / pasLon), Math.floor(la / pasLat));
+    if (!seaux.has(c)) seaux.set(c, []);
+    seaux.get(c).push(v);
+  }
+  points.forEach(([lon, lat], p) => {
+    const i0 = Math.floor(lon / pasLon), j0 = Math.floor(lat / pasLat);
+    let dMin = maxM;
+    for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+      for (const v of seaux.get(cle(i0 + di, j0 + dj)) || []) {
+        const d = distanceM(lon, lat, P.lon[v], P.lat[v]);
+        if (d <= dMin) { dMin = d; out[p] = v; }
+      }
+    }
+  });
+  return out;
+}
+
+// Grille : les cellules à maxM au plus du nœud v (lon, lat) le prennent si elles en sont plus proches que de leur nœud
+function rattacher(g, pro, dist, v, lon, lat, maxM) {
+  const dLat = maxM / (R_TERRE * RAD), dLon = dLat / Math.cos(lat * RAD);
+  const i0 = Math.max(0, Math.floor((lon - dLon - g.w) / g.dlon)), i1 = Math.min(g.nx - 1, Math.floor((lon + dLon - g.w) / g.dlon));
+  const j0 = Math.max(0, Math.floor((g.n - lat - dLat) / g.dlat)), j1 = Math.min(g.ny - 1, Math.floor((g.n - lat + dLat) / g.dlat));
+  for (let j = j0; j <= j1; j++) {
+    const clat = g.n - (j + 0.5) * g.dlat;
+    for (let i = i0; i <= i1; i++) {
+      const k = j * g.nx + i, d = distanceM(g.w + (i + 0.5) * g.dlon, clat, lon, lat);
+      if (d <= maxM && d < dist[k]) { pro[k] = v; dist[k] = d; }
+    }
+  }
+}
+
+// Fenêtre P′ = P + tronçons simulés (P n'est pas modifié : il sert à l'« avant »). Chaque sommet devient un nœud,
+// raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; les segments sont
+// découpés tous les CFG.pasTronconM mètres ; les cellules proches se rattachent aux nouveaux nœuds (une piste en site
+// propre doit servir aux cellules qu'elle traverse). Extrémités sans nœud proche rendues dans nonRaccordes, indices
+// des tronçons sans aucun raccord (injoignables, sans effet) dans isoles.
+// ponytail: copie complète des tableaux de la fenêtre (quelques dizaines de ms pour 1 M de nœuds), refaite à chaque
+// modification du scénario ; à remplacer par un graphe additionnel si le scénario devait changer pendant le survol.
+function ajouterTroncons(P, troncons) {
+  if (!troncons.length) return { P, nonRaccordes: [], isoles: [], horsZone: [] };
+  const nLon = [], nLat = [], ea = [], eb = [], el = [], nonRaccordes = [];
+  const nouveau = (lon, lat) => { nLon.push(lon); nLat.push(lat); return P.n + nLon.length - 1; };
+  const lier = (u, v, l) => { ea.push(u); eb.push(v); el.push(l); };
+  const proches = noeudsProches(P, troncons.flat(), CFG.raccordMaxM);
+  // Nœuds des tronçons raccordés au réseau : seuls eux reprennent des cellules (un tronçon sans aucun raccord est
+  // injoignable : ses cellules seraient perdues, gain négatif vu le 12/10/2026)
+  // Hors de la fenêtre chargée (marge de raccordMaxM), on ne voit pas les voies : un sommet n'y est ni raccordé ni
+  // « libre » ; un tronçon sans raccord dont un sommet est dehors va dans horsZone, pas dans isoles
+  const g0 = P.grille, mLat = CFG.raccordMaxM / (R_TERRE * RAD);
+  const dedansFenetre = (lon, lat) => {
+    const mLon = mLat / Math.cos(lat * RAD);
+    return lon >= g0.w + mLon && lon <= g0.w + g0.nx * g0.dlon - mLon && lat <= g0.n - mLat && lat >= g0.n - g0.ny * g0.dlat + mLat;
+  };
+  const relies = [], isoles = [], horsZone = [];
+  let iSommet = 0;
+  troncons.forEach((t, iT) => {
+    let prec = -1, relie = false, dehors = false;
+    const premier = P.n + nLon.length;
+    t.forEach(([lon, lat], j) => {
+      const v = nouveau(lon, lat), q = proches[iSommet++], dedans = dedansFenetre(lon, lat);
+      if (!dedans) dehors = true;
+      if (q >= 0) { relie = true; lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q])); }
+      else if ((j === 0 || j === t.length - 1) && dedans) nonRaccordes.push([lon, lat]);
+      if (prec >= 0) {
+        const [lo0, la0] = t[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
+        let u = prec;
+        for (let s = 1; s < k; s++) { const w = nouveau(lo0 + (lon - lo0) * s / k, la0 + (lat - la0) * s / k); lier(u, w, d / k); u = w; }
+        lier(u, v, d / k);
+      }
+      prec = v;
+    });
+    if (relie) for (let v = premier; v < P.n + nLon.length; v++) relies.push(v);
+    else (dehors ? horsZone : isoles).push(iT);
+  });
+  const dn = nLon.length, dm = ea.length, n = P.n + dn, m = P.m + dm;
+  const etendre = (Type, src, extra) => { const t = new Type(src.length + extra.length); t.set(src); t.set(extra, src.length); return t; };
+  const rempli = (k, v) => new Array(k).fill(v);
+  const Q = {
+    ...P, n, m,
+    lon: etendre(Float64Array, P.lon, nLon), lat: etendre(Float64Array, P.lat, nLat),
+    a: etendre(Int32Array, P.a, ea), b: etendre(Int32Array, P.b, eb), lm: etendre(Float32Array, P.lm, el),
+    cls: etendre(Uint8Array, P.cls, rempli(dm, 0)), sens: etendre(Uint8Array, P.sens, rempli(dm, 0)),
+    vit: etendre(Uint8Array, P.vit, rempli(dm, CFG.vitesseSimuleeKmh)),
+    nom: etendre(Int32Array, P.nom, rempli(dm, P.noms.length)), noms: [...P.noms, "Piste (simulée)"],
+  };
+  if (P.global) Q.global = etendre(Float64Array, P.global, rempli(dn, -1));
+  const g = P.grille, pro = {}, dist = {};
+  for (const mode of ["tout", "amenage"]) {
+    pro[mode] = g.pro[mode].slice(); dist[mode] = g.dist[mode].slice();
+    for (const v of relies) rattacher(g, pro[mode], dist[mode], v, Q.lon[v], Q.lat[v], CFG.accesMaxM[mode]);
+  }
+  if (g.pro.confort === g.pro.tout) { pro.confort = pro.tout; dist.confort = dist.tout; }   // alias posé par la page
+  Q.grille = { ...g, pro, dist, secours: { pro: g.pro, dist: g.dist } };   // grille d'avant : voir tempsGrille
+  return { P: Q, nonRaccordes, isoles, horsZone };
 }
 
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
@@ -627,6 +891,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================

@@ -27,6 +27,18 @@ Deux lectures en mode « Pistes + routes » :
 
 Classement des voies : **calmes** = rues, voies de service, voies communales, chemins ; **exposées** = routes départementales tertiaires ; **très exposées** = routes secondaires et principales.
 
+## Simuler un aménagement
+
+Pour mesurer l'effet d'une future piste avant de la financer, par exemple sur un maillon manquant :
+
+- **Tracer un tronçon** : cliquez les sommets de la piste, double-clic (ou Entrée) pour terminer. Posez les sommets sur les carrefours : un sommet à moins de 25 m d'une voie y est raccordé (point plein), sinon il ne l'est pas (cercle creux). Un tronçon dont aucun sommet n'est raccordé reste sans effet.
+- **Importer** un GeoJSON de lignes, en WGS84 ou en Lambert 93 (reconnu automatiquement), par exemple un projet dessiné dans QGIS ; **Exporter** pour reprendre les tracés ailleurs.
+- **Modifier** : cliquez un tronçon, puis faites glisser ses sommets, glissez une poignée de milieu pour en ajouter un, clic droit pour en supprimer un.
+
+La piste simulée compte comme une piste existante (20 km/h, double sens). La carte montre l'**Après** ; **Avant** revient à l'existant ; **Gain** ne colore que les secteurs améliorés : minutes gagnées en « Temps », passage au bleu en « Temps et confort » (une piste le long d'une route change surtout le confort). Le bandeau chiffre le gain en km² atteints (en points de % dans les vues territoire) et en km² passés au bleu.
+
+Les tronçons voyagent dans le lien « Copier le lien de cette vue » (jusqu'à quelques centaines de sommets ; au-delà, exportez-les en GeoJSON) et sont gardés dans votre navigateur d'une visite à l'autre.
+
 ## Données
 
 - **Réseau cyclable des collectivités** sur les 14 communes du Pôle Marennes-Oléron : CdC de l'Île d'Oléron (183 km) et CC du Bassin de Marennes (75 km), complétés par les aménagements OpenStreetMap absents de ces bases, vérifiés un par un dans QGIS. Là, la donnée des collectivités fait foi et remplace les pistes OpenStreetMap ; elle est raccordée aux routes à chaque croisement et aux extrémités (voie la plus proche à moins de 25 m). Les tronçons en projet sont exclus.
