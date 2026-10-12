@@ -206,9 +206,9 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
     </div>
 
     <footer class="credits">
-      <p>Vitesse de 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable. Sur route, le temps est majoré pour tenir compte du trafic et des intersections. Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
-      <p><strong>Sources.</strong> Réseau, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
-      <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Version Charente-Maritime dérivée d'<a href="https://sit-pmo.github.io/portee-velo/" target="_blank" rel="noopener">À portée de vélo – Marennes-Oléron</a>.</p>
+      <p>Temps réels : 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable, sur piste comme sur route (+5 % sur route pour préférer une piste qui la longe). Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
+      <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
+      <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Réalisation : SIT du Pôle Marennes-Oléron, <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">code source</a> (MIT).</p>
     </footer>
   </div>
 </aside>
@@ -684,7 +684,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // ---------- Survol : le départ suit la souris (écrans à pointeur fin uniquement) ----------
   const survolPossible = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const CONSIGNES = {
-    suivi: "Déplacez la souris sur la Charente-Maritime : les temps suivent. Cliquez pour fixer le départ.",
+    suivi: `Déplacez la souris sur ${terr ? terr.nom : "la Charente-Maritime"} : les temps suivent. Cliquez pour fixer le départ.`,
     fixe: "Cliquez sur la carte pour choisir une arrivée. Faites glisser le repère D pour changer de départ.",
   };
   function suivre(actif) {
@@ -774,7 +774,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const res = (fc.features || []).filter(f => dansZone(L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]))).slice(0, 6);
     liste.innerHTML = res.length
       ? res.map((f, i) => `<li><button type="button" data-i="${i}">${echapper(f.properties.name || f.properties.label)}<small>${echapper([f.properties.postcode, f.properties.city].filter(Boolean).join(" "))}</small></button></li>`).join("")
-      : `<li class="vide">Aucune adresse trouvée en Charente-Maritime pour « ${echapper(q)} ».</li>`;
+      : `<li class="vide">Aucune adresse trouvée ${terr ? "sur " + terr.nom : "en Charente-Maritime"} pour « ${echapper(q)} ».</li>`;
     liste.hidden = false;
     liste.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const f = res[+b.dataset.i], ll = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
@@ -818,8 +818,7 @@ document.getElementById("replier").addEventListener("click", e => {
     + `<div class="graduations">${SEUILS.map(s => `<span><i>${s}</i></span>`).join("")}<span></span></div>`;
   const NOMS_REGIONS = { "poitou-charentes": "Poitou-Charentes", "aquitaine": "Aquitaine", "pays-de-la-loire": "Pays de la Loire" };
   const regions = index.sources.map(s => s.replace(".parquet", "")).map(s => NOMS_REGIONS[s] || s);
-  const coll = index.collectivites ? " ; sur Marennes-Oléron, réseau cyclable des communautés de communes de l'île d'Oléron et du bassin de Marennes" : "";
-  $("#meta").textContent = `Données © contributeurs OpenStreetMap, extraits Geofabrik ${regions.join(", ")}${coll} ; tuiles générées le ${index.genere.slice(0, 10).split("-").reverse().join("/")}.`;
+  $("#meta").textContent = `Extraits Geofabrik ${regions.join(", ")} ; tuiles générées le ${index.genere.slice(0, 10).split("-").reverse().join("/")}.`;
   afficherCouverture(null);
 
   const lien = lireLien();
