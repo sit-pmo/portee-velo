@@ -1191,6 +1191,22 @@ function panierPlusProche(Cm, ix, minutes, compte) {
   return out;
 }
 
+// Trois mesures d'accès par cellule depuis (lon, lat), en minutes (Infinity si non atteint) :
+// - pistes : réseau aménagé seul (mode « Pistes et bandes », liaisons courtes comprises) ;
+// - tranquille : temps le plus rapide (routes comprises) des cellules en bleu, c'est-à-dire où le trajet qui évite la
+//   route exposée coûte au plus +20 % (teinteConfort) ; Infinity pour les cellules grises ou orange ;
+// - tous : temps le plus rapide, routes comprises (mode « Pistes + routes »).
+// Gs = graphes de la fenêtre ({ tout, amenage, confort }). Coût : trois Dijkstra.
+function minutesAcces(P, Gs, lon, lat, limiteS) {
+  const N = P.grille.nx * P.grille.ny, vide = () => new Float32Array(N).fill(Infinity);
+  const temps = G => { const acc = departs(P, G, lon, lat); return acc.length ? tempsGrille(P, G, dijkstra(G, sourcesDijkstra(acc), 0, limiteS)) : vide(); };
+  const tous = temps(Gs.tout), pistes = temps(Gs.amenage);
+  const conf = minutesTranquilles(P, Gs.confort, lon, lat, limiteS * CFG.confort.surcout[1]);
+  const tranquille = vide();
+  for (let k = 0; k < N; k++) if (tous[k] < Infinity && teinteConfort(tous[k], conf[k]) === 0) tranquille[k] = tous[k];
+  return { pistes, tranquille, tous };
+}
+
 // Équipements de la fenêtre pour la carte : centre de cellule, domaine, type, minutes (Infinity si non atteint)
 function equipementsFenetre(Cm, ix, g, minutes, compte) {
   if (!Cm.eq) return [];
@@ -1199,7 +1215,7 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
     const c = ix.eq[x];
     if (c < 0 || !compte[c]) continue;
     const i = c % g.nx, j = (c - i) / g.nx;
-    out.push({ lon: g.w + (i + .5) * g.dlon, lat: g.n - (j + .5) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], p: Cm.eq.p[x],
+    out.push({ cellule: c, lon: g.w + (i + .5) * g.dlon, lat: g.n - (j + .5) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], p: Cm.eq.p[x],
                min: minutes && minutes[c] >= 0 ? minutes[c] : Infinity });
   }
   return out;
@@ -1208,6 +1224,6 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles,
-    preparerComptages, indexerComptages, compterAtteints, panierPlusProche, equipementsFenetre };
+    preparerComptages, indexerComptages, compterAtteints, panierPlusProche, equipementsFenetre, minutesAcces };
 }
 // ===================================== FIN CŒUR =====================================
