@@ -326,6 +326,32 @@ function teinteConfort(m, mc) {
   return mc <= Math.max(m * s.surcout[0], m + s.surcoutMin) ? 0 : mc <= m * s.surcout[1] ? 1 : 2;
 }
 
+// Maillons manquants (traits noirs) depuis un départ : arcs de route exposée de l'arbre des plus rapides par lesquels
+// passent les trajets vers au moins seuilKm2 de cellules orange (trajet tranquille > +50 %) à minutesMax au plus.
+// Charge = cellules orange rattachées au nœud (pro.tout), remontée des feuilles vers la racine. Règle de la carte à
+// un départ, partagée avec maillons.js (D4, 12/10/2026). Rend [{ arc, charge (km²) }], distances croissantes.
+const CELLULE_KM2 = 0.0097;          // cellule de la grille France : 0,00125° × 0,0009° ≈ 97 m × 100 m
+function traitsNoirs(P, G, res, min, minConf, minutesMax = 60, seuilKm2 = 10) {
+  const pro = P.grille.pro.tout, charge = new Float32Array(P.n);
+  for (let k = 0; k < min.length; k++) {
+    const m = min[k];
+    if (!(m <= minutesMax)) continue;
+    if (teinteConfort(m, minConf[k]) === 2) charge[pro[k]]++;
+  }
+  const ordre = [];
+  for (let v = 0; v < P.n; v++) if (isFinite(res.dist[v])) ordre.push(v);
+  ordre.sort((a, b) => res.dist[a] - res.dist[b]);
+  for (let i = ordre.length - 1; i >= 0; i--) { const v = ordre[i], k = res.pred[v]; if (k >= 0) charge[G.source[k]] += charge[v]; }
+  const out = [];
+  for (const v of ordre) {
+    const k = res.pred[v];
+    if (k < 0 || !expose(P.cls[G.arete[k]])) continue;
+    const s = charge[v] * CELLULE_KM2;
+    if (s >= seuilKm2) out.push({ arc: k, charge: s });
+  }
+  return out;
+}
+
 // Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte.
 // Fenêtre avec tronçons simulés (g.secours = grille d'avant) : la cellule garde le meilleur de son nœud d'avant et
 // du nœud simulé qui l'a reprise ; un nœud simulé injoignable dans ce mode (piste reliée seulement par une route, en
@@ -1025,7 +1051,7 @@ class ChargeurTuiles {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
+  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================

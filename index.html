@@ -471,15 +471,13 @@ document.getElementById("replier").addEventListener("click", e => {
   // Symbologie effective : le confort n'a de sens qu'en mode « Pistes + routes »
   const confortActif = () => etat.symbo === "confort" && etat.mode === "tout";
   function dessinerConfort(min, minConf, complet) {
-    const { P, G: Gs } = aff(), G = Gs.tout, res = etat.res, pro = P.grille.pro.tout;
-    const charge = new Float32Array(P.n);
+    const { P, G: Gs } = aff(), G = Gs.tout, res = etat.res;
     // Couleur des cellules : teinte = surcoût du trajet tranquille (bleu / gris / orange), clarté = temps
     const px = image.data;
     for (let k = 0; k < min.length; k++) {
       const m = min[k], o = k * 4;
       if (!(m <= MAQ_MIN)) { px[o + 3] = 0; continue; }
       const q = teinteConfort(m, minConf[k]);
-      if (q === 2) charge[pro[k]]++;
       let i = 0; while (m > MAQ_PALIERS[i]) i++;
       const c = MAQ_PAL[q][i];
       px[o] = c.r; px[o + 1] = c.g; px[o + 2] = c.b; px[o + 3] = 255;
@@ -487,17 +485,11 @@ document.getElementById("replier").addEventListener("click", e => {
     ctx.putImageData(image, 0, 0);
     maillons.clearLayers();
     if (!complet) return;                      // pendant le survol : pas de maillons (tri et calcul de charge évités)
-    // Nœuds atteints du plus proche au plus lointain (arbre des plus courts chemins)
-    const ordre = [];
-    for (let v = 0; v < P.n; v++) if (isFinite(res.dist[v])) ordre.push(v);
-    ordre.sort((a, b) => res.dist[a] - res.dist[b]);
-    // Charge des arcs : des feuilles vers la racine
-    for (let i = ordre.length - 1; i >= 0; i--) { const v = ordre[i], k = res.pred[v]; if (k >= 0) charge[G.source[k]] += charge[v]; }
-    const KM2 = 0.0097, paliers = [[60, 8], [25, 5], [10, 3]], traits = paliers.map(() => []);
-    for (const v of ordre) {
-      const k = res.pred[v]; if (k < 0 || !expose(P.cls[G.arete[k]])) continue;
-      const s = charge[v] * KM2, i = paliers.findIndex(([seuil]) => s >= seuil);
-      if (i >= 0) traits[i].push([[P.lat[G.source[k]], P.lon[G.source[k]]], [P.lat[v], P.lon[v]]]);
+    // Traits noirs (règle partagée avec maillons.js) répartis en paliers d'épaisseur par surface orange desservie
+    const paliers = [[60, 8], [25, 5], [10, 3]], traits = paliers.map(() => []);
+    for (const { arc, charge } of traitsNoirs(P, G, res, min, minConf, MAQ_MIN)) {
+      const i = paliers.findIndex(([seuil]) => charge >= seuil);
+      traits[i].push([[P.lat[G.source[arc]], P.lon[G.source[arc]]], [P.lat[G.cible[arc]], P.lon[G.cible[arc]]]]);
     }
     const rendu = L.canvas({ pane: "iso" });
     paliers.forEach(([, w], i) => {
