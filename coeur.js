@@ -1119,8 +1119,95 @@ class ChargeurTuiles {
   }
 }
 
+// ======================= COMPTAGES (accessibilite.json, comptages.py) =======================
+// Équipements BPE (un par entrée), habitants / ménages Filosofi et couches de points pondérés (campings…), rattachés
+// aux cellules de la grille France : indice linéaire k = gj × W + gi, codé en différences dans le JSON.
+// Une entrée est « atteinte à s min » si sa cellule l'est (tempsGrille), comme pour la surface.
+function preparerComptages(A) {
+  const cumul = d => { const t = new Float64Array(d.length); let s = 0; for (let x = 0; x < d.length; x++) { s += d[x]; t[x] = s; } return t; };
+  const eq = A.equipements;
+  return {
+    W: A.W, domaines: A.domaines || [], panier: A.panier || [], types: A.types || [], sources: A.sources || [],
+    eq: eq ? { k: cumul(eq.k), t: Int32Array.from(eq.t), d: Int8Array.from(eq.d), p: Int8Array.from(eq.p) } : null,
+    couches: (A.couches || []).map(c => ({ id: c.id, libelle: c.libelle, unite: c.unite || "", source: c.source,
+      k: cumul(c.k), v: Float64Array.from(c.v, x => x / (c.echelle || 1)) })),
+  };
+}
+
+// Cellule de la fenêtre g pour chaque entrée (-1 hors fenêtre) ; à refaire à chaque changement de fenêtre
+function indexerComptages(Cm, g) {
+  const i0 = Math.round((g.w - GRILLE_FRANCE.lon0) / g.dlon), j0 = Math.round((GRILLE_FRANCE.lat0 - g.n) / g.dlat);
+  const loc = k => {
+    const out = new Int32Array(k.length);
+    for (let x = 0; x < k.length; x++) {
+      const gj = Math.floor(k[x] / Cm.W), i = k[x] - gj * Cm.W - i0, j = gj - j0;
+      out[x] = i >= 0 && j >= 0 && i < g.nx && j < g.ny ? j * g.nx + i : -1;
+    }
+    return out;
+  };
+  return { eq: Cm.eq ? loc(Cm.eq.k) : null, couches: Cm.couches.map(c => loc(c.k)) };
+}
+
+// Comptes sous chaque seuil (minutes croissantes). compte = masque des cellules comptées (g.ile) ; minutes = null
+// donne le total de la fenêtre (dénominateur des % en vue territoire). Coût : une passe sur les entrées de la fenêtre.
+function compterAtteints(Cm, ix, minutes, seuils, compte) {
+  const S = seuils.length, max = seuils[S - 1];
+  const zeros = n => seuils.map(() => new Array(n).fill(0));
+  const r = { total: new Array(S).fill(0), domaines: zeros(Cm.domaines.length), panier: zeros(Cm.panier.length), couches: zeros(Cm.couches.length) };
+  const premier = m => { if (!minutes) return 0; if (!(m <= max)) return S; let s = 0; while (m > seuils[s]) s++; return s; };
+  if (Cm.eq) {
+    const { d, p } = Cm.eq, loc = ix.eq;
+    for (let x = 0; x < loc.length; x++) {
+      const c = loc[x];
+      if (c < 0 || !compte[c]) continue;
+      for (let s = premier(minutes && minutes[c]); s < S; s++) {
+        r.total[s]++;
+        if (d[x] >= 0) r.domaines[s][d[x]]++;
+        if (p[x] >= 0) r.panier[s][p[x]]++;
+      }
+    }
+  }
+  Cm.couches.forEach((cou, ci) => {
+    const loc = ix.couches[ci], v = cou.v;
+    for (let x = 0; x < loc.length; x++) {
+      const c = loc[x];
+      if (c < 0 || !compte[c]) continue;
+      for (let s = premier(minutes && minutes[c]); s < S; s++) r.couches[s][ci] += v[x];
+    }
+  });
+  return r;
+}
+
+// Temps (min) vers l'équipement le plus proche de chaque élément du panier du quotidien (Infinity si aucun atteint)
+function panierPlusProche(Cm, ix, minutes, compte) {
+  const out = Cm.panier.map(() => Infinity);
+  if (!Cm.eq || !minutes) return out;
+  const p = Cm.eq.p, loc = ix.eq;
+  for (let x = 0; x < loc.length; x++) {
+    const c = loc[x];
+    if (c < 0 || p[x] < 0 || !compte[c]) continue;
+    if (minutes[c] < out[p[x]]) out[p[x]] = minutes[c];
+  }
+  return out;
+}
+
+// Équipements de la fenêtre pour la carte : centre de cellule, domaine, type, minutes (Infinity si non atteint)
+function equipementsFenetre(Cm, ix, g, minutes, compte) {
+  if (!Cm.eq) return [];
+  const out = [];
+  for (let x = 0; x < ix.eq.length; x++) {
+    const c = ix.eq[x];
+    if (c < 0 || !compte[c]) continue;
+    const i = c % g.nx, j = (c - i) / g.nx;
+    out.push({ lon: g.w + (i + .5) * g.dlon, lat: g.n - (j + .5) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], p: Cm.eq.p[x],
+               min: minutes && minutes[c] >= 0 ? minutes[c] : Infinity });
+  }
+  return out;
+}
+
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles,
+    preparerComptages, indexerComptages, compterAtteints, panierPlusProche, equipementsFenetre };
 }
 // ===================================== FIN CŒUR =====================================

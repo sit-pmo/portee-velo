@@ -123,6 +123,24 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 @keyframes tourne{to{transform:rotate(1turn)}}
 @media (prefers-reduced-motion:reduce){.chargement::before{animation:none;border-top-color:var(--ardoise)}}
 .couverture .ligne{grid-template-columns:4.2em 1fr 5.2em}
+/* Équipements et population à portée (12/10/2026) */
+.acces{width:100%;border-collapse:collapse;font-size:.87rem;font-variant-numeric:tabular-nums}
+.acces th{font-weight:600;color:var(--ardoise);font-size:.78rem;text-align:right;padding:0 0 4px}
+.acces th:first-child{text-align:left}
+.acces td{padding:3px 0 3px 14px;border-top:1px solid var(--brume);text-align:right;white-space:nowrap;min-width:4.4em}
+.acces td:first-child{text-align:left;white-space:normal;padding-left:0;min-width:0}
+.acces tr.sous td:first-child{padding-left:14px;color:var(--ardoise)}
+.acces tr.sous td{border-top:0;padding:1px 0}
+.acces .pastille{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
+.acces small{display:block;color:var(--ardoise);font-size:.74rem;font-weight:400}
+.acces .gain{color:#7E22CE;font-weight:600;margin-left:3px;font-size:.78rem}
+.acces .total td{font-weight:600}
+.panier{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 0;padding:0;list-style:none}
+.panier li{font-size:.8rem;padding:3px 8px;border-radius:12px;background:var(--brume);color:var(--ardoise)}
+.panier li.ok{background:#DCEFE3;color:#14532D}
+.panier li b{font-variant-numeric:tabular-nums}
+.panier-titre{margin:12px 0 0;font-size:.87rem}
+.panier-titre strong{font-size:1rem}
 /* Simulation de tronçons (12/10/2026) */
 .sim-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sim-actions #sim-tracer{grid-column:1/-1}
@@ -198,6 +216,18 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <h2 id="titre-couverture">Surface de terre atteinte depuis ce départ</h2>
       <div id="couverture" class="couverture"></div>
       <p class="note" id="note-couverture">Barre : part du disque qu'on couvrirait à 20 km/h en ligne droite (5 km de rayon en 15 min). La mer ne compte pas.</p>
+    </div>
+
+    <div class="bloc" id="bloc-acces" hidden>
+      <h2 id="titre-acces">À portée depuis ce départ</h2>
+      <table class="acces" id="acces"></table>
+      <p class="panier-titre" id="panier-titre" hidden></p>
+      <ul class="panier" id="panier"></ul>
+      <label class="case-reseau" for="voir-equip" style="margin-top:10px">
+        <input type="checkbox" id="voir-equip">
+        <span class="entree">Montrer les équipements sur la carte</span>
+      </label>
+      <p class="note" id="note-acces"></p>
     </div>
 
     <div class="bloc" id="bloc-sim">
@@ -443,6 +473,7 @@ document.getElementById("replier").addEventListener("click", e => {
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
     if (masqueZone) appliquerMasque(vue.g, masqueZone, index.grille);   // vue territoire : cellules hors du territoire ni colorées ni comptées
     preparerSimulation();                      // après le masque : P′ en hérite
+    indexerAcces();
     const g = vue.g, bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
     if (!toile || toile.width !== g.nx || toile.height !== g.ny) {
       // Nouvelle taille de fenêtre (bord de la zone tuilée) : nouveau canvas, donc nouveau calque
@@ -683,7 +714,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (!r) {
       etat.res = null; etat.acc = null;
       dessinerChaleur(new Float32Array(g.nx * g.ny).map((_, k) => (g.dedans[k] ? Infinity : NaN)));
-      iso.clearLayers(); maillons.clearLayers(); afficherCouverture(null); afficherGains();
+      iso.clearLayers(); maillons.clearLayers(); afficherCouverture(null); afficherGains(); afficherAcces(); dessinerEquipements();
       afficherMessage(`Ce départ est à plus de ${CFG.accesMaxM[etat.mode]} m du réseau. Rapprochez le repère D d'une voie${etat.mode === "amenage" ? " ou passez en mode « Pistes + routes »" : ""}.`);
       majArrivee(complet); if (complet) majLien();
       return;
@@ -692,10 +723,11 @@ document.getElementById("replier").addEventListener("click", e => {
     etat.acc = r.acc; etat.res = r.res; etat.minutes = r.minutes;
     afficherCouverture(etat.minutes);
     afficherGains();
+    afficherAcces();
     if (vue.sim && sim.vue === "gain") { dessinerGain(etat.avant, etat.apres); maillons.clearLayers(); }
     else if (!confortActif()) { dessinerChaleur(etat.minutes); maillons.clearLayers(); }
     else dessinerConfort(etat.minutes, r.minConf, complet);
-    if (complet) { dessinerIsolignes(etat.minutes); majLien(); }
+    if (complet) { dessinerIsolignes(etat.minutes); dessinerEquipements(); majLien(); }
     else iso.clearLayers();
     majArrivee(complet);
   }
@@ -1083,6 +1115,90 @@ document.getElementById("replier").addEventListener("click", e => {
     const autres = sim.troncons.length - 1;
     if (autres > 0) montrerInfo(`Le gain affiché inclut aussi ${autres > 1 ? `les ${autres} autres tronçons simulés` : "l'autre tronçon simulé"}. « Tout effacer » puis « Aménager » pour isoler cette voie.`);
   });
+
+  // ---------- Équipements et population à portée (accessibilite.json, comptages.py ; facultatif) ----------
+  // Pour le départ affiché : ce qui tombe dans les cellules atteintes à 15 et 30 min (équipements BPE par domaine,
+  // habitants et ménages Filosofi, couches de points pondérés comme les emplacements de camping), le temps vers le
+  // plus proche élément du panier du quotidien, et les équipements sur la carte. Vue territoire : territoire seul.
+  const SEUILS_ACCES = [15, 30];
+  const COUL_DOMAINES = { A: "#6D4FA3", B: "#D9631E", C: "#2477B3", D: "#C0392B", E: "#6B7B80", F: "#2E9A5C", G: "#B08900" };
+  let acces = null;
+  const equip = L.layerGroup();
+  carte.createPane("equip").style.zIndex = 430;
+  const renduEquip = L.canvas({ pane: "equip", padding: 0.3 });
+  const nomTerr = TERRITOIRE === "oleron" ? "l'île" : "les 14 communes";
+  function indexerAcces() {
+    if (!acces || !vue.g) return;
+    vue.ixAcces = indexerComptages(acces, vue.g);
+    vue.totAcces = masqueZone ? compterAtteints(acces, vue.ixAcces, null, [1], vue.g.ile) : null;
+  }
+  const fmtNb = v => (v >= 1000 ? Math.round(v / 10) * 10 : Math.round(v)).toLocaleString("fr-FR");
+  const fmtMinPanier = m => (m <= 60 ? `${Math.max(1, Math.round(m))} min` : "> 1 h");
+  function afficherAcces() {
+    if (!acces || !vue.ixAcces) return;
+    const voirApres = vue.sim && sim.vue !== "avant";
+    const r = voirApres ? etat.apres : etat.avant, min = r ? r.minutes : null, ile = vue.g.ile;
+    const c = min ? compterAtteints(acces, vue.ixAcces, min, SEUILS_ACCES, ile) : null;
+    const av = voirApres && etat.avant ? compterAtteints(acces, vue.ixAcces, etat.avant.minutes, SEUILS_ACCES, ile) : null;
+    const T = vue.totAcces;
+    // Cellule : valeur, gain des tronçons simulés (vue Après/Gain), part du territoire (vue territoire)
+    const cel = (val, avant, total) => {
+      const v = c ? val : 0;
+      const gain = av && v - avant >= 0.5 ? `<span class="gain">+${fmtNb(v - avant)}</span>` : "";
+      const part = total ? `<small>${Math.round(v / total * 100)} %</small>` : "";
+      return `<td>${fmtNb(v)}${gain}${part}</td>`;
+    };
+    const lignes = [`<tr><th></th>${SEUILS_ACCES.map(s => `<th>${s} min</th>`).join("")}</tr>`];
+    acces.couches.forEach((cou, k) => lignes.push(`<tr><td>${echapper(cou.libelle)}</td>${SEUILS_ACCES.map((_, i) =>
+      cel(c ? c.couches[i][k] : 0, av ? av.couches[i][k] : 0, T && T.couches[0][k])).join("")}</tr>`));
+    if (acces.eq) {
+      lignes.push(`<tr class="total"><td>Équipements, services, commerces</td>${SEUILS_ACCES.map((_, i) =>
+        cel(c ? c.total[i] : 0, av ? av.total[i] : 0, T && T.total[0])).join("")}</tr>`);
+      acces.domaines.forEach((d, k) => {
+        if (T && !T.domaines[0][k]) return;
+        lignes.push(`<tr class="sous"><td><span class="pastille" style="--c:${COUL_DOMAINES[d.code] || "#888"}"></span>${echapper(d.libelle)}</td>${SEUILS_ACCES.map((_, i) =>
+          cel(c ? c.domaines[i][k] : 0, av ? av.domaines[i][k] : 0, null)).join("")}</tr>`);
+      });
+    }
+    $("#acces").innerHTML = lignes.join("");
+    // Panier du quotidien : temps vers le plus proche de chaque élément
+    const pan = acces.panier;
+    $("#panier-titre").hidden = !pan.length;
+    if (!pan.length) { $("#panier").innerHTML = ""; return; }
+    const proche = panierPlusProche(acces, vue.ixAcces, min, ile), ok = proche.filter(m => m <= 15).length;
+    $("#panier-titre").innerHTML = `Panier du quotidien à 15 min : <strong>${ok} sur ${pan.length}</strong>`;
+    $("#panier").innerHTML = pan.map((p, k) => `<li class="${proche[k] <= 15 ? "ok" : ""}">${echapper(p.libelle.replace(/ \(.*\)$/, ""))} <b>${fmtMinPanier(proche[k])}</b></li>`).join("");
+  }
+  function dessinerEquipements() {
+    equip.clearLayers();
+    if (!acces || !vue.ixAcces || !$("#voir-equip").checked) return;
+    const r = vue.sim && sim.vue !== "avant" ? etat.apres : etat.avant;
+    const pts = equipementsFenetre(acces, vue.ixAcces, vue.g, r ? r.minutes : null, vue.g.ile);
+    for (const p of pts) {
+      const atteint = p.min <= SEUILS_ACCES[SEUILS_ACCES.length - 1], d = acces.domaines[p.d], coul = COUL_DOMAINES[d ? d.code : ""] || "#888";
+      const type = acces.types[p.t] ? acces.types[p.t][1] : "";
+      L.circleMarker([p.lat, p.lon], { renderer: renduEquip, pane: "equip", radius: atteint ? 4 : 3, weight: 1,
+        color: atteint ? "#fff" : coul, fillColor: atteint ? coul : "#fff", fillOpacity: atteint ? .95 : .8, opacity: .9 })
+        .bindTooltip(`${echapper(type)}${isFinite(p.min) ? ` · ${fmtMinPanier(p.min)}` : ""}`, { direction: "top", offset: [0, -4] })
+        .addTo(equip);
+    }
+    equip.addTo(carte);
+  }
+  $("#voir-equip").addEventListener("change", dessinerEquipements);
+  fetch("tuiles/accessibilite.json").then(r => (r.ok ? r.json() : null)).then(A => {
+    if (!A) return;
+    acces = preparerComptages(A);
+    $("#bloc-acces").hidden = false;
+    if (masqueZone) $("#titre-acces").textContent = `À portée depuis ce départ, dans ${nomTerr}`;
+    $("#note-acces").textContent = [
+      "Comptés si leur cellule de 100 m est atteinte, avec le réseau choisi.",
+      masqueZone ? `Seulement dans ${nomTerr} ; % = part du total de ${nomTerr}.` : "",
+      acces.eq ? "Équipements au point géolocalisé par l'Insee ; carte : plein = atteint à 30 min, creux = au-delà." : "",
+      acces.couches.some(c => c.id === "population") ? "Habitants : population fiscale, répartie dans chaque carreau de 200 m." : "",
+      `Sources : ${[...acces.sources, ...acces.couches.filter(c => !/Filosofi/.test(c.source)).map(c => `${c.libelle} : ${c.source}`)].join(" ; ")}.`,
+    ].filter(Boolean).join(" ");
+    indexerAcces(); afficherAcces();
+  }).catch(() => {});
   if (TERRITOIRE === "oleron")
     fetch("tuiles/maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
 

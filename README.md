@@ -46,6 +46,12 @@ Avec `?territoire=oleron`, le bloc « Maillons manquants de l'île » classe les
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
 
+## Équipements et habitants à portée
+
+Si `tuiles/accessibilite.json` est présent, le bloc « À portée depuis ce départ » compte ce qui tombe dans les cellules atteintes à 15 et 30 min : habitants et résidences principales (Filosofi carroyé), emplacements de camping ou toute autre couche de points pondérés, et équipements, services et commerces de la Base permanente des équipements (BPE) par domaine. En vue territoire, seul le territoire compte et chaque valeur est rapportée à son total. Le **panier du quotidien** (alimentation, boulangerie, pharmacie, médecin généraliste, école, poste) donne le temps vers le plus proche de chacun. La case « Montrer les équipements » les place sur la carte (plein = atteint à 30 min). Avec des tronçons simulés, le gain s'affiche en violet.
+
+Le fichier est préparé par `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi, points pondérés), à relancer après chaque tuilage. `departement17/quart_heure.js` calcule, pour chaque cellule habitée d'un territoire, le temps vers chaque élément du panier, et la part des habitants qui l'ont en entier à 15 min (synthèse JSON et GeoJSON pour QGIS).
+
 ## Données
 
 - **Réseau cyclable des collectivités** sur les 14 communes du Pôle Marennes-Oléron : CdC de l'Île d'Oléron (183 km) et CC du Bassin de Marennes (75 km), complétés par les aménagements OpenStreetMap absents de ces bases, vérifiés un par un dans QGIS. Là, la donnée des collectivités fait foi et remplace les pistes OpenStreetMap ; elle est raccordée aux routes à chaque croisement et aux extrémités (voie la plus proche à moins de 25 m). Les tronçons en projet sont exclus.
@@ -75,6 +81,7 @@ Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB,
 - Réseaux cyclables : CdC de l'Île d'Oléron, CC du Bassin de Marennes.
 - Routes, chemins, réseau cyclable hors Marennes-Oléron, trait de côte : © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL), extraits [Geofabrik](https://download.geofabrik.de).
 - Contours communaux : [geo.api.gouv.fr](https://geo.api.gouv.fr).
+- Équipements : Insee, Base permanente des équipements. Habitants et ménages : Insee, Filosofi carroyé.
 - Fond de carte et recherche d'adresses : [Géoplateforme IGN](https://geoservices.ign.fr).
 - Bibliothèques : [Leaflet](https://leafletjs.com), [d3](https://d3js.org).
 
