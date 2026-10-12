@@ -309,16 +309,18 @@ function teinteConfort(m, mc) {
   return mc <= Math.max(m * s.surcout[0], m + s.surcoutMin) ? 0 : mc <= m * s.surcout[1] ? 1 : 2;
 }
 
-// Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte
+// Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte.
+// Fenêtre avec tronçons simulés (g.secours = grille d'avant) : la cellule garde le meilleur de son nœud d'avant et
+// du nœud simulé qui l'a reprise ; un nœud simulé injoignable dans ce mode (piste reliée seulement par une route, en
+// mode pistes) ne rallonge donc jamais un temps.
 function tempsGrille(P, G, res) {
   const g = P.grille, N = g.nx * g.ny, out = new Float32Array(N);
   const pro = g.pro[G.mode], dd = g.dist[G.mode], max = CFG.accesMaxM[G.mode];
+  const sp = g.secours && g.secours.pro[G.mode], sd = g.secours && g.secours.dist[G.mode];
+  const temps = (v, d) => (v >= 0 && d <= max && isFinite(res.dist[v]) ? (res.dist[v] + accesSecondes(d)) / 60 : Infinity);
   for (let k = 0; k < N; k++) {
     if (!g.dedans[k]) { out[k] = NaN; continue; }
-    const v = pro[k];
-    if (v < 0 || dd[k] > max) { out[k] = Infinity; continue; }
-    const t = res.dist[v];
-    out[k] = isFinite(t) ? (t + accesSecondes(dd[k])) / 60 : Infinity;
+    out[k] = sp ? Math.min(temps(pro[k], dd[k]), temps(sp[k], sd[k])) : temps(pro[k], dd[k]);
   }
   return out;
 }
@@ -575,21 +577,26 @@ function rattacher(g, pro, dist, v, lon, lat, maxM) {
 // Fenêtre P′ = P + tronçons simulés (P n'est pas modifié : il sert à l'« avant »). Chaque sommet devient un nœud,
 // raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; les segments sont
 // découpés tous les CFG.pasTronconM mètres ; les cellules proches se rattachent aux nouveaux nœuds (une piste en site
-// propre doit servir aux cellules qu'elle traverse). Extrémités sans nœud proche rendues dans nonRaccordes.
+// propre doit servir aux cellules qu'elle traverse). Extrémités sans nœud proche rendues dans nonRaccordes, indices
+// des tronçons sans aucun raccord (injoignables, sans effet) dans isoles.
 // ponytail: copie complète des tableaux de la fenêtre (quelques dizaines de ms pour 1 M de nœuds), refaite à chaque
 // modification du scénario ; à remplacer par un graphe additionnel si le scénario devait changer pendant le survol.
 function ajouterTroncons(P, troncons) {
-  if (!troncons.length) return { P, nonRaccordes: [] };
+  if (!troncons.length) return { P, nonRaccordes: [], isoles: [] };
   const nLon = [], nLat = [], ea = [], eb = [], el = [], nonRaccordes = [];
   const nouveau = (lon, lat) => { nLon.push(lon); nLat.push(lat); return P.n + nLon.length - 1; };
   const lier = (u, v, l) => { ea.push(u); eb.push(v); el.push(l); };
   const proches = noeudsProches(P, troncons.flat(), CFG.raccordMaxM);
+  // Nœuds des tronçons raccordés au réseau : seuls eux reprennent des cellules (un tronçon sans aucun raccord est
+  // injoignable : ses cellules seraient perdues, gain négatif vu le 12/10/2026)
+  const relies = [], isoles = [];
   let iSommet = 0;
-  for (const t of troncons) {
-    let prec = -1;
+  troncons.forEach((t, iT) => {
+    let prec = -1, relie = false;
+    const premier = P.n + nLon.length;
     t.forEach(([lon, lat], j) => {
       const v = nouveau(lon, lat), q = proches[iSommet++];
-      if (q >= 0) lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q]));
+      if (q >= 0) { relie = true; lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q])); }
       else if (j === 0 || j === t.length - 1) nonRaccordes.push([lon, lat]);
       if (prec >= 0) {
         const [lo0, la0] = t[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
@@ -599,7 +606,9 @@ function ajouterTroncons(P, troncons) {
       }
       prec = v;
     });
-  }
+    if (relie) for (let v = premier; v < P.n + nLon.length; v++) relies.push(v);
+    else isoles.push(iT);
+  });
   const dn = nLon.length, dm = ea.length, n = P.n + dn, m = P.m + dm;
   const etendre = (Type, src, extra) => { const t = new Type(src.length + extra.length); t.set(src); t.set(extra, src.length); return t; };
   const rempli = (k, v) => new Array(k).fill(v);
@@ -615,11 +624,11 @@ function ajouterTroncons(P, troncons) {
   const g = P.grille, pro = {}, dist = {};
   for (const mode of ["tout", "amenage"]) {
     pro[mode] = g.pro[mode].slice(); dist[mode] = g.dist[mode].slice();
-    for (let v = P.n; v < n; v++) rattacher(g, pro[mode], dist[mode], v, Q.lon[v], Q.lat[v], CFG.accesMaxM[mode]);
+    for (const v of relies) rattacher(g, pro[mode], dist[mode], v, Q.lon[v], Q.lat[v], CFG.accesMaxM[mode]);
   }
   if (g.pro.confort === g.pro.tout) { pro.confort = pro.tout; dist.confort = dist.tout; }   // alias posé par la page
-  Q.grille = { ...g, pro, dist };
-  return { P: Q, nonRaccordes };
+  Q.grille = { ...g, pro, dist, secours: { pro: g.pro, dist: g.dist } };   // grille d'avant : voir tempsGrille
+  return { P: Q, nonRaccordes, isoles };
 }
 
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
