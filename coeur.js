@@ -230,6 +230,36 @@ function accrocher(P, G, lon, lat) {
   return meilleur < 0 || dMin > max ? null : { noeud: meilleur, distM: dMin };
 }
 
+// Arêtes d'une classe (pistes, ou bandes) regroupées en lignes continues : on suit chaque enchaînement de nœuds
+// de degré 2. Une ligne par arête donnait des dizaines de milliers de tracés à Leaflet (150 à 290 ms par fenêtre).
+function lignesReseau(P, c) {
+  const n = P.n, deg = new Uint16Array(n), aretes = [];
+  for (let e = 0; e < P.m; e++) if (P.cls[e] === c) { aretes.push(e); deg[P.a[e]]++; deg[P.b[e]]++; }
+  const off = new Uint32Array(n + 1);
+  for (const e of aretes) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
+  for (let v = 0; v < n; v++) off[v + 1] += off[v];
+  const adj = new Int32Array(off[n]), cur = off.slice(0, n);
+  for (const e of aretes) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
+  const vu = new Uint8Array(P.m), lignes = [];
+  const suivre = (v, e) => {
+    const l = [[P.lat[v], P.lon[v]]];
+    for (;;) {
+      vu[e] = 1;
+      const w = P.a[e] === v ? P.b[e] : P.a[e];
+      l.push([P.lat[w], P.lon[w]]);
+      if (deg[w] !== 2) break;                // extrémité ou carrefour : fin de la ligne
+      let suite = -1;
+      for (let k = off[w]; k < off[w + 1]; k++) if (!vu[adj[k]]) { suite = adj[k]; break; }
+      if (suite < 0) break;
+      v = w; e = suite;
+    }
+    lignes.push(l);
+  };
+  for (const e of aretes) for (const v of [P.a[e], P.b[e]]) if (!vu[e] && deg[v] !== 2) suivre(v, e);
+  for (const e of aretes) if (!vu[e]) suivre(P.a[e], e);   // boucles fermées (aucun nœud de degré ≠ 2)
+  return lignes;
+}
+
 // Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte
 function tempsGrille(P, G, res) {
   const g = P.grille, N = g.nx * g.ny, out = new Float32Array(N);
@@ -553,7 +583,7 @@ class ChargeurTuiles {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { CFG, preparer, construireGraphe, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
+  module.exports = { CFG, preparer, construireGraphe, lignesReseau, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================

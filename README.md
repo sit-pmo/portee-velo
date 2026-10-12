@@ -9,6 +9,8 @@ Vues limitées à un territoire (seul le territoire est coloré, pourcentages de
 - île d'Oléron : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
 - Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : **https://sit-pmo.github.io/portee-velo/?territoire=pmo**
 
+Comparaison côte à côte, sur Marennes-Oléron, entre OpenStreetMap seul et OpenStreetMap augmenté du réseau des collectivités (même calcul, même départ sous la souris, écart en points) : **https://sit-pmo.github.io/portee-velo/comparer.html** (l'île) ou **comparer.html?territoire=pmo** (les 14 communes).
+
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
 ## Objectif
@@ -47,7 +49,7 @@ Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaqu
 
 ## Comment
 
-La page est statique : `index.html` (Leaflet et d3, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme), `coeur.js` (le calcul) et le dossier `tuiles/` : le graphe du réseau et la grille, découpés en 380 tuiles d'environ 10 km (22 Mo en tout). La page ne charge que les 5 × 5 tuiles autour du départ. Pas de serveur, pas de base de données : GitHub Pages sert les fichiers.
+La page est statique : `index.html` (Leaflet et d3, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme), `comparer.html`, `coeur.js` (le calcul), le dossier `tuiles_osm/` (Marennes-Oléron en OpenStreetMap seul, pour la comparaison) et le dossier `tuiles/` : le graphe du réseau et la grille, découpés en 380 tuiles d'environ 10 km (22 Mo en tout). La page ne charge que les 5 × 5 tuiles autour du départ. Pas de serveur, pas de base de données : GitHub Pages sert les fichiers.
 
 Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB, numpy, shapely, pyproj), à partir des extraits OpenStreetMap de Geofabrik (Poitou-Charentes, Aquitaine, Pays de la Loire) et du réseau consolidé des collectivités. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
 
@@ -59,11 +61,11 @@ Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB,
 - Fond de carte et recherche d'adresses : [Géoplateforme IGN](https://geoservices.ign.fr).
 - Bibliothèques : [Leaflet](https://leafletjs.com), [d3](https://d3js.org).
 
-Les données dérivées d'OpenStreetMap contenues dans `tuiles/` sont diffusées sous ODbL.
+Les données dérivées d'OpenStreetMap contenues dans `tuiles/` et `tuiles_osm/` sont diffusées sous ODbL.
 
 ## Licence
 
-Le code (`index.html`, `coeur.js`) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron et © Aurélien Chaumet. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
+Le code (`index.html`, `comparer.html`, `coeur.js`) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron et © Aurélien Chaumet. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
 
 ## Inspiration
 
