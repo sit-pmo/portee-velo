@@ -1,13 +1,13 @@
 # Publication GitHub Pages : uniquement ce qui sert au rendu de la carte.
 # Tout est ignoré par défaut, puis on autorise explicitement les fichiers publiés.
+# La chaîne de données (departement17/, scripts Python, couches des collectivités) n'est pas publiée.
 *
 !.gitignore
 !.nojekyll
 !index.html
-!comparer.html
 !coeur.js
 !README.md
 !LICENSE
-!data/
-!data/portee_velo.js
-!data/portee_velo_osm.js
+!tuiles/
+!tuiles/*.bin
+!tuiles/*.json
