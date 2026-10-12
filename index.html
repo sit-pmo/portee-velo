@@ -207,7 +207,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
         <button type="button" class="bouton petit" id="sim-exporter" disabled>Exporter</button>
         <input type="file" id="sim-fichier" accept=".geojson,.json,application/geo+json,application/json" hidden>
       </div>
-      <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets, sur les carrefours pour raccorder la piste (point plein = raccordé à moins de 25 m). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
+      <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise. Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
       <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
       <ul class="sim-liste" id="sim-liste"></ul>
       <div class="bascule trois" id="sim-vue" role="group" aria-label="Comparer avant et après les tronçons" hidden>
@@ -808,7 +808,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const isoles = (sim.isoles || []).map(i => i + 1), libres = sim.nonRaccordes.length - 2 * isoles.length;
     const dehors = (sim.horsZone || []).map(i => i + 1);
     montrerInfo([
-      isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur un carrefour (point plein).` : "",
+      isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : il ne croise aucune voie et aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur un carrefour (point plein).` : "",
       libres > 0 ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "",
       dehors.length ? `Tronçon${dehors.length > 1 ? "s" : ""} ${dehors.length > 8 ? `(${dehors.length})` : dehors.join(", ")} hors de la zone calculée autour du départ : déplacez le départ vers ${dehors.length > 1 ? "eux" : "lui"} pour voir ${dehors.length > 1 ? "leur" : "son"} effet.` : "",
     ].filter(Boolean).join(" "));

@@ -642,8 +642,39 @@ function rattacher(g, pro, dist, v, lon, lat, maxM) {
   }
 }
 
+// Croisements des tronçons avec les arêtes de P : coupes[iT][j] = [{lon, lat, arete}, ...] le long du segment
+// (j-1 → j) du tronçon iT, triés depuis le sommet j-1. Croisement strict (une voie seulement touchée ou longée n'en
+// donne pas). ponytail: un croisement en pont ou en tunnel compte aussi comme raccord ; le réseau OSM ne dit pas
+// lequel, et le cas reste rare pour une piste simulée.
+function croisements(P, troncons) {
+  const coupes = troncons.map(() => []);
+  const segs = [];
+  troncons.forEach((t, iT) => { for (let j = 1; j < t.length; j++) segs.push([iT, j, t[j - 1], t[j]]); });
+  if (!segs.length) return coupes;
+  let w = Infinity, e = -Infinity, s = Infinity, n = -Infinity;
+  for (const t of troncons) for (const [lon, lat] of t) { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); }
+  const kx = Math.cos((s + n) / 2 * RAD);       // plan local : longitudes ramenées à l'échelle des latitudes
+  const ext = (p, q, r) => (q[0] - p[0]) * kx * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]) * kx;
+  for (let k = 0; k < P.m; k++) {
+    const a = [P.lon[P.a[k]], P.lat[P.a[k]]], b = [P.lon[P.b[k]], P.lat[P.b[k]]];
+    if (Math.max(a[0], b[0]) < w || Math.min(a[0], b[0]) > e || Math.max(a[1], b[1]) < s || Math.min(a[1], b[1]) > n) continue;
+    for (const [iT, j, p, q] of segs) {
+      const d1 = ext(p, q, a), d2 = ext(p, q, b);
+      if (d1 * d2 >= 0) continue;
+      const d3 = ext(a, b, p), d4 = ext(a, b, q);
+      if (d3 * d4 >= 0) continue;
+      const u = d3 / (d3 - d4);                 // position du croisement sur le segment p → q
+      (coupes[iT][j] ||= []).push({ u, lon: p[0] + u * (q[0] - p[0]), lat: p[1] + u * (q[1] - p[1]), arete: k });
+    }
+  }
+  for (const c of coupes) for (const l of c) if (l) l.sort((x, y) => x.u - y.u);
+  return coupes;
+}
+
 // Fenêtre P′ = P + tronçons simulés (P n'est pas modifié : il sert à l'« avant »). Chaque sommet devient un nœud,
-// raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; les segments sont
+// raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; chaque voie croisée
+// par le tracé l'est aussi (croisements, depuis le 12/10/2026 : sans eux, une piste tracée en deux clics passait sur
+// 19 voies sans s'y raccorder) ; les segments sont
 // découpés tous les CFG.pasTronconM mètres ; les cellules proches se rattachent aux nouveaux nœuds (une piste en site
 // propre doit servir aux cellules qu'elle traverse). Extrémités sans nœud proche rendues dans nonRaccordes, indices
 // des tronçons sans aucun raccord (injoignables, sans effet) dans isoles.
@@ -665,17 +696,28 @@ function ajouterTroncons(P, troncons) {
     return lon >= g0.w + mLon && lon <= g0.w + g0.nx * g0.dlon - mLon && lat <= g0.n - mLat && lat >= g0.n - g0.ny * g0.dlat + mLat;
   };
   const relies = [], isoles = [], horsZone = [];
+  const coupes = croisements(P, troncons);
   let iSommet = 0;
   troncons.forEach((t, iT) => {
     let prec = -1, relie = false, dehors = false;
     const premier = P.n + nLon.length;
+    // Points du tracé dans l'ordre : sommets (raccordés au nœud proche) et croisements avec une voie (raccordés aux
+    // deux bouts de l'arête croisée : on peut quitter la piste là où elle coupe une route)
+    const pts = [];
     t.forEach(([lon, lat], j) => {
-      const v = nouveau(lon, lat), q = proches[iSommet++], dedans = dedansFenetre(lon, lat);
+      if (j > 0) for (const c of coupes[iT][j] || []) pts.push({ lon: c.lon, lat: c.lat, arete: c.arete });
+      pts.push({ lon, lat, q: proches[iSommet++], bout: j === 0 || j === t.length - 1 });
+    });
+    pts.forEach(({ lon, lat, q, arete, bout }, j) => {
+      const v = nouveau(lon, lat), dedans = dedansFenetre(lon, lat);
       if (!dedans) dehors = true;
-      if (q >= 0) { relie = true; lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q])); }
-      else if ((j === 0 || j === t.length - 1) && dedans) nonRaccordes.push([lon, lat]);
+      if (arete !== undefined) {
+        relie = true;
+        for (const w of [P.a[arete], P.b[arete]]) lier(v, w, distanceM(lon, lat, P.lon[w], P.lat[w]));
+      } else if (q >= 0) { relie = true; lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q])); }
+      else if (bout && dedans) nonRaccordes.push([lon, lat]);
       if (prec >= 0) {
-        const [lo0, la0] = t[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
+        const { lon: lo0, lat: la0 } = pts[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
         let u = prec;
         for (let s = 1; s < k; s++) { const w = nouveau(lo0 + (lon - lo0) * s / k, la0 + (lat - la0) * s / k); lier(u, w, d / k); u = w; }
         lier(u, v, d / k);
