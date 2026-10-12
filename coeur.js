@@ -2,17 +2,26 @@
 // Partagé par index.html et comparer.html : préparation des données, graphe, Dijkstra, temps par cellule,
 // couverture et champ d'isolignes.
 // ======================= CŒUR (sans DOM, testable sous Node) =======================
-// Pénalités par classe : 0 piste, 1 bande, 2 route/chemin, 3 secondaire, 4 principale
-// (tuiles du 17 : 2 rues/service, 5 unclassified, 6 chemins, 7 tertiary, pénalités de la classe 2)
+// Pénalités par classe : 0 piste, 1 bande, 2 rues/service, 3 secondaire, 4 principale, 5 voie communale
+// (unclassified), 6 chemin, 7 départementale tertiaire. Temps réels (11/10/2026) : +5 % sur route seulement, pour
+// qu'à temps quasi égal le trajet prenne la piste qui longe la route (les majorations ×1,5 / ×2 / ×3 de la carte
+// Marennes-Oléron d'origine donnaient des temps irréalistes ; test/non_regression.js les remet pour comparer).
+// confort = trajet tranquille : chaque minute sur route exposée (CFG.confort.classes ≥ 2) compte pour 4.
 const CFG = {
   penalites: {
-    tout:    [1, 1.1, 1.5, 2, 3, 1.5, 1.5, 1.5],      // principales sans aménagement : autorisées mais ×3 (sinon elles coupent le réseau)
+    tout:    [1, 1, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05],
     amenage: [1, 1, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity],
+    confort: [1, 1, 1.05, 4, 4, 1.05, 1.05, 4],
   },
+  // Confort par classe (option A figée le 11/10/2026) : 0 aménagé, 1 calme, 2 exposé, 3 très exposé ; voies
+  // communales calmes malgré les 80 km/h possibles en rural. Teinte : bleu si le trajet tranquille coûte au plus
+  // +20 % (ou +1 min) de plus que le plus rapide, gris jusqu'à +50 %, orange au-delà. Autour du départ
+  // (departLibreM), la route exposée n'est pas pénalisée : on part de chez soi par la rue qu'on a.
+  confort: { classes: [0, 0, 1, 3, 3, 1, 1, 2], departLibreM: 300, surcout: [1.2, 1.5], surcoutMin: 1 },
   vitesseContreSensKmh: 5,             // sens unique pris à contre-sens : vélo poussé à pied, plutôt qu'interdit
   vitesseAccesKmh: 16,                 // accès au réseau hors voies (base vélo 20 km/h ×0,8)
   detourAcces: 1.3,
-  accesMaxM: { tout: 2000, amenage: 800 },   // 2 km : couvre les marais de la Seudre, à 1,7 km de toute voie
+  accesMaxM: { tout: 2000, amenage: 800, confort: 2000 },   // 2 km : couvre les marais de la Seudre, à 1,7 km de toute voie
   traverseeMaxM: 30,                   // mode pistes : segment de route < 30 m au contact d'une piste = traversée praticable
   liaisonMaxM: 200,                    // mode pistes : liaison entre deux pistes par voie calme (rue, voie communale, chemin), longueur max
   // Coefficient de longueur par classe dans une liaison : voie calme 1, route exposée 2 (donc ≤ 100 m : 47 m de
@@ -258,6 +267,40 @@ function lignesReseau(P, c) {
   for (const e of aretes) for (const v of [P.a[e], P.b[e]]) if (!vu[e] && deg[v] !== 2) suivre(v, e);
   for (const e of aretes) if (!vu[e]) suivre(P.a[e], e);   // boucles fermées (aucun nœud de degré ≠ 2)
   return lignes;
+}
+
+// Confort : voie exposée (départementale, secondaire, principale) ?
+function expose(c) { return CFG.confort.classes[c] >= 2; }
+
+// Minutes « tranquilles » par cellule depuis (lon, lat) : temps pondéré du trajet qui évite la route exposée
+// (graphe du mode « confort », même réseau que « tout »). Les arcs exposés à moins de departLibreM du départ (deux
+// extrémités, à vol d'oiseau) reprennent le temps du mode « tout » le temps du calcul, puis leurs poids d'origine.
+function minutesTranquilles(P, Gc, lon, lat, limiteS) {
+  const acc = accrocher(P, Gc, lon, lat);
+  if (!acc) return new Float32Array(P.grille.nx * P.grille.ny).fill(Infinity);
+  const r = CFG.confort.departLibreM, dLat = r / 111000, dLon = dLat / Math.cos(lat * RAD);
+  const proche = v => Math.abs(P.lat[v] - lat) < dLat && Math.abs(P.lon[v] - lon) < dLon && distanceM(lon, lat, P.lon[v], P.lat[v]) <= r;
+  const libres = [], sauves = [];
+  for (let v = 0; v < P.n; v++) {          // nœuds proches d'abord (bien moins nombreux que les arcs), puis leurs arcs
+    if (!proche(v)) continue;
+    for (let k = Gc.off[v]; k < Gc.off[v + 1]; k++) {
+      const c = P.cls[Gc.arete[k]];
+      if (expose(c) && proche(Gc.cible[k])) {
+        libres.push(k); sauves.push(Gc.poids[k]);
+        Gc.poids[k] *= CFG.penalites.tout[c] / CFG.penalites.confort[c];
+      }
+    }
+  }
+  const min = tempsGrille(P, Gc, dijkstra(Gc, acc.noeud, accesSecondes(acc.distM), limiteS));
+  libres.forEach((k, i) => { Gc.poids[k] = sauves[i]; });   // valeurs d'origine (une division dériverait en Float32)
+  return min;
+}
+
+// Teinte de confort d'une cellule : 0 bleu (tranquille), 1 gris, 2 orange, d'après le temps le plus rapide m et
+// le temps tranquille mc (minutes)
+function teinteConfort(m, mc) {
+  const s = CFG.confort;
+  return mc <= Math.max(m * s.surcout[0], m + s.surcoutMin) ? 0 : mc <= m * s.surcout[1] ? 1 : 2;
 }
 
 // Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte
@@ -583,7 +626,7 @@ class ChargeurTuiles {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { CFG, preparer, construireGraphe, lignesReseau, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
+  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
