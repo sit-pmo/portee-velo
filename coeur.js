@@ -30,6 +30,12 @@ const CFG = {
   liaisonFacteur: [0, 0, 1, 2, 2, 1, 1, 2],
   morceauMinM: 1000,                   // mode pistes : un départ ne s'accroche qu'à un morceau d'au moins 1 km de voies (longueur comptée dans la fenêtre chargée).
                                        // Avant le 11/10/2026 : 200 nœuds, ce qui écartait la piste de Sauzelle (3 km, 187 nœuds)
+  // Simulation de tronçons (12/10/2026) : sommet raccordé au nœud existant le plus proche à 25 m au plus (comme
+  // RACCORD_MAX_M de la carte d'origine) ; segments découpés tous les 100 m pour que les cellules longées aient un
+  // nœud proche ; piste simulée classe 0, double sens, 20 km/h (vitesse de base)
+  raccordMaxM: 25,
+  pasTronconM: 100,
+  vitesseSimuleeKmh: 20,
 };
 const R_TERRE = 6371008.8, RAD = Math.PI / 180;
 
@@ -397,6 +403,105 @@ function champIsolignes(P, minutes) {
   return { champ, masque };
 }
 
+// ======================= SCÉNARIO DE TRONÇONS SIMULÉS =======================
+// Un tronçon = [[lon, lat], …] (WGS84, au moins 2 sommets) ; un scénario = liste de tronçons.
+
+// Lambert 93 (EPSG:2154) → [lon, lat] WGS84 : projection conique conforme inverse, ellipsoïde GRS80, constantes
+// IGN (notice ALG0004, latitude isométrique inverse par itération). RGF93 ≡ WGS84 au mètre : pas de changement de datum.
+function l93VersWgs84(x, y) {
+  const n = 0.7256077650, c = 11754255.426, xs = 700000, ys = 12655612.050, e = 0.0818191910428158;
+  const dx = x - xs, dy = ys - y, R = Math.hypot(dx, dy);
+  const lon = 3 + Math.atan(dx / dy) / n / RAD;
+  const L = -Math.log(R / c) / n;                       // latitude isométrique
+  let phi = 2 * Math.atan(Math.exp(L)) - Math.PI / 2;
+  for (let i = 0; i < 20; i++) {
+    const s = e * Math.sin(phi);
+    const suivant = 2 * Math.atan(((1 + s) / (1 - s)) ** (e / 2) * Math.exp(L)) - Math.PI / 2;
+    if (Math.abs(suivant - phi) < 1e-12) { phi = suivant; break; }
+    phi = suivant;
+  }
+  return [lon, phi / RAD];
+}
+
+// Scénario ↔ texte du lien (t=) : polyline encodée de Google (précision 1e-5, lat puis lon, compatible avec les
+// outils existants), un texte par tronçon, séparés par des virgules (hors de l'alphabet 63..126 de l'algorithme).
+function encoderTroncons(troncons) {
+  const enc = v => {
+    v = v < 0 ? ~(v << 1) : v << 1;
+    let s = "";
+    while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+    return s + String.fromCharCode(v + 63);
+  };
+  return troncons.map(t => {
+    let pla = 0, plo = 0, s = "";
+    for (const [lon, lat] of t) {
+      const la = Math.round(lat * 1e5), lo = Math.round(lon * 1e5);
+      s += enc(la - pla) + enc(lo - plo); pla = la; plo = lo;
+    }
+    return s;
+  }).join(",");
+}
+// Inverse d'encoderTroncons ; lève une erreur sur un texte illisible, tronqué ou un tronçon de moins de 2 sommets
+function decoderTroncons(s) {
+  if (!s) return [];
+  return s.split(",").map(p => {
+    let i = 0, la = 0, lo = 0;
+    const lire = () => {
+      let v = 0, dec = 0, c;
+      do {
+        if (i >= p.length) throw new Error("tronçon tronqué");
+        c = p.charCodeAt(i++) - 63;
+        if (c < 0 || c > 63) throw new Error("caractère hors alphabet");
+        v |= (c & 0x1f) << dec; dec += 5;
+      } while (c >= 0x20);
+      return v & 1 ? ~(v >> 1) : v >> 1;
+    };
+    const t = [];
+    while (i < p.length) { la += lire(); lo += lire(); t.push([lo / 1e5, la / 1e5]); }
+    if (t.length < 2) throw new Error("tronçon de moins de 2 sommets");
+    return t;
+  });
+}
+
+// GeoJSON (FeatureCollection, Feature ou géométrie) → tronçons WGS84. LineString et MultiLineString gardées (une
+// partie = un tronçon), le reste compté dans `ignores`. Lambert 93 reconnu au champ crs (2154) ou, sans crs (export
+// QGIS courant), à une coordonnée hors des bornes des degrés (|x| > 1000).
+function lireGeoJSON(o) {
+  const lignes = [];
+  let ignores = 0;
+  const geometrie = g => {
+    if (!g) ignores++;
+    else if (g.type === "LineString") lignes.push(g.coordinates);
+    else if (g.type === "MultiLineString") lignes.push(...g.coordinates);
+    else if (g.type === "GeometryCollection") g.geometries.forEach(geometrie);
+    else ignores++;
+  };
+  const parcourir = x => x.type === "FeatureCollection" ? x.features.forEach(parcourir) : x.type === "Feature" ? geometrie(x.geometry) : geometrie(x);
+  parcourir(o);
+  const l93 = /2154/.test(String((o.crs && o.crs.properties && o.crs.properties.name) || ""))
+    || lignes.some(l => l.some(c => Math.abs(c[0]) > 1000));
+  const troncons = [];
+  for (const l of lignes) {
+    const t = l.map(c => (l93 ? l93VersWgs84(c[0], c[1]) : [c[0], c[1]])).filter(([x, y]) => isFinite(x) && isFinite(y));
+    if (t.length >= 2) troncons.push(t); else ignores++;
+  }
+  return { troncons, ignores };
+}
+
+function longueurTroncon(t) {
+  let l = 0;
+  for (let i = 1; i < t.length; i++) l += distanceM(t[i - 1][0], t[i - 1][1], t[i][0], t[i][1]);
+  return l;
+}
+
+// Tronçons → FeatureCollection WGS84 (export, à reprendre dans QGIS)
+function versGeoJSON(troncons) {
+  return { type: "FeatureCollection", features: troncons.map((t, i) => ({
+    type: "Feature", properties: { nom: `Tronçon simulé ${i + 1}`, longueur_m: Math.round(longueurTroncon(t)) },
+    geometry: { type: "LineString", coordinates: t.map(([lon, lat]) => [lon, lat]) },
+  })) };
+}
+
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
 // Grille de France en degrés ; doit suivre LON0, LAT0, DLON, DLAT, CELLULES_TUILE de format_tuile.py
 const GRILLE_FRANCE = { lon0: -5.5, lat0: 51.5, dlon: 0.00125, dlat: 0.0009, cellulesTuile: 100, pasDistM: 10 };
@@ -627,6 +732,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
