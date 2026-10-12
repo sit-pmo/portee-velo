@@ -207,7 +207,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
         <button type="button" class="bouton petit" id="sim-exporter" disabled>Exporter</button>
         <input type="file" id="sim-fichier" accept=".geojson,.json,application/geo+json,application/json" hidden>
       </div>
-      <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise. Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
+      <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise (petit point). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
       <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
       <ul class="sim-liste" id="sim-liste"></ul>
       <div class="bascule trois" id="sim-vue" role="group" aria-label="Comparer avant et après les tronçons" hidden>
@@ -808,7 +808,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const isoles = (sim.isoles || []).map(i => i + 1), libres = sim.nonRaccordes.length - 2 * isoles.length;
     const dehors = (sim.horsZone || []).map(i => i + 1);
     montrerInfo([
-      isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : il ne croise aucune voie et aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur un carrefour (point plein).` : "",
+      isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : il ne croise aucune voie et aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur une voie (point plein).` : "",
       libres > 0 ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "",
       dehors.length ? `Tronçon${dehors.length > 1 ? "s" : ""} ${dehors.length > 8 ? `(${dehors.length})` : dehors.join(", ")} hors de la zone calculée autour du départ : déplacez le départ vers ${dehors.length > 1 ? "eux" : "lui"} pour voir ${dehors.length > 1 ? "leur" : "son"} effet.` : "",
     ].filter(Boolean).join(" "));
@@ -827,6 +827,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const t = sim.troncons[i];
     const trait = L.polyline(t.map(([lon, lat]) => [lat, lon]), { pane: "trace", color: "#7B2CBF", weight: 3, interactive: false }).addTo(couchePoignees);
     const retracer = () => trait.setLatLngs(t.map(([x, y]) => [y, x]));
+    dessinerCroisements(t, couchePoignees);
     t.forEach(([lon, lat], j) => {
       const m = L.marker([lat, lon], { pane: "trace", draggable: true, icon: iconeSommet(estRaccorde(lon, lat)), title: "Glisser pour déplacer, clic droit pour supprimer" });
       let dernier = 0;
@@ -927,7 +928,14 @@ document.getElementById("replier").addEventListener("click", e => {
   const outil = { actif: false, sommets: [], raccords: [], suiviAvant: false };
   const coucheTrace = L.layerGroup().addTo(carte);
   const apercu = L.polyline([], { pane: "trace", color: "#7B2CBF", weight: 4, dashArray: "4 6", interactive: false });
-  const estRaccorde = (lon, lat) => !!vue.P && noeudsProches(vue.P, [[lon, lat]], CFG.raccordMaxM)[0] >= 0;
+  // Même règle que ajouterTroncons : nœud à raccordMaxM, sinon voie à raccordMaxM
+  const estRaccorde = (lon, lat) => !!vue.P && (noeudsProches(vue.P, [[lon, lat]], CFG.raccordMaxM)[0] >= 0 || areteProche(vue.P, lon, lat, CFG.raccordMaxM) >= 0);
+  // Croisements du tracé avec une voie (raccordés eux aussi) : petits points pleins
+  function dessinerCroisements(t, couche) {
+    if (!vue.P || t.length < 2) return;
+    for (const l of croisements(vue.P, [t])[0]) for (const c of l || [])
+      L.circleMarker([c.lat, c.lon], { pane: "trace", radius: 3.5, color: "#fff", weight: 1.5, fillColor: "#7B2CBF", fillOpacity: 1, interactive: false }).addTo(couche);
+  }
   const iconeSommet = raccorde => L.divIcon({ className: "", html: `<div class="sommet-sim${raccorde ? " raccorde" : ""}"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] });
   // Trait d'aperçu jusqu'à la souris (à chaque mouvement : rien d'autre) ; sommets redessinés au clic seulement,
   // l'indicateur de raccord parcourant les nœuds de la fenêtre
@@ -936,6 +944,7 @@ document.getElementById("replier").addEventListener("click", e => {
     apercu.setLatLngs(souris && ll.length ? [...ll, souris] : ll).addTo(coucheTrace);
     if (souris) return;
     coucheTrace.clearLayers(); apercu.addTo(coucheTrace);
+    dessinerCroisements(outil.sommets, coucheTrace);
     outil.raccords.length = outil.sommets.length;
     outil.sommets.forEach(([lon, lat], i) => {
       if (outil.raccords[i] === undefined) outil.raccords[i] = estRaccorde(lon, lat);

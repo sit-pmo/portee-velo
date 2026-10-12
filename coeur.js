@@ -587,12 +587,13 @@ function noeudsProches(P, points, maxM) {
 // voies de classe ≥ 1 ; les pistes ne coupent pas). Rend les sommets [[lon, lat], ...], null si aucune voie.
 // ponytail: un chemin de service ou une entrée de parking OSM compte comme carrefour (bout de voie court) : on reclique
 // sur la suite ; filtrer par nom de voie si ça gêne.
-function voieAuClic(P, lon, lat, maxM) {
-  const kx = Math.cos(lat * RAD) * RAD * R_TERRE, ky = RAD * R_TERRE;   // degrés → mètres autour du clic
+// Arête de classe ≥ clsMin la plus proche de (lon, lat) à maxM au plus (-1 sinon). Parcours de toutes les arêtes.
+function areteProche(P, lon, lat, maxM, clsMin = 0) {
+  const kx = Math.cos(lat * RAD) * RAD * R_TERRE, ky = RAD * R_TERRE;   // degrés → mètres autour du point
   const dLon = maxM / kx, dLat = maxM / ky;
   let eMin = -1, dMin = maxM;
   for (let e = 0; e < P.m; e++) {
-    if (P.cls[e] < 1) continue;
+    if (P.cls[e] < clsMin) continue;
     const a = P.a[e], b = P.b[e];
     if (Math.max(P.lon[a], P.lon[b]) < lon - dLon || Math.min(P.lon[a], P.lon[b]) > lon + dLon ||
         Math.max(P.lat[a], P.lat[b]) < lat - dLat || Math.min(P.lat[a], P.lat[b]) > lat + dLat) continue;
@@ -603,6 +604,46 @@ function voieAuClic(P, lon, lat, maxM) {
     const d = Math.hypot(ax + s * dx, ay + s * dy);
     if (d <= dMin) { dMin = d; eMin = e; }
   }
+  return eMin;
+}
+
+// Pour chaque point, arête de P la plus proche à maxM au plus (-1 sinon), en un seul parcours des arêtes : points
+// rangés en seaux de maxM de côté, chaque arête ne teste que les points des seaux que couvre son emprise élargie.
+function aretesProches(P, points, maxM) {
+  const out = new Int32Array(points.length).fill(-1), dMin = new Float64Array(points.length).fill(maxM);
+  if (!points.length) return out;
+  const lat0 = points[0][1], kx = Math.cos(lat0 * RAD) * RAD * R_TERRE, ky = RAD * R_TERRE;
+  const pasLon = maxM / kx, pasLat = maxM / ky, seaux = new Map(), cle = (i, j) => `${i}_${j}`;
+  points.forEach(([lon, lat], p) => {
+    const c = cle(Math.floor(lon / pasLon), Math.floor(lat / pasLat));
+    if (!seaux.has(c)) seaux.set(c, []);
+    seaux.get(c).push(p);
+  });
+  let w = Infinity, ea = -Infinity, so = Infinity, no = -Infinity;     // emprise des points, élargie de maxM
+  for (const [lon, lat] of points) { w = Math.min(w, lon); ea = Math.max(ea, lon); so = Math.min(so, lat); no = Math.max(no, lat); }
+  w -= pasLon; ea += pasLon; so -= pasLat; no += pasLat;
+  for (let e = 0; e < P.m; e++) {
+    const a = P.a[e], b = P.b[e];
+    if (Math.max(P.lon[a], P.lon[b]) < w || Math.min(P.lon[a], P.lon[b]) > ea || Math.max(P.lat[a], P.lat[b]) < so || Math.min(P.lat[a], P.lat[b]) > no) continue;
+    const i0 = Math.floor(Math.min(P.lon[a], P.lon[b]) / pasLon) - 1, i1 = Math.floor(Math.max(P.lon[a], P.lon[b]) / pasLon) + 1;
+    const j0 = Math.floor(Math.min(P.lat[a], P.lat[b]) / pasLat) - 1, j1 = Math.floor(Math.max(P.lat[a], P.lat[b]) / pasLat) + 1;
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) > 400) continue;   // arête de plus de ~400 m de long : ses nœuds suffisent
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      for (const p of seaux.get(cle(i, j)) || []) {
+        const [lon, lat] = points[p];
+        const ax = (P.lon[a] - lon) * kx, ay = (P.lat[a] - lat) * ky, bx = (P.lon[b] - lon) * kx, by = (P.lat[b] - lat) * ky;
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        const s = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+        const d = Math.hypot(ax + s * dx, ay + s * dy);
+        if (d <= dMin[p]) { dMin[p] = d; out[p] = e; }
+      }
+    }
+  }
+  return out;
+}
+
+function voieAuClic(P, lon, lat, maxM) {
+  const eMin = areteProche(P, lon, lat, maxM, 1);
   if (eMin < 0) return null;
   // Adjacence des voies de classe ≥ 1 (degré = nombre de voies au nœud)
   const off = new Uint32Array(P.n + 1);
@@ -686,6 +727,10 @@ function ajouterTroncons(P, troncons) {
   const nouveau = (lon, lat) => { nLon.push(lon); nLat.push(lat); return P.n + nLon.length - 1; };
   const lier = (u, v, l) => { ea.push(u); eb.push(v); el.push(l); };
   const proches = noeudsProches(P, troncons.flat(), CFG.raccordMaxM);
+  // Sommets sans nœud proche mais posés sur une voie aux nœuds espacés (route droite) : raccordés à cette voie
+  const sansNoeud = troncons.flat().filter((_, k) => proches[k] < 0), surVoie = aretesProches(P, sansNoeud, CFG.raccordMaxM);
+  const voieDe = new Map();
+  { let k = 0; troncons.flat().forEach((pt, i) => { if (proches[i] < 0) voieDe.set(i, surVoie[k++]); }); }
   // Nœuds des tronçons raccordés au réseau : seuls eux reprennent des cellules (un tronçon sans aucun raccord est
   // injoignable : ses cellules seraient perdues, gain négatif vu le 12/10/2026)
   // Hors de la fenêtre chargée (marge de raccordMaxM), on ne voit pas les voies : un sommet n'y est ni raccordé ni
@@ -706,10 +751,12 @@ function ajouterTroncons(P, troncons) {
     const pts = [];
     t.forEach(([lon, lat], j) => {
       if (j > 0) for (const c of coupes[iT][j] || []) pts.push({ lon: c.lon, lat: c.lat, arete: c.arete });
-      pts.push({ lon, lat, q: proches[iSommet++], bout: j === 0 || j === t.length - 1 });
+      pts.push({ lon, lat, q: proches[iSommet], voie: voieDe.get(iSommet), bout: j === 0 || j === t.length - 1 });
+      iSommet++;
     });
-    pts.forEach(({ lon, lat, q, arete, bout }, j) => {
+    pts.forEach(({ lon, lat, q, voie, arete, bout }, j) => {
       const v = nouveau(lon, lat), dedans = dedansFenetre(lon, lat);
+      if (arete === undefined && q < 0 && voie >= 0 && dedans) arete = voie;
       if (!dedans) dehors = true;
       if (arete !== undefined) {
         relie = true;
@@ -979,6 +1026,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
