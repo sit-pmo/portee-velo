@@ -93,7 +93,6 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .credits{font-size:.75rem;color:var(--ardoise);padding-top:10px}
 .credits p{margin:0 0 6px}
 .credits a{color:var(--abysse)}
-.lien-comparer{color:var(--abysse);font-weight:600}
 .erreur{margin:14px 0;padding:12px;border-radius:8px;background:#fde7e2;color:#7a1f0e;font-size:.9rem}
 .erreur code{font-size:.85em}
 
@@ -242,20 +241,9 @@ document.getElementById("replier").addEventListener("click", e => {
     { nom: "Route départementale (tertiaire)", couleur: "#D9631E" },
   ];
   // ---------- Symbologies « Temps » et « Temps et confort » (11/10/2026) : temps réels dans les deux ----------
-  // +5 % sur route : à temps quasi égal, le cycliste prend la piste qui longe la route (sinon départage au hasard)
-  CFG.penalites.tout = [1, 1, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05];
-  // Confort par classe (D1, option A) : 0 aménagé, 1 calme, 2 exposé, 3 très exposé.
-  // Classes : 0 piste, 1 bande, 2 rues/service, 3 secondary, 4 primary, 5 unclassified, 6 chemins, 7 tertiary.
-  // Option A figée le 11/10/2026 : voies communales (unclassified) calmes, malgré les 80 km/h possibles en rural.
-  const CONFORT = [0, 0, 1, 3, 3, 1, 1, 2];
-  const expose = c => CONFORT[c] >= 2;
-  // Option 2 (11/10/2026) : second calcul, le « trajet tranquille », où chaque minute sur route exposée compte pour
-  // FACTEUR_EXPO (interdire la route coupait le réseau : 193 m de départementale à Saint-Georges = 19 km de détour).
-  // Teinte = coût de ce trajet / temps du plus rapide : un reste de route exposée se paie dans le rapport.
-  const FACTEUR_EXPO = 4;
-  const DEPART_LIBRE_M = 300;                  // autour du départ, la route exposée n'est pas pénalisée : on part de chez soi par la rue qu'on a
-  CFG.penalites.confort = CONFORT.map((c, i) => c >= 2 ? FACTEUR_EXPO : CFG.penalites.tout[i]); CFG.accesMaxM.confort = CFG.accesMaxM.tout;
-  const SURCOUT = [1.2, 1.5], SURCOUT_MIN = 1;   // bleu ≤ +20 % (ou +1 min), gris ≤ +50 %, orange au-delà ou sans alternative
+  // Modèle (temps réels, classes de confort, trajet tranquille, teinte) : CFG, minutesTranquilles et teinteConfort
+  // dans coeur.js. Interdire la route dans le trajet tranquille coupait le réseau
+  // (193 m de départementale à Saint-Georges = 19 km de détour) : d'où la pénalité ×4 plutôt qu'une interdiction.
   const MAQ_MIN = 60;                          // zone colorée : jusqu'à 60 min
   // Palette bivariée : teinte = confort (bleu / gris / orange, sûre pour les daltoniens), clarté = temps (7 paliers).
   // Construite en HCL pour que la clarté perçue soit la même d'une teinte à l'autre à temps égal.
@@ -420,36 +408,6 @@ document.getElementById("replier").addEventListener("click", e => {
     if ($("#voir-reseau").checked) reseau.addTo(carte);
   }
 
-  // Arêtes d'une classe (pistes, ou bandes) regroupées en lignes continues : on suit chaque enchaînement de nœuds
-  // de degré 2. Une ligne par arête donnait des dizaines de milliers de tracés à Leaflet (150 à 290 ms par fenêtre).
-  function lignesReseau(P, c) {
-    const n = P.n, deg = new Uint16Array(n), aretes = [];
-    for (let e = 0; e < P.m; e++) if (P.cls[e] === c) { aretes.push(e); deg[P.a[e]]++; deg[P.b[e]]++; }
-    const off = new Uint32Array(n + 1);
-    for (const e of aretes) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
-    for (let v = 0; v < n; v++) off[v + 1] += off[v];
-    const adj = new Int32Array(off[n]), cur = off.slice(0, n);
-    for (const e of aretes) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
-    const vu = new Uint8Array(P.m), lignes = [];
-    const suivre = (v, e) => {
-      const l = [[P.lat[v], P.lon[v]]];
-      for (;;) {
-        vu[e] = 1;
-        const w = P.a[e] === v ? P.b[e] : P.a[e];
-        l.push([P.lat[w], P.lon[w]]);
-        if (deg[w] !== 2) break;                // extrémité ou carrefour : fin de la ligne
-        let suite = -1;
-        for (let k = off[w]; k < off[w + 1]; k++) if (!vu[adj[k]]) { suite = adj[k]; break; }
-        if (suite < 0) break;
-        v = w; e = suite;
-      }
-      lignes.push(l);
-    };
-    for (const e of aretes) for (const v of [P.a[e], P.b[e]]) if (!vu[e] && deg[v] !== 2) suivre(v, e);
-    for (const e of aretes) if (!vu[e]) suivre(P.a[e], e);   // boucles fermées (aucun nœud de degré ≠ 2)
-    return lignes;
-  }
-
   // ---------- Dessin ----------
   // Maquette : teinte = surcoût du trajet tranquille (minConf) sur le plus rapide (min) ; maillons manquants =
   // arcs exposés de l'arbre des plus courts chemins, pondérés par la surface sans alternative tranquille (orange)
@@ -466,7 +424,7 @@ document.getElementById("replier").addEventListener("click", e => {
     for (let k = 0; k < min.length; k++) {
       const m = min[k], o = k * 4;
       if (!(m <= MAQ_MIN)) { px[o + 3] = 0; continue; }
-      const mc = minConf[k], q = mc <= Math.max(m * SURCOUT[0], m + SURCOUT_MIN) ? 0 : mc <= m * SURCOUT[1] ? 1 : 2;
+      const q = teinteConfort(m, minConf[k]);
       if (q === 2) charge[pro[k]]++;
       let i = 0; while (m > MAQ_PALIERS[i]) i++;
       const c = MAQ_PAL[q][i];
@@ -661,23 +619,8 @@ document.getElementById("replier").addEventListener("click", e => {
     afficherCouverture(etat.minutes);
     if (!confortActif()) { dessinerChaleur(etat.minutes); maillons.clearLayers(); }
     else {
-      // Trajet tranquille : départ accroché au réseau tranquille, calcul borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
-      const Gc = grapheConfort(), accC = accrocher(P, Gc, etat.depart.lng, etat.depart.lat);
-      // Arcs exposés à moins de DEPART_LIBRE_M du départ (à vol d'oiseau, deux extrémités) : poids du mode tout le temps du calcul
-      const lon0 = etat.depart.lng, lat0 = etat.depart.lat, dLat = DEPART_LIBRE_M / 111000, dLon = dLat / Math.cos(lat0 * Math.PI / 180);
-      const proche = v => Math.abs(P.lat[v] - lat0) < dLat && Math.abs(P.lon[v] - lon0) < dLon && distanceM(lon0, lat0, P.lon[v], P.lat[v]) <= DEPART_LIBRE_M;
-      const libres = [];
-      // Nœuds proches d'abord (balayage des nœuds, bien moins nombreux que les arcs), puis leurs arcs sortants
-      for (let v = 0; v < P.n; v++) {
-        if (!proche(v)) continue;
-        for (let k = Gc.off[v]; k < Gc.off[v + 1]; k++) {
-          const c = P.cls[Gc.arete[k]];
-          if (expose(c) && proche(Gc.cible[k])) { libres.push(k); Gc.poids[k] *= CFG.penalites.tout[c] / FACTEUR_EXPO; }
-        }
-      }
-      const minConf = accC ? tempsGrille(P, Gc, dijkstra(Gc, accC.noeud, accesSecondes(accC.distM), LIMITE_S * SURCOUT[1]))
-                           : new Float32Array(g.nx * g.ny).fill(Infinity);
-      for (const k of libres) Gc.poids[k] *= FACTEUR_EXPO / CFG.penalites.tout[P.cls[Gc.arete[k]]];   // poids rétablis
+      // Trajet tranquille, borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
+      const minConf = minutesTranquilles(P, grapheConfort(), etat.depart.lng, etat.depart.lat, LIMITE_S * CFG.confort.surcout[1]);
       dessinerConfort(etat.minutes, minConf, complet);
     }
     if (complet) { dessinerIsolignes(etat.minutes); majLien(); }
