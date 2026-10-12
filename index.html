@@ -229,6 +229,14 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets, puis sur son trait pour en ajouter un.</p>
     </div>
 
+    <div class="bloc" id="bloc-d4" hidden>
+      <h2>Maillons manquants de l'île</h2>
+      <button type="button" class="bouton" id="d4-vue" aria-pressed="false">Vue cumulée</button>
+      <ol class="sim-liste" id="d4-liste" hidden></ol>
+      <button type="button" class="bouton petit" id="d4-amenager" hidden>Aménager et voir le gain</button>
+      <p class="note" id="d4-note"></p>
+    </div>
+
     <div class="bloc" id="legende-maquette" hidden>
       <h2>Y aller tranquillement, à quel prix ? (60 min)</h2>
       <div id="grille-bivariee"></div>
@@ -333,14 +341,10 @@ document.getElementById("replier").addEventListener("click", e => {
   // alternées 0 / 1 ; total = dénominateur des % (tout le territoire, pas seulement la fenêtre chargée)
   let masqueZone = null;
   if (terr) {
-    const { i0, j0, nx, ny, total, plages } = terr.masque, m = new Uint8Array(nx * ny);
-    for (let k = 0, pos = 0; k < plages.length; k += 2) { pos += plages[k]; m.fill(1, pos, pos + plages[k + 1]); pos += plages[k + 1]; }
-    masqueZone = { i0, j0, nx, ny, m, total };
-    // Fenêtre fixe centrée sur le territoire : les 5 × 5 tuiles le couvrent en entier (Marennes-Oléron tient
-    // dans 5 × 5 tuiles), donc aucun changement de fenêtre au survol, comme l'ancienne carte d'un seul bloc
-    // (chaque changement gelait la page 0,5 à 1,2 s)
-    const gr = index.grille;
-    masqueZone.centre = [gr.lon0 + (i0 + nx / 2) * gr.dlon, gr.lat0 - (j0 + ny / 2) * gr.dlat];
+    // Fenêtre fixe centrée sur le territoire (masqueZone.centre) : les 5 × 5 tuiles le couvrent en entier
+    // (Marennes-Oléron tient dans 5 × 5 tuiles), donc aucun changement de fenêtre au survol, comme l'ancienne
+    // carte d'un seul bloc (chaque changement gelait la page 0,5 à 1,2 s)
+    masqueZone = decoderMasque(terr.masque, index.grille);
     document.title = `À portée de vélo – ${terr.nom.replace(/^l'/, "L'")}`;
     $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${terr.chapeau}, et dans quel confort, d'après les réseaux des collectivités et OpenStreetMap`;
     $("#titre-couverture").textContent = `Surface ${TERRITOIRE === "oleron" ? "de l'île" : "du territoire"} atteinte depuis ce départ`;
@@ -389,8 +393,8 @@ document.getElementById("replier").addEventListener("click", e => {
   L.control.zoom({ position: "topright" }).addTo(carte);
   L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
     { maxZoom: 19, attribution: "Fond © IGN | Réseau © contributeurs OpenStreetMap" }).addTo(carte);
-  for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["trace", 450]]) {
-    const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace") p.style.pointerEvents = "none";
+  for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["d4", 440], ["trace", 450]]) {
+    const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace" && nom !== "d4") p.style.pointerEvents = "none";
   }
   const contour = L.geoJSON(zone, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
   const etroit = () => window.matchMedia("(max-width:720px)").matches;
@@ -437,16 +441,7 @@ document.getElementById("replier").addEventListener("click", e => {
     vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
     vue.G = graphes(f.P);
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
-    if (masqueZone) {   // vue territoire : cellules hors du territoire ni colorées ni comptées
-      const g = vue.g, gr = index.grille, z = masqueZone;
-      const di = Math.round((g.w - gr.lon0) / gr.dlon) - z.i0, dj = Math.round((gr.lat0 - g.n) / gr.dlat) - z.j0;
-      const m = new Uint8Array(g.nx * g.ny);
-      for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++) {
-        const zi = i + di, zj = j + dj, k = j * g.nx + i;
-        m[k] = zi >= 0 && zj >= 0 && zi < z.nx && zj < z.ny && z.m[zj * z.nx + zi] ? 1 : 0;
-      }
-      g.dedans = g.ile = m;
-    }
+    if (masqueZone) appliquerMasque(vue.g, masqueZone, index.grille);   // vue territoire : cellules hors du territoire ni colorées ni comptées
     preparerSimulation();                      // après le masque : P′ en hérite
     const g = vue.g, bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
     if (!toile || toile.width !== g.nx || toile.height !== g.ny) {
@@ -477,15 +472,13 @@ document.getElementById("replier").addEventListener("click", e => {
   // Symbologie effective : le confort n'a de sens qu'en mode « Pistes + routes »
   const confortActif = () => etat.symbo === "confort" && etat.mode === "tout";
   function dessinerConfort(min, minConf, complet) {
-    const { P, G: Gs } = aff(), G = Gs.tout, res = etat.res, pro = P.grille.pro.tout;
-    const charge = new Float32Array(P.n);
+    const { P, G: Gs } = aff(), G = Gs.tout, res = etat.res;
     // Couleur des cellules : teinte = surcoût du trajet tranquille (bleu / gris / orange), clarté = temps
     const px = image.data;
     for (let k = 0; k < min.length; k++) {
       const m = min[k], o = k * 4;
       if (!(m <= MAQ_MIN)) { px[o + 3] = 0; continue; }
       const q = teinteConfort(m, minConf[k]);
-      if (q === 2) charge[pro[k]]++;
       let i = 0; while (m > MAQ_PALIERS[i]) i++;
       const c = MAQ_PAL[q][i];
       px[o] = c.r; px[o + 1] = c.g; px[o + 2] = c.b; px[o + 3] = 255;
@@ -493,17 +486,11 @@ document.getElementById("replier").addEventListener("click", e => {
     ctx.putImageData(image, 0, 0);
     maillons.clearLayers();
     if (!complet) return;                      // pendant le survol : pas de maillons (tri et calcul de charge évités)
-    // Nœuds atteints du plus proche au plus lointain (arbre des plus courts chemins)
-    const ordre = [];
-    for (let v = 0; v < P.n; v++) if (isFinite(res.dist[v])) ordre.push(v);
-    ordre.sort((a, b) => res.dist[a] - res.dist[b]);
-    // Charge des arcs : des feuilles vers la racine
-    for (let i = ordre.length - 1; i >= 0; i--) { const v = ordre[i], k = res.pred[v]; if (k >= 0) charge[G.source[k]] += charge[v]; }
-    const KM2 = 0.0097, paliers = [[60, 8], [25, 5], [10, 3]], traits = paliers.map(() => []);
-    for (const v of ordre) {
-      const k = res.pred[v]; if (k < 0 || !expose(P.cls[G.arete[k]])) continue;
-      const s = charge[v] * KM2, i = paliers.findIndex(([seuil]) => s >= seuil);
-      if (i >= 0) traits[i].push([[P.lat[G.source[k]], P.lon[G.source[k]]], [P.lat[v], P.lon[v]]]);
+    // Traits noirs (règle partagée avec maillons.js) répartis en paliers d'épaisseur par surface orange desservie
+    const paliers = [[60, 8], [25, 5], [10, 3]], traits = paliers.map(() => []);
+    for (const { arc, charge } of traitsNoirs(P, G, res, min, minConf, MAQ_MIN)) {
+      const i = paliers.findIndex(([seuil]) => charge >= seuil);
+      traits[i].push([[P.lat[G.source[arc]], P.lon[G.source[arc]]], [P.lat[G.cible[arc]], P.lon[G.cible[arc]]]]);
     }
     const rendu = L.canvas({ pane: "iso" });
     paliers.forEach(([, w], i) => {
@@ -1025,6 +1012,80 @@ document.getElementById("replier").addEventListener("click", e => {
   $("#sim-voie").addEventListener("click", () => (voie.actif ? finirVoie() : commencerVoie()));
   document.addEventListener("keydown", ev => { if (voie.actif && ev.key === "Escape") finirVoie(); });
 
+  // ---------- Maillons manquants de l'île (D4, ?territoire=oleron) : classement précalculé par maillons.js ----------
+  // Vue cumulée : voies classées en noir (épaisseur par part de l'île), coloration du départ masquée ; liste des 10
+  // premières ; « Aménager et voir le gain » = tronçon simulé ordinaire + départ au point représentatif + vue Gain.
+  const d4 = { voies: [], actif: false, choisi: -1 };
+  const coucheD4 = L.layerGroup().addTo(carte);
+  // % de l'île → épaisseur ; paliers tirés du classement du 12/10/2026 (maximum 18 %, une trentaine de voies ≥ 5 %)
+  const PALIERS_D4 = [[10, 8], [5, 5], [2, 3]];
+  function installerD4(D) {
+    // Fichier absent, vide ou incomplet : bloc caché ; voies sans géométrie, classe ou départ lisibles écartées
+    const comptes = D && D.departs - D.ignores;
+    if (!D || !Array.isArray(D.voies) || !(comptes > 0)) return;
+    d4.voies = D.voies.filter(v => typeof v.g === "string" && CLASSES[v.cls] && Array.isArray(v.d) && v.d.length === 2 && v.d.every(isFinite))
+      .map(v => ({ ...v, coords: decoderTroncons(v.g)[0], pct: Math.round(v.score / comptes * 100) }))
+      .filter(v => v.coords && v.coords.length >= 2);
+    if (!d4.voies.length) return;
+    $("#d4-note").textContent = `Score : part des départs, sur une grille de ${D.pasM} m couvrant l'île, depuis lesquels cette voie est un maillon manquant (trait noir).`
+      + (D.osm !== index.genere ? ` Classement calculé sur les données du ${D.osm}.` : "");
+    $("#bloc-d4").hidden = false;
+  }
+  function dessinerD4() {
+    coucheD4.clearLayers();
+    $("#d4-liste").innerHTML = d4.voies.slice(0, 10).map((v, i) =>
+      `<li aria-current="${i === d4.choisi}"><span class="nom" data-i="${i}">${echapper(v.nom || CLASSES[v.cls].nom)} · ${fmtKm(v.l)} · ${v.pct} %</span></li>`).join("");
+    if (!d4.actif) return;
+    d4.voies.forEach((v, i) => {
+      const p = PALIERS_D4.find(([s]) => v.pct >= s), w = p ? p[1] : 2, ll = v.coords.map(([lon, lat]) => [lat, lon]);
+      L.polyline(ll, { pane: "d4", color: "#fff", weight: w + 3, opacity: .9, interactive: false }).addTo(coucheD4);
+      L.polyline(ll, { pane: "d4", color: i === d4.choisi ? "#7B2CBF" : "#111", weight: w, opacity: .95 })
+        .on("click", ev => {
+          if (outil.actif || voie.actif) return;   // en tracé ou aménagement, le clic passe à la carte (sommet, voie)
+          L.DomEvent.stop(ev); choisirD4(i, false);
+        }).addTo(coucheD4);
+    });
+  }
+  function basculerD4(actif) {
+    d4.actif = actif;
+    $("#d4-vue").setAttribute("aria-pressed", String(actif));
+    $("#d4-liste").hidden = !actif;
+    $("#d4-amenager").hidden = !actif || d4.choisi < 0;
+    for (const nom of ["chaleur", "iso"]) carte.getPane(nom).style.display = actif ? "none" : "";   // vue indépendante du départ
+    // Vue indépendante du départ : pas de suivi de la souris (bouton caché), rendu en quittant s'il était actif
+    if (actif) { d4.suiviAvant = etat.suivre; suivre(false); }
+    else if (d4.suiviAvant) { d4.suiviAvant = false; suivre(true); }
+    $("#suivre").hidden = actif || !survolPossible;
+    dessinerD4();
+  }
+  function choisirD4(i, zoomer) {
+    d4.choisi = i; $("#d4-amenager").hidden = false; dessinerD4();
+    if (zoomer) carte.fitBounds(L.latLngBounds(d4.voies[i].coords.map(([lon, lat]) => [lat, lon])).pad(0.5));
+  }
+  $("#d4-vue").addEventListener("click", () => basculerD4(!d4.actif));
+  $("#d4-liste").addEventListener("click", ev => {
+    if (ev.target.dataset.i === undefined) return;
+    choisirD4(Number(ev.target.dataset.i), true);
+  });
+  $("#d4-amenager").addEventListener("click", () => {
+    const v = d4.voies[d4.choisi];
+    if (!v) return;
+    basculerD4(false);
+    if (etat.mode !== "tout") choisirMode("tout");            // le confort n'existe qu'en « Pistes + routes »
+    if (etat.symbo !== "confort") choisirSymbo("confort");
+    // Voie déjà simulée (second clic) : pas de doublon. Autres tronçons présents : le gain les inclut, on le dit
+    const deja = sim.troncons.some(t => encoderTroncons([t]) === v.g);
+    if (!deja) sim.troncons.push(v.coords.map(p => p.slice()));
+    majSimulation();
+    $('[data-vue="gain"]').click();
+    suivre(false);
+    placerDepart(L.latLng(v.d[1], v.d[0]), true);
+    const autres = sim.troncons.length - 1;
+    if (autres > 0) montrerInfo(`Le gain affiché inclut aussi ${autres > 1 ? `les ${autres} autres tronçons simulés` : "l'autre tronçon simulé"}. « Tout effacer » puis « Aménager » pour isoler cette voie.`);
+  });
+  if (TERRITOIRE === "oleron")
+    fetch("tuiles/maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
+
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
   let demande = 0;
   // Fenêtre à recentrer pour ce départ ? (vue territoire : jamais, la fenêtre est fixe)
@@ -1098,6 +1159,7 @@ document.getElementById("replier").addEventListener("click", e => {
   carte.on("click", ev => {
     if (outil.actif) { outil.sommets.push([ev.latlng.lng, ev.latlng.lat]); dessinerTraceEnCours(); return; }
     if (voie.actif) { amenagerVoie(ev.latlng); return; }
+    if (d4.actif) return;                                        // vue cumulée : ni départ ni arrivée (carte cachée)
     if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
     if (etat.suivre || !etat.depart) { suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);

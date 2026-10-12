@@ -326,6 +326,68 @@ function teinteConfort(m, mc) {
   return mc <= Math.max(m * s.surcout[0], m + s.surcoutMin) ? 0 : mc <= m * s.surcout[1] ? 1 : 2;
 }
 
+// Maillons manquants (traits noirs) depuis un départ : arcs de route exposée de l'arbre des plus rapides par lesquels
+// passent les trajets vers au moins seuilKm2 de cellules orange (trajet tranquille > +50 %) à minutesMax au plus.
+// Charge = cellules orange rattachées au nœud (pro.tout), remontée des feuilles vers la racine. Règle de la carte à
+// un départ, partagée avec maillons.js (D4, 12/10/2026). Rend [{ arc, charge (km²) }], distances croissantes.
+const CELLULE_KM2 = 0.0097;          // cellule de la grille France : 0,00125° × 0,0009° ≈ 97 m × 100 m
+function traitsNoirs(P, G, res, min, minConf, minutesMax = 60, seuilKm2 = 10) {
+  const pro = P.grille.pro.tout, charge = new Float32Array(P.n);
+  for (let k = 0; k < min.length; k++) {
+    const m = min[k];
+    if (!(m <= minutesMax)) continue;
+    if (teinteConfort(m, minConf[k]) === 2) charge[pro[k]]++;
+  }
+  const ordre = [];
+  for (let v = 0; v < P.n; v++) if (isFinite(res.dist[v])) ordre.push(v);
+  ordre.sort((a, b) => res.dist[a] - res.dist[b]);
+  for (let i = ordre.length - 1; i >= 0; i--) { const v = ordre[i], k = res.pred[v]; if (k >= 0) charge[G.source[k]] += charge[v]; }
+  const out = [];
+  for (const v of ordre) {
+    const k = res.pred[v];
+    if (k < 0 || !expose(P.cls[G.arete[k]])) continue;
+    const s = charge[v] * CELLULE_KM2;
+    if (s >= seuilKm2) out.push({ arc: k, charge: s });
+  }
+  return out;
+}
+
+// Départs du classement D4 : centres d'une grille régulière de pasM mètres, gardés si leur cellule est dedans
+// (terre du territoire). Pas en degrés pris à la latitude moyenne de la fenêtre.
+function grilleDeparts(g, pasM) {
+  const latMoy = g.n - g.ny * g.dlat / 2, pasLat = pasM / (R_TERRE * RAD), pasLon = pasLat / Math.cos(latMoy * RAD);
+  const out = [];
+  for (let lat = g.n - pasLat / 2; lat > g.n - g.ny * g.dlat; lat -= pasLat)
+    for (let lon = g.w + pasLon / 2; lon < g.w + g.nx * g.dlon; lon += pasLon) {
+      const i = Math.floor((lon - g.w) / g.dlon), j = Math.floor((g.n - lat) / g.dlat);
+      if (g.dedans[j * g.nx + i]) out.push([lon, lat]);
+    }
+  return out;
+}
+
+// Cumul D4 : pour chaque départ, traits noirs (règle de la page) ramenés à leurs voies ; une voie compte une fois
+// par départ. Départ sans voie à accesMaxM : ignoré. rep = départ où un arc de la voie porte la plus forte charge.
+function cumulerMaillons(P, G, points, minutesMax = 60) {
+  const V = voies(P), nV = V.liste.length;
+  const score = new Int32Array(nV), rep = new Array(nV).fill(null), repCharge = new Float64Array(nV);
+  let ignores = 0;
+  for (const [lon, lat] of points) {
+    const dep = departs(P, G.tout, lon, lat);
+    if (!dep.length) { ignores++; continue; }
+    const res = dijkstra(G.tout, sourcesDijkstra(dep), 0, minutesMax * 60);
+    const min = tempsGrille(P, G.tout, res);
+    const minConf = minutesTranquilles(P, G.confort, lon, lat, minutesMax * 60 * CFG.confort.surcout[1]);
+    const vues = new Set();
+    for (const { arc, charge } of traitsNoirs(P, G.tout, res, min, minConf, minutesMax)) {
+      const v = V.voie[G.tout.arete[arc]];
+      if (v < 0) continue;
+      if (!vues.has(v)) { vues.add(v); score[v]++; }
+      if (charge > repCharge[v]) { repCharge[v] = charge; rep[v] = [lon, lat]; }
+    }
+  }
+  return { ...V, score, rep, repCharge, departs: points.length, ignores };
+}
+
 // Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte.
 // Fenêtre avec tronçons simulés (g.secours = grille d'avant) : la cellule garde le meilleur de son nœud d'avant et
 // du nœud simulé qui l'a reprise ; un nœud simulé injoignable dans ce mode (piste reliée seulement par une route, en
@@ -642,31 +704,46 @@ function aretesProches(P, points, maxM) {
   return out;
 }
 
-function voieAuClic(P, lon, lat, maxM) {
-  const eMin = areteProche(P, lon, lat, maxM, 1);
-  if (eMin < 0) return null;
-  // Adjacence des voies de classe ≥ 1 (degré = nombre de voies au nœud)
+// Voies entre carrefours : arêtes de classe ≥ 1 enchaînées par les nœuds où passent exactement deux voies de
+// classe ≥ 1 (les pistes ne coupent pas). Unité de « Aménager une voie » et du classement D4.
+// Rend { voie (indice par arête, -1 pour une piste), liste (nœuds de chaque voie dans l'ordre), arete (une par voie) }.
+function voies(P) {
   const off = new Uint32Array(P.n + 1);
   for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
   for (let v = 0; v < P.n; v++) off[v + 1] += off[v];
   const adj = new Int32Array(off[P.n]), cur = off.slice(0, P.n);
   for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
-  const vu = new Set([eMin]);
+  const voie = new Int32Array(P.m).fill(-1), liste = [], arete = [];
   // Nœuds rencontrés depuis v en s'éloignant de l'arête e, jusqu'au carrefour inclus
-  const prolonger = (v, e) => {
+  const prolonger = (v, e, id) => {
     const l = [];
     for (;;) {
       if (off[v + 1] - off[v] !== 2) break;
       const suite = adj[off[v]] === e ? adj[off[v] + 1] : adj[off[v]];
-      if (vu.has(suite)) break;                          // boucle refermée
-      vu.add(suite);
+      if (voie[suite] >= 0) break;                       // boucle refermée
+      voie[suite] = id;
       v = P.a[suite] === v ? P.b[suite] : P.a[suite]; e = suite;
       l.push(v);
     }
     return l;
   };
-  const avant = prolonger(P.a[eMin], eMin).reverse(), apres = prolonger(P.b[eMin], eMin);
-  return [...avant, P.a[eMin], P.b[eMin], ...apres].map(v => [P.lon[v], P.lat[v]]);
+  for (let e = 0; e < P.m; e++) {
+    if (P.cls[e] < 1 || voie[e] >= 0) continue;
+    const id = liste.length;
+    voie[e] = id;
+    const avant = prolonger(P.a[e], e, id).reverse(), apres = prolonger(P.b[e], e, id);
+    liste.push([...avant, P.a[e], P.b[e], ...apres]);
+    arete.push(e);
+  }
+  return { voie, liste, arete: Int32Array.from(arete) };
+}
+
+// Voie (de voies(P)) qui contient l'arête de classe ≥ 1 la plus proche du clic
+function voieAuClic(P, lon, lat, maxM) {
+  const eMin = areteProche(P, lon, lat, maxM, 1);
+  if (eMin < 0) return null;
+  const { voie, liste } = voies(P);
+  return liste[voie[eMin]].map(v => [P.lon[v], P.lat[v]]);
 }
 
 // Grille : les cellules à maxM au plus du nœud v (lon, lat) le prennent si elles en sont plus proches que de leur nœud
@@ -794,6 +871,24 @@ function ajouterTroncons(P, troncons) {
   if (g.pro.confort === g.pro.tout) { pro.confort = pro.tout; dist.confort = dist.tout; }   // alias posé par la page
   Q.grille = { ...g, pro, dist, secours: { pro: g.pro, dist: g.dist } };   // grille d'avant : voir tempsGrille
   return { P: Q, nonRaccordes, isoles, horsZone };
+}
+
+// Masque d'un territoire (territoires.json, tuiler.py) : plages alternées 0 / 1 sur un rectangle de la grille
+// France ; centre = point d'où la page charge la fenêtre fixe du territoire. total = dénominateur des %.
+function decoderMasque({ i0, j0, nx, ny, total, plages }, gi) {
+  const m = new Uint8Array(nx * ny);
+  for (let k = 0, pos = 0; k < plages.length; k += 2) { pos += plages[k]; m.fill(1, pos, pos + plages[k + 1]); pos += plages[k + 1]; }
+  return { i0, j0, nx, ny, m, total, centre: [gi.lon0 + (i0 + nx / 2) * gi.dlon, gi.lat0 - (j0 + ny / 2) * gi.dlat] };
+}
+// Fenêtre ramenée au territoire : cellules hors masque ni colorées ni comptées (dedans = ile = masque)
+function appliquerMasque(g, z, gi) {
+  const di = Math.round((g.w - gi.lon0) / gi.dlon) - z.i0, dj = Math.round((gi.lat0 - g.n) / gi.dlat) - z.j0;
+  const m = new Uint8Array(g.nx * g.ny);
+  for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++) {
+    const zi = i + di, zj = j + dj;
+    m[j * g.nx + i] = zi >= 0 && zj >= 0 && zi < z.nx && zj < z.ny && z.m[zj * z.nx + zi] ? 1 : 0;
+  }
+  g.dedans = g.ile = m;
 }
 
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
@@ -1025,7 +1120,7 @@ class ChargeurTuiles {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
