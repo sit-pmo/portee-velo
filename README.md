@@ -51,7 +51,7 @@ Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) 
 Si `tuiles/accessibilite.json` est présent, le bloc « À portée depuis ce départ » compte ce qui tombe dans les cellules atteintes à 15 ou 30 min : habitants et résidences principales (Filosofi carroyé), emplacements de camping ou toute autre couche de points pondérés, et équipements, services et commerces de la Base permanente des équipements (BPE) par domaine. Trois colonnes, quel que soit le réseau choisi en haut :
 
 - **Pistes seules** : le réseau aménagé, avec ses courtes liaisons ;
-- **Tranquille** : routes comprises, mais seulement les cellules en bleu (éviter la route exposée y coûte moins de 20 % de temps en plus) ;
+- **Tranquille** : par les pistes, ou routes comprises dans les cellules en bleu (éviter la route exposée y coûte moins de 20 % de temps en plus) ;
 - **Tous trajets** : routes comprises.
 
 En vue territoire, seul le territoire compte et chaque valeur est rapportée à son total. Le **panier du quotidien** (alimentation, boulangerie, pharmacie, médecin généraliste, école, poste) est compté selon les trois mesures ; chaque élément est coloré par la meilleure qui l'atteint. « Montrer les équipements » les place sur la carte (plein = par les pistes ou tranquillement, pâle = par la route seulement, creux = au-delà). Avec des tronçons simulés, le gain s'affiche en violet.

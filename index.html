@@ -1239,7 +1239,7 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#bloc-acces").hidden = false;
     if (masqueZone) $("#titre-acces").textContent = `À portée depuis ce départ, dans ${nomTerr}`;
     $("#note-acces").textContent = [
-      "Comptés si leur cellule de 100 m est atteinte. Pistes seules : réseau aménagé et courtes liaisons. Tranquille : routes comprises, mais seulement là où éviter la route exposée coûte moins de 20 % de temps en plus (bleu en « Temps et confort »). Tous trajets : routes comprises.",
+      "Comptés si leur cellule de 100 m est atteinte. Pistes seules : réseau aménagé et courtes liaisons. Tranquille : par les pistes, ou routes comprises là où éviter la route exposée coûte moins de 20 % de temps en plus (bleu en « Temps et confort »). Tous trajets : routes comprises.",
       masqueZone ? `Seulement dans ${nomTerr} ; % = part du total de ${nomTerr}.` : "",
       acces.eq ? "Équipements au point géolocalisé par l'Insee ; carte : plein = par les pistes ou tranquillement, pâle = par la route seulement, creux = au-delà du seuil." : "",
       acces.couches.some(c => c.id === "population") ? "Habitants : population fiscale, répartie dans chaque carreau de 200 m." : "",
