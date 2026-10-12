@@ -825,8 +825,11 @@ document.getElementById("replier").addEventListener("click", e => {
       let dernier = 0;
       m.on("drag", ev => {
         t[j] = [ev.latlng.lng, ev.latlng.lat]; retracer();
-        const now = performance.now();       // indicateur de raccord au plus toutes les 100 ms (parcours des nœuds)
-        if (now - dernier > 100) { dernier = now; m.setIcon(iconeSommet(estRaccorde(ev.latlng.lng, ev.latlng.lat))); }
+        // Indicateur de raccord au plus toutes les 100 ms (parcours des nœuds). Classe basculée sur la pastille, surtout
+        // pas setIcon : il réécrit l'icône et Leaflet arrête le glisser au premier mouvement (sommet qui ne bougeait
+        // que de quelques pixels, signalé par Aurélien le 12/10/2026)
+        const now = performance.now(), pastille = m.getElement() && m.getElement().firstElementChild;
+        if (pastille && now - dernier > 100) { dernier = now; pastille.classList.toggle("raccorde", estRaccorde(ev.latlng.lng, ev.latlng.lat)); }
       });
       m.on("dragend", majSimulation);
       m.on("contextmenu", ev => {
