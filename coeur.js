@@ -582,6 +582,93 @@ function noeudsProches(P, points, maxM) {
   return out;
 }
 
+// « Aménager une voie en un clic » (12/10/2026) : voie existante (bande ou route, classe ≥ 1) la plus proche de
+// (lon, lat) à maxM au plus, suivie dans les deux sens jusqu'aux carrefours (nœud où ne passent pas exactement deux
+// voies de classe ≥ 1 ; les pistes ne coupent pas). Rend les sommets [[lon, lat], ...], null si aucune voie.
+// ponytail: un chemin de service ou une entrée de parking OSM compte comme carrefour (bout de voie court) : on reclique
+// sur la suite ; filtrer par nom de voie si ça gêne.
+// Arête de classe ≥ clsMin la plus proche de (lon, lat) à maxM au plus (-1 sinon). Parcours de toutes les arêtes.
+function areteProche(P, lon, lat, maxM, clsMin = 0) {
+  const kx = Math.cos(lat * RAD) * RAD * R_TERRE, ky = RAD * R_TERRE;   // degrés → mètres autour du point
+  const dLon = maxM / kx, dLat = maxM / ky;
+  let eMin = -1, dMin = maxM;
+  for (let e = 0; e < P.m; e++) {
+    if (P.cls[e] < clsMin) continue;
+    const a = P.a[e], b = P.b[e];
+    if (Math.max(P.lon[a], P.lon[b]) < lon - dLon || Math.min(P.lon[a], P.lon[b]) > lon + dLon ||
+        Math.max(P.lat[a], P.lat[b]) < lat - dLat || Math.min(P.lat[a], P.lat[b]) > lat + dLat) continue;
+    // Distance point-segment dans le plan local (mètres)
+    const ax = (P.lon[a] - lon) * kx, ay = (P.lat[a] - lat) * ky, bx = (P.lon[b] - lon) * kx, by = (P.lat[b] - lat) * ky;
+    const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+    const s = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+    const d = Math.hypot(ax + s * dx, ay + s * dy);
+    if (d <= dMin) { dMin = d; eMin = e; }
+  }
+  return eMin;
+}
+
+// Pour chaque point, arête de P la plus proche à maxM au plus (-1 sinon), en un seul parcours des arêtes : points
+// rangés en seaux de maxM de côté, chaque arête ne teste que les points des seaux que couvre son emprise élargie.
+function aretesProches(P, points, maxM) {
+  const out = new Int32Array(points.length).fill(-1), dMin = new Float64Array(points.length).fill(maxM);
+  if (!points.length) return out;
+  const lat0 = points[0][1], kx = Math.cos(lat0 * RAD) * RAD * R_TERRE, ky = RAD * R_TERRE;
+  const pasLon = maxM / kx, pasLat = maxM / ky, seaux = new Map(), cle = (i, j) => `${i}_${j}`;
+  points.forEach(([lon, lat], p) => {
+    const c = cle(Math.floor(lon / pasLon), Math.floor(lat / pasLat));
+    if (!seaux.has(c)) seaux.set(c, []);
+    seaux.get(c).push(p);
+  });
+  let w = Infinity, ea = -Infinity, so = Infinity, no = -Infinity;     // emprise des points, élargie de maxM
+  for (const [lon, lat] of points) { w = Math.min(w, lon); ea = Math.max(ea, lon); so = Math.min(so, lat); no = Math.max(no, lat); }
+  w -= pasLon; ea += pasLon; so -= pasLat; no += pasLat;
+  for (let e = 0; e < P.m; e++) {
+    const a = P.a[e], b = P.b[e];
+    if (Math.max(P.lon[a], P.lon[b]) < w || Math.min(P.lon[a], P.lon[b]) > ea || Math.max(P.lat[a], P.lat[b]) < so || Math.min(P.lat[a], P.lat[b]) > no) continue;
+    const i0 = Math.floor(Math.min(P.lon[a], P.lon[b]) / pasLon) - 1, i1 = Math.floor(Math.max(P.lon[a], P.lon[b]) / pasLon) + 1;
+    const j0 = Math.floor(Math.min(P.lat[a], P.lat[b]) / pasLat) - 1, j1 = Math.floor(Math.max(P.lat[a], P.lat[b]) / pasLat) + 1;
+    if ((i1 - i0 + 1) * (j1 - j0 + 1) > 400) continue;   // arête de plus de ~400 m de long : ses nœuds suffisent
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      for (const p of seaux.get(cle(i, j)) || []) {
+        const [lon, lat] = points[p];
+        const ax = (P.lon[a] - lon) * kx, ay = (P.lat[a] - lat) * ky, bx = (P.lon[b] - lon) * kx, by = (P.lat[b] - lat) * ky;
+        const dx = bx - ax, dy = by - ay, l2 = dx * dx + dy * dy;
+        const s = l2 ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / l2)) : 0;
+        const d = Math.hypot(ax + s * dx, ay + s * dy);
+        if (d <= dMin[p]) { dMin[p] = d; out[p] = e; }
+      }
+    }
+  }
+  return out;
+}
+
+function voieAuClic(P, lon, lat, maxM) {
+  const eMin = areteProche(P, lon, lat, maxM, 1);
+  if (eMin < 0) return null;
+  // Adjacence des voies de classe ≥ 1 (degré = nombre de voies au nœud)
+  const off = new Uint32Array(P.n + 1);
+  for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
+  for (let v = 0; v < P.n; v++) off[v + 1] += off[v];
+  const adj = new Int32Array(off[P.n]), cur = off.slice(0, P.n);
+  for (let e = 0; e < P.m; e++) if (P.cls[e] >= 1) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
+  const vu = new Set([eMin]);
+  // Nœuds rencontrés depuis v en s'éloignant de l'arête e, jusqu'au carrefour inclus
+  const prolonger = (v, e) => {
+    const l = [];
+    for (;;) {
+      if (off[v + 1] - off[v] !== 2) break;
+      const suite = adj[off[v]] === e ? adj[off[v] + 1] : adj[off[v]];
+      if (vu.has(suite)) break;                          // boucle refermée
+      vu.add(suite);
+      v = P.a[suite] === v ? P.b[suite] : P.a[suite]; e = suite;
+      l.push(v);
+    }
+    return l;
+  };
+  const avant = prolonger(P.a[eMin], eMin).reverse(), apres = prolonger(P.b[eMin], eMin);
+  return [...avant, P.a[eMin], P.b[eMin], ...apres].map(v => [P.lon[v], P.lat[v]]);
+}
+
 // Grille : les cellules à maxM au plus du nœud v (lon, lat) le prennent si elles en sont plus proches que de leur nœud
 function rattacher(g, pro, dist, v, lon, lat, maxM) {
   const dLat = maxM / (R_TERRE * RAD), dLon = dLat / Math.cos(lat * RAD);
@@ -596,8 +683,39 @@ function rattacher(g, pro, dist, v, lon, lat, maxM) {
   }
 }
 
+// Croisements des tronçons avec les arêtes de P : coupes[iT][j] = [{lon, lat, arete}, ...] le long du segment
+// (j-1 → j) du tronçon iT, triés depuis le sommet j-1. Croisement strict (une voie seulement touchée ou longée n'en
+// donne pas). ponytail: un croisement en pont ou en tunnel compte aussi comme raccord ; le réseau OSM ne dit pas
+// lequel, et le cas reste rare pour une piste simulée.
+function croisements(P, troncons) {
+  const coupes = troncons.map(() => []);
+  const segs = [];
+  troncons.forEach((t, iT) => { for (let j = 1; j < t.length; j++) segs.push([iT, j, t[j - 1], t[j]]); });
+  if (!segs.length) return coupes;
+  let w = Infinity, e = -Infinity, s = Infinity, n = -Infinity;
+  for (const t of troncons) for (const [lon, lat] of t) { w = Math.min(w, lon); e = Math.max(e, lon); s = Math.min(s, lat); n = Math.max(n, lat); }
+  const kx = Math.cos((s + n) / 2 * RAD);       // plan local : longitudes ramenées à l'échelle des latitudes
+  const ext = (p, q, r) => (q[0] - p[0]) * kx * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]) * kx;
+  for (let k = 0; k < P.m; k++) {
+    const a = [P.lon[P.a[k]], P.lat[P.a[k]]], b = [P.lon[P.b[k]], P.lat[P.b[k]]];
+    if (Math.max(a[0], b[0]) < w || Math.min(a[0], b[0]) > e || Math.max(a[1], b[1]) < s || Math.min(a[1], b[1]) > n) continue;
+    for (const [iT, j, p, q] of segs) {
+      const d1 = ext(p, q, a), d2 = ext(p, q, b);
+      if (d1 * d2 >= 0) continue;
+      const d3 = ext(a, b, p), d4 = ext(a, b, q);
+      if (d3 * d4 >= 0) continue;
+      const u = d3 / (d3 - d4);                 // position du croisement sur le segment p → q
+      (coupes[iT][j] ||= []).push({ u, lon: p[0] + u * (q[0] - p[0]), lat: p[1] + u * (q[1] - p[1]), arete: k });
+    }
+  }
+  for (const c of coupes) for (const l of c) if (l) l.sort((x, y) => x.u - y.u);
+  return coupes;
+}
+
 // Fenêtre P′ = P + tronçons simulés (P n'est pas modifié : il sert à l'« avant »). Chaque sommet devient un nœud,
-// raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; les segments sont
+// raccordé par une arête classe 0 au nœud de P le plus proche s'il est à CFG.raccordMaxM au plus ; chaque voie croisée
+// par le tracé l'est aussi (croisements, depuis le 12/10/2026 : sans eux, une piste tracée en deux clics passait sur
+// 19 voies sans s'y raccorder) ; les segments sont
 // découpés tous les CFG.pasTronconM mètres ; les cellules proches se rattachent aux nouveaux nœuds (une piste en site
 // propre doit servir aux cellules qu'elle traverse). Extrémités sans nœud proche rendues dans nonRaccordes, indices
 // des tronçons sans aucun raccord (injoignables, sans effet) dans isoles.
@@ -609,6 +727,10 @@ function ajouterTroncons(P, troncons) {
   const nouveau = (lon, lat) => { nLon.push(lon); nLat.push(lat); return P.n + nLon.length - 1; };
   const lier = (u, v, l) => { ea.push(u); eb.push(v); el.push(l); };
   const proches = noeudsProches(P, troncons.flat(), CFG.raccordMaxM);
+  // Sommets sans nœud proche mais posés sur une voie aux nœuds espacés (route droite) : raccordés à cette voie
+  const sansNoeud = troncons.flat().filter((_, k) => proches[k] < 0), surVoie = aretesProches(P, sansNoeud, CFG.raccordMaxM);
+  const voieDe = new Map();
+  { let k = 0; troncons.flat().forEach((pt, i) => { if (proches[i] < 0) voieDe.set(i, surVoie[k++]); }); }
   // Nœuds des tronçons raccordés au réseau : seuls eux reprennent des cellules (un tronçon sans aucun raccord est
   // injoignable : ses cellules seraient perdues, gain négatif vu le 12/10/2026)
   // Hors de la fenêtre chargée (marge de raccordMaxM), on ne voit pas les voies : un sommet n'y est ni raccordé ni
@@ -619,17 +741,30 @@ function ajouterTroncons(P, troncons) {
     return lon >= g0.w + mLon && lon <= g0.w + g0.nx * g0.dlon - mLon && lat <= g0.n - mLat && lat >= g0.n - g0.ny * g0.dlat + mLat;
   };
   const relies = [], isoles = [], horsZone = [];
+  const coupes = croisements(P, troncons);
   let iSommet = 0;
   troncons.forEach((t, iT) => {
     let prec = -1, relie = false, dehors = false;
     const premier = P.n + nLon.length;
+    // Points du tracé dans l'ordre : sommets (raccordés au nœud proche) et croisements avec une voie (raccordés aux
+    // deux bouts de l'arête croisée : on peut quitter la piste là où elle coupe une route)
+    const pts = [];
     t.forEach(([lon, lat], j) => {
-      const v = nouveau(lon, lat), q = proches[iSommet++], dedans = dedansFenetre(lon, lat);
+      if (j > 0) for (const c of coupes[iT][j] || []) pts.push({ lon: c.lon, lat: c.lat, arete: c.arete });
+      pts.push({ lon, lat, q: proches[iSommet], voie: voieDe.get(iSommet), bout: j === 0 || j === t.length - 1 });
+      iSommet++;
+    });
+    pts.forEach(({ lon, lat, q, voie, arete, bout }, j) => {
+      const v = nouveau(lon, lat), dedans = dedansFenetre(lon, lat);
+      if (arete === undefined && q < 0 && voie >= 0 && dedans) arete = voie;
       if (!dedans) dehors = true;
-      if (q >= 0) { relie = true; lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q])); }
-      else if ((j === 0 || j === t.length - 1) && dedans) nonRaccordes.push([lon, lat]);
+      if (arete !== undefined) {
+        relie = true;
+        for (const w of [P.a[arete], P.b[arete]]) lier(v, w, distanceM(lon, lat, P.lon[w], P.lat[w]));
+      } else if (q >= 0) { relie = true; lier(v, q, distanceM(lon, lat, P.lon[q], P.lat[q])); }
+      else if (bout && dedans) nonRaccordes.push([lon, lat]);
       if (prec >= 0) {
-        const [lo0, la0] = t[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
+        const { lon: lo0, lat: la0 } = pts[j - 1], d = distanceM(lo0, la0, lon, lat), k = Math.max(1, Math.ceil(d / CFG.pasTronconM));
         let u = prec;
         for (let s = 1; s < k; s++) { const w = nouveau(lo0 + (lon - lo0) * s / k, la0 + (lat - la0) * s / k); lier(u, w, d / k); u = w; }
         lier(u, v, d / k);
@@ -891,6 +1026,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
