@@ -129,6 +129,8 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .bouton.petit{font-size:.84rem;padding:7px 8px}
 .bouton:disabled{opacity:.45;cursor:default;background:#fff}
 .sim-liste{list-style:none;margin:10px 0 0;padding:0}
+.sim-replier{margin-top:10px}
+.sim-replier summary{cursor:pointer;font-size:.86rem;font-weight:600;color:var(--ardoise)}
 .sim-liste li{display:flex;align-items:center;gap:8px;padding:5px 0 5px 10px;border-left:4px solid #7B2CBF;margin-bottom:3px;font-size:.86rem}
 .sim-liste li[aria-current="true"]{background:#f3ecfb}
 .sim-liste .nom{flex:1;cursor:pointer}
@@ -209,7 +211,11 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       </div>
       <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise (petit point). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
       <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
-      <ul class="sim-liste" id="sim-liste"></ul>
+      <!-- Liste repliable (12/10/2026) : avec une dizaine de tronçons, elle repoussait tout le reste du panneau -->
+      <details class="sim-replier" id="sim-details" open hidden>
+        <summary id="sim-resume"></summary>
+        <ul class="sim-liste" id="sim-liste"></ul>
+      </details>
       <div class="bascule trois" id="sim-vue" role="group" aria-label="Comparer avant et après les tronçons" hidden>
         <button type="button" data-vue="avant" aria-pressed="false">Avant</button>
         <button type="button" data-vue="apres" aria-pressed="true">Après</button>
@@ -802,6 +808,8 @@ document.getElementById("replier").addEventListener("click", e => {
       `<li aria-current="${i === sim.selection}"><span class="nom" data-i="${i}">Tronçon ${i + 1} · ${fmtKm(longueurTroncon(t))}</span><button type="button" class="retirer" data-i="${i}" aria-label="Supprimer le tronçon ${i + 1}">✕</button></li>`).join("");
     const n = sim.troncons.length;
     $("#sim-vue").hidden = $("#sim-effacer").hidden = !n;
+    $("#sim-details").hidden = !n;
+    $("#sim-resume").textContent = `${n} tronçon${n > 1 ? "s" : ""} simulé${n > 1 ? "s" : ""} · ${fmtKm(sim.troncons.reduce((s, t) => s + longueurTroncon(t), 0))}`;
     $("#sim-exporter").disabled = !n;
     // Tronçon sans aucun raccord : sans effet (injoignable) ; extrémité libre d'un tronçon raccordé : rejointe à vol d'oiseau
     // Hors de la fenêtre calculée autour du départ : on ne peut pas juger leur raccord (voir ajouterTroncons)
