@@ -1,85 +1,69 @@
-# À portée de vélo – Marennes-Oléron
+# À portée de vélo – Charente-Maritime
 
-Carte interactive des temps de trajet à vélo sur l'île d'Oléron et le bassin de Marennes.
+Carte interactive des temps de trajet à vélo en Charente-Maritime, et du confort de ces trajets.
 
 👉 **https://sit-pmo.github.io/portee-velo/**
 
-Version île d'Oléron seule (affichage et pourcentages limités à l'île) : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
+Vues limitées à un territoire (seul le territoire est coloré, pourcentages de surface atteinte) :
 
-Comparaison côte à côte avec OpenStreetMap seul (même calcul, même départ sous la souris) : **https://sit-pmo.github.io/portee-velo/comparer.html**
+- île d'Oléron : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
+- Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : **https://sit-pmo.github.io/portee-velo/?territoire=pmo**
 
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
 ## Objectif
 
-Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, et où il manque des liaisons.
+Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, dans quel confort, et où il manque des liaisons.
 
-Deux modes sont proposés :
+Deux réseaux :
 
-- **Pistes et bandes** : uniquement le réseau aménagé (pistes, voies vertes, bandes). Les zones grises sont à plus de 800 m de ce réseau : elles montrent où il manque des aménagements.
-- **Pistes + routes** : le réseau aménagé complété par les routes et chemins, avec un temps majoré selon le type de voie.
+- **Pistes et bandes** : le réseau aménagé (pistes, voies vertes, bandes), avec de courtes liaisons entre deux pistes (jusqu'à 200 m sur rue calme ou chemin, 100 m sur route) et les traversées de chaussée. En gris, les secteurs à plus de 800 m de ce réseau.
+- **Pistes + routes** : le réseau aménagé complété par les routes et chemins.
 
-## Ce qui a été fait
+Deux lectures en mode « Pistes + routes » :
 
-### Le territoire
+- **Temps** : temps du trajet le plus rapide, de 5 à 60 minutes.
+- **Temps et confort** : la clarté donne le même temps ; la teinte dit ce que coûte un trajet **tranquille** (qui préfère pistes, bandes, rues calmes et chemins, chaque minute restante sur route exposée comptant pour 4) par rapport au plus rapide : bleu = moins de 20 % de plus, gris = 20 à 50 %, orange = plus de 50 %. La couleur décrit le trajet depuis le départ, pas l'équipement du lieu : une piste qu'on ne rejoint que par la route reste orange. Les **traits noirs** marquent les tronçons de route par lesquels passent les trajets les plus rapides vers les secteurs orange : les maillons manquants.
 
-14 communes : les 8 communes de la CdC de l'Île d'Oléron et les 6 communes de la CC du Bassin de Marennes (Bourcefranc-le-Chapus, Le Gua, Marennes-Hiers-Brouage, Nieulle-sur-Seudre, Saint-Just-Luzac, Saint-Sornin), soit 360 km². Le calcul déborde de 3 km sur les communes voisines, pour ne pas couper les itinéraires en limite. Les pourcentages de surface atteinte portent sur les 14 communes.
+Classement des voies : **calmes** = rues, voies de service, voies communales, chemins ; **exposées** = routes départementales tertiaires ; **très exposées** = routes secondaires et principales.
 
-### Un réseau cyclable consolidé
+## Données
 
-Le réseau combine trois sources, avec une règle simple : **la donnée des collectivités fait foi là où elle existe**.
+- **Réseau cyclable des collectivités** sur les 14 communes du Pôle Marennes-Oléron : CdC de l'Île d'Oléron (183 km) et CC du Bassin de Marennes (75 km), complétés par les aménagements OpenStreetMap absents de ces bases, vérifiés un par un dans QGIS. Là, la donnée des collectivités fait foi et remplace les pistes OpenStreetMap ; elle est raccordée aux routes à chaque croisement et aux extrémités (voie la plus proche à moins de 25 m). Les tronçons en projet sont exclus.
+- **OpenStreetMap** partout ailleurs, et pour les routes et chemins sur tout le département. La qualité du réseau cyclable dépend donc de la cartographie OpenStreetMap locale.
 
-1. **Réseau cyclable de la CdC de l'Île d'Oléron** (183 km, dont 170 km existants).
-2. **Réseau cyclable de la CC du Bassin de Marennes** (75 km).
-3. **OpenStreetMap**, uniquement pour les aménagements absents des bases des collectivités (environ 13 km, surtout des bandes cyclables communales en agglomération). Ces compléments sont vérifiés un par un dans QGIS avant intégration (fait pour l'île, en cours pour le bassin de Marennes).
-
-Les tronçons en projet ou à l'étude sont exclus : la carte montre le réseau tel qu'il existe aujourd'hui.
-
-Les routes et chemins viennent d'OpenStreetMap. Le réseau consolidé y est raccordé automatiquement : un nœud est créé à chaque croisement entre une piste et une voie, et les extrémités de piste sont reliées à la voie la plus proche quand elle est à moins de 15 m.
-
-### Le modèle de calcul
+## Modèle de calcul
 
 | Élément | Hypothèse |
 |---|---|
-| Vitesse sur revêtement lisse (enrobé, béton) | 20 km/h |
+| Vitesse sur revêtement lisse (enrobé, béton) | 20 km/h, sur piste comme sur route |
 | Vitesse sur stabilisé, grave, bois | 13 à 17 km/h |
-| Bande cyclable | temps majoré de 10 % |
-| Route ou chemin partagé | temps majoré de 50 % |
-| Route secondaire | temps doublé |
-| Route principale sans aménagement | temps triplé |
+| Vitesse sur sable | 8 km/h |
+| Route | +5 % seulement, pour préférer une piste qui la longe |
 | Sens unique pris à contre-sens | vélo poussé, à 5 km/h |
 | Accès au réseau depuis un point quelconque | à vol d'oiseau, majoré de 30 %, à 16 km/h |
 
-Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaque départ, un algorithme de plus court chemin (Dijkstra) calcule le temps vers toutes les voies, puis vers chaque cellule. Tout le calcul se fait dans le navigateur, en 40 à 70 ms : c'est ce qui permet le suivi en direct de la souris.
-
-Deux choix ont été faits pour qu'aucune zone n'apparaisse coupée à tort en mode « Pistes + routes » : les routes principales restent franchissables (temps triplé plutôt qu'interdites), et les sens uniques restent praticables à pied.
+Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaque départ, un algorithme de plus court chemin (Dijkstra) calcule le temps vers toutes les voies, puis vers chaque cellule. Tout le calcul se fait dans le navigateur, en quelques dizaines de millisecondes : c'est ce qui permet le suivi en direct de la souris.
 
 ## Comment
 
-La page est statique : un fichier `index.html` (Leaflet et d3 pour la carte, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme) et un fichier de données précalculées `data/portee_velo.js` (graphe du réseau et grille). Pas de serveur, pas de base de données : GitHub Pages sert les deux fichiers.
+La page est statique : `index.html` (Leaflet et d3, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme), `coeur.js` (le calcul) et le dossier `tuiles/` : le graphe du réseau et la grille, découpés en 380 tuiles d'environ 10 km (22 Mo en tout). La page ne charge que les 5 × 5 tuiles autour du départ. Pas de serveur, pas de base de données : GitHub Pages sert les fichiers.
 
-Les données sont préparées en amont par le SIT avec des scripts Python (numpy, shapely, pyproj), à partir des bases cyclables des collectivités et d'OpenStreetMap :
-
-1. extraction des aménagements OpenStreetMap et repérage de ceux absents des bases des collectivités ;
-2. vérification de ces compléments dans QGIS ;
-3. fusion en un réseau consolidé ;
-4. construction du graphe (réseau consolidé + routes OSM, raccordements, contrôle des extrémités non raccordées) et de la grille, puis export de `data/portee_velo.js`.
-
-Pour mettre la carte à jour, le SIT régénère `data/portee_velo.js` et le pousse sur ce dépôt : le site se met à jour en une à deux minutes. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
+Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB, numpy, shapely, pyproj), à partir des extraits OpenStreetMap de Geofabrik (Poitou-Charentes, Aquitaine, Pays de la Loire) et du réseau consolidé des collectivités. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
 
 ## Sources et licences
 
 - Réseaux cyclables : CdC de l'Île d'Oléron, CC du Bassin de Marennes.
-- Routes, chemins et compléments cyclables : © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL).
+- Routes, chemins, réseau cyclable hors Marennes-Oléron, trait de côte : © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL), extraits [Geofabrik](https://download.geofabrik.de).
 - Contours communaux : [geo.api.gouv.fr](https://geo.api.gouv.fr).
 - Fond de carte et recherche d'adresses : [Géoplateforme IGN](https://geoservices.ign.fr).
 - Bibliothèques : [Leaflet](https://leafletjs.com), [d3](https://d3js.org).
 
-Les données dérivées d'OpenStreetMap contenues dans `data/portee_velo.js` sont diffusées sous ODbL.
+Les données dérivées d'OpenStreetMap contenues dans `tuiles/` sont diffusées sous ODbL.
 
 ## Licence
 
-Le code (`index.html`, `comparer.html`, `coeur.js` et les scripts de préparation) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
+Le code (`index.html`, `coeur.js`) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron et © Aurélien Chaumet. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
 
 ## Inspiration
 
