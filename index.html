@@ -300,6 +300,11 @@ document.getElementById("replier").addEventListener("click", e => {
     const { i0, j0, nx, ny, total, plages } = terr.masque, m = new Uint8Array(nx * ny);
     for (let k = 0, pos = 0; k < plages.length; k += 2) { pos += plages[k]; m.fill(1, pos, pos + plages[k + 1]); pos += plages[k + 1]; }
     masqueZone = { i0, j0, nx, ny, m, total };
+    // Fenêtre fixe centrée sur le territoire : les 5 × 5 tuiles le couvrent en entier (Marennes-Oléron tient
+    // dans 5 × 5 tuiles), donc aucun changement de fenêtre au survol, comme l'ancienne carte d'un seul bloc
+    // (chaque changement gelait la page 0,5 à 1,2 s)
+    const gr = index.grille;
+    masqueZone.centre = [gr.lon0 + (i0 + nx / 2) * gr.dlon, gr.lat0 - (j0 + ny / 2) * gr.dlat];
     document.title = `À portée de vélo – ${terr.nom.replace(/^l'/, "L'")}`;
     $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${terr.chapeau}, et dans quel confort, d'après les réseaux des collectivités et OpenStreetMap`;
     $("#titre-couverture").textContent = `Surface ${TERRITOIRE === "oleron" ? "de l'île" : "du territoire"} atteinte depuis ce départ`;
@@ -377,7 +382,10 @@ document.getElementById("replier").addEventListener("click", e => {
     vue.partielle = f.partielle;
     if (f.P === vue.P) return;
     vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
-    vue.G = { tout: construireGraphe(f.P, "tout"), amenage: construireGraphe(f.P, "amenage") };
+    // Graphe « pistes » construit au premier accès seulement (~400 ms avec les liaisons entre pistes) : en mode
+    // « Pistes + routes », un changement de tuile ne paie que le graphe « tout »
+    const Pf = f.P;
+    vue.G = { tout: construireGraphe(Pf, "tout"), get amenage() { return this._amenage || (this._amenage = construireGraphe(Pf, "amenage")); } };
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
     if (masqueZone) {   // vue territoire : cellules hors du territoire ni colorées ni comptées
       const g = vue.g, gr = index.grille, z = masqueZone;
@@ -401,11 +409,7 @@ document.getElementById("replier").addEventListener("click", e => {
     } else chaleur.setBounds(bornes);
     // Réseau cyclable de la fenêtre par-dessus la chaleur : trait blanc fin (pistes), tirets (bandes)
     reseau.clearLayers();
-    const segments = [[], []], P = vue.P;
-    for (let e = 0; e < P.m; e++) {
-      const c = P.cls[e];
-      if (c <= 1) segments[c].push([[P.lat[P.a[e]], P.lon[P.a[e]]], [P.lat[P.b[e]], P.lon[P.b[e]]]]);
-    }
+    const P = vue.P, segments = [lignesReseau(P, 0), lignesReseau(P, 1)];
     const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
     // Bleu canard sous halo blanc : distinct des routes du fond IGN (blanches à liseré gris, qui masquaient un trait
     // blanc hors zone colorée), lisible sur les teintes, distinct des maillons manquants (noirs, épais)
@@ -414,6 +418,36 @@ document.getElementById("replier").addEventListener("click", e => {
     L.polyline(segments[1], { ...style, color: "#fff", weight: 3.4, opacity: .85 }).addTo(reseau);
     L.polyline(segments[1], { ...style, color: "#00657A", weight: 1.6, opacity: 1, dashArray: "3 3" }).addTo(reseau);
     if ($("#voir-reseau").checked) reseau.addTo(carte);
+  }
+
+  // Arêtes d'une classe (pistes, ou bandes) regroupées en lignes continues : on suit chaque enchaînement de nœuds
+  // de degré 2. Une ligne par arête donnait des dizaines de milliers de tracés à Leaflet (150 à 290 ms par fenêtre).
+  function lignesReseau(P, c) {
+    const n = P.n, deg = new Uint16Array(n), aretes = [];
+    for (let e = 0; e < P.m; e++) if (P.cls[e] === c) { aretes.push(e); deg[P.a[e]]++; deg[P.b[e]]++; }
+    const off = new Uint32Array(n + 1);
+    for (const e of aretes) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
+    for (let v = 0; v < n; v++) off[v + 1] += off[v];
+    const adj = new Int32Array(off[n]), cur = off.slice(0, n);
+    for (const e of aretes) { adj[cur[P.a[e]]++] = e; adj[cur[P.b[e]]++] = e; }
+    const vu = new Uint8Array(P.m), lignes = [];
+    const suivre = (v, e) => {
+      const l = [[P.lat[v], P.lon[v]]];
+      for (;;) {
+        vu[e] = 1;
+        const w = P.a[e] === v ? P.b[e] : P.a[e];
+        l.push([P.lat[w], P.lon[w]]);
+        if (deg[w] !== 2) break;                // extrémité ou carrefour : fin de la ligne
+        let suite = -1;
+        for (let k = off[w]; k < off[w + 1]; k++) if (!vu[adj[k]]) { suite = adj[k]; break; }
+        if (suite < 0) break;
+        v = w; e = suite;
+      }
+      lignes.push(l);
+    };
+    for (const e of aretes) for (const v of [P.a[e], P.b[e]]) if (!vu[e] && deg[v] !== 2) suivre(v, e);
+    for (const e of aretes) if (!vu[e]) suivre(P.a[e], e);   // boucles fermées (aucun nœud de degré ≠ 2)
+    return lignes;
   }
 
   // ---------- Dessin ----------
@@ -426,11 +460,8 @@ document.getElementById("replier").addEventListener("click", e => {
 
   function dessinerConfort(min, minConf, complet) {
     const P = vue.P, G = vue.G.tout, res = etat.res, g = vue.g, pro = g.pro.tout;
-    const ordre = [];
-    for (let v = 0; v < P.n; v++) if (isFinite(res.dist[v])) ordre.push(v);
-    ordre.sort((a, b) => res.dist[a] - res.dist[b]);
     const charge = new Float32Array(P.n);
-    // Couleur des cellules : vert (tout aménagé) → jaune → rouge (tout sur route)
+    // Couleur des cellules : teinte = surcoût du trajet tranquille (bleu / gris / orange), clarté = temps
     const px = image.data;
     for (let k = 0; k < min.length; k++) {
       const m = min[k], o = k * 4;
@@ -443,7 +474,11 @@ document.getElementById("replier").addEventListener("click", e => {
     }
     ctx.putImageData(image, 0, 0);
     maillons.clearLayers();
-    if (!complet) return;                      // pendant le survol : pas de maillons (calcul de charge évité)
+    if (!complet) return;                      // pendant le survol : pas de maillons (tri et calcul de charge évités)
+    // Nœuds atteints du plus proche au plus lointain (arbre des plus courts chemins)
+    const ordre = [];
+    for (let v = 0; v < P.n; v++) if (isFinite(res.dist[v])) ordre.push(v);
+    ordre.sort((a, b) => res.dist[a] - res.dist[b]);
     // Charge des arcs : des feuilles vers la racine
     for (let i = ordre.length - 1; i >= 0; i--) { const v = ordre[i], k = res.pred[v]; if (k >= 0) charge[G.source[k]] += charge[v]; }
     const KM2 = 0.0097, paliers = [[60, 8], [25, 5], [10, 3]], traits = paliers.map(() => []);
@@ -632,9 +667,13 @@ document.getElementById("replier").addEventListener("click", e => {
       const lon0 = etat.depart.lng, lat0 = etat.depart.lat, dLat = DEPART_LIBRE_M / 111000, dLon = dLat / Math.cos(lat0 * Math.PI / 180);
       const proche = v => Math.abs(P.lat[v] - lat0) < dLat && Math.abs(P.lon[v] - lon0) < dLon && distanceM(lon0, lat0, P.lon[v], P.lat[v]) <= DEPART_LIBRE_M;
       const libres = [];
-      for (let k = 0; k < Gc.nArcs; k++) {
-        const c = P.cls[Gc.arete[k]];
-        if (expose(c) && proche(Gc.source[k]) && proche(Gc.cible[k])) { libres.push(k); Gc.poids[k] *= CFG.penalites.tout[c] / FACTEUR_EXPO; }
+      // Nœuds proches d'abord (balayage des nœuds, bien moins nombreux que les arcs), puis leurs arcs sortants
+      for (let v = 0; v < P.n; v++) {
+        if (!proche(v)) continue;
+        for (let k = Gc.off[v]; k < Gc.off[v + 1]; k++) {
+          const c = P.cls[Gc.arete[k]];
+          if (expose(c) && proche(Gc.cible[k])) { libres.push(k); Gc.poids[k] *= CFG.penalites.tout[c] / FACTEUR_EXPO; }
+        }
       }
       const minConf = accC ? tempsGrille(P, Gc, dijkstra(Gc, accC.noeud, accesSecondes(accC.distM), LIMITE_S * SURCOUT[1]))
                            : new Float32Array(g.nx * g.ny).fill(Infinity);
@@ -648,21 +687,31 @@ document.getElementById("replier").addEventListener("click", e => {
 
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
   let demande = 0;
-  async function placerDepart(ll, complet) {
+  // Fenêtre à recentrer pour ce départ ? (vue territoire : jamais, la fenêtre est fixe)
+  const tuileFenetre = ll => chargeur.tuileDe(...(masqueZone ? masqueZone.centre : [ll.lng, ll.lat]));
+  const decentree = ll => { const [tx, ty] = tuileFenetre(ll); return !vue.centre || vue.centre[0] !== tx || vue.centre[1] !== ty; };
+
+  // recentrer : force le recentrage même pendant le survol (appel à l'arrêt de la souris)
+  async function placerDepart(ll, complet, recentrer = false) {
     if (!dansZone(ll)) { afficherMessage(`Le départ doit être ${terr ? "sur " + terr.nom : "en Charente-Maritime"}.`); return; }
     const id = ++demande;
     etat.depart = ll;
     marqueurDepart.setLatLng(ll).addTo(carte);
-    const [tx, ty] = chargeur.tuileDe(ll.lng, ll.lat);
-    if (!vue.centre || vue.centre[0] !== tx || vue.centre[1] !== ty) {
+    const [lonF, latF] = masqueZone ? masqueZone.centre : [ll.lng, ll.lat];   // vue territoire : fenêtre fixe
+    const [tx, ty] = tuileFenetre(ll);
+    // Survol (calcul léger) : tant que le départ reste dans les 3 × 3 tuiles centrales de la fenêtre chargée, on
+    // calcule dessus sans recentrer (exact jusqu'à ~30 min, la marge restante ; au-delà, approché vers le bord) ;
+    // recentrage à l'arrêt de la souris ou au clic. Chaque recentrage gèle la page 0,5 à 1 s.
+    const tolere = !complet && !recentrer && vue.centre && Math.abs(vue.centre[0] - tx) <= 1 && Math.abs(vue.centre[1] - ty) <= 1;
+    if (decentree(ll) && !tolere) {
       const lent = setTimeout(() => { $("#chargement").hidden = false; }, 150);   // pas de clignotement si c'est en cache
-      const f = await chargeur.fenetre(ll.lng, ll.lat);
+      const f = await chargeur.fenetre(lonF, latF);
       clearTimeout(lent);
       if (id !== demande) return;              // la souris est déjà ailleurs : résultat périmé
       $("#chargement").hidden = true;
       if (!f.P) { afficherMessage("Les données de ce secteur n'ont pas pu être chargées. Réessayez dans un instant."); return; }
       installerFenetre(f);
-      chargeur.precharger(ll.lng, ll.lat);     // couronne suivante, en tâche de fond
+      if (!masqueZone) chargeur.precharger(ll.lng, ll.lat);     // couronne suivante, en tâche de fond
     }
     calculer(complet);
   }
@@ -699,7 +748,11 @@ document.getElementById("replier").addEventListener("click", e => {
     if (!etat.suivre || !dansZone(ev.latlng)) return;
     planifierDepart(ev.latlng);
     clearTimeout(minuteurPause);
-    minuteurPause = setTimeout(() => { if (etat.suivre && etat.minutes && vue.P) { dessinerIsolignes(etat.minutes); majLien(); } }, 300);
+    minuteurPause = setTimeout(async () => {
+      if (!etat.suivre || !etat.minutes || !vue.P) return;
+      if (decentree(etat.depart)) await placerDepart(etat.depart, false, true);   // souris arrêtée : calcul exact
+      if (etat.suivre && etat.minutes) { dessinerIsolignes(etat.minutes); majLien(); }
+    }, 300);
   });
   carte.on("click", ev => {
     if (etat.suivre || !etat.depart) { suivre(false); placerDepart(ev.latlng, true); }
