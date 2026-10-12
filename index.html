@@ -361,7 +361,7 @@ document.getElementById("replier").addEventListener("click", e => {
 
   // ---------- Simulation de tronçons : scénario, fenêtre augmentée (P′) et graphes ----------
   // vue.sim = { P: P′, G } pour la fenêtre courante (null sans tronçon) ; aff() = ce que la carte montre
-  const sim = { troncons: [], vue: "apres", selection: -1, nonRaccordes: [], tropLong: false };
+  const sim = { troncons: [], vue: "apres", selection: -1, nonRaccordes: [], isoles: [], tropLong: false };
   vue.sim = null;
   const aff = () => (vue.sim && sim.vue !== "avant" ? vue.sim : vue);
   // Graphes d'une fenêtre : « tout » tout de suite, « pistes » (~400 ms avec les liaisons entre pistes) et
@@ -370,10 +370,10 @@ document.getElementById("replier").addEventListener("click", e => {
     get amenage() { return this._amenage || (this._amenage = construireGraphe(P, "amenage")); },
     get confort() { return this._confort || (this._confort = construireGraphe(P, "confort")); } });
   function preparerSimulation() {
-    if (!vue.P || !sim.troncons.length) { vue.sim = null; sim.nonRaccordes = []; return; }
+    if (!vue.P || !sim.troncons.length) { vue.sim = null; sim.nonRaccordes = []; sim.isoles = []; return; }
     const r = ajouterTroncons(vue.P, sim.troncons);   // vue.P porte déjà le masque territoire et l'alias confort
     vue.sim = { P: r.P, G: graphes(r.P) };
-    sim.nonRaccordes = r.nonRaccordes;
+    sim.nonRaccordes = r.nonRaccordes; sim.isoles = r.isoles;
   }
 
   // ---------- Carte ----------
@@ -774,7 +774,7 @@ document.getElementById("replier").addEventListener("click", e => {
       const ll = t.map(([lon, lat]) => [lat, lon]), choisi = i === sim.selection;
       L.polyline(ll, { pane: "trace", color: "#fff", weight: choisi ? 10 : 8, opacity: .9, interactive: false }).addTo(coucheTroncons);
       L.polyline(ll, { pane: "trace", color: "#7B2CBF", weight: choisi ? 6 : 5, dashArray: "10 6", lineCap: "butt" })
-        .on("click", ev => { L.DomEvent.stop(ev); selectionner(i); }).addTo(coucheTroncons);
+        .on("click", ev => { if (outil.actif) return; L.DomEvent.stop(ev); selectionner(i); }).addTo(coucheTroncons);   // en tracé : le clic pose un sommet
     });
     for (const [lon, lat] of sim.nonRaccordes)
       L.circleMarker([lat, lon], { pane: "trace", radius: 6, color: "#7B2CBF", weight: 2.5, fillColor: "#fff", fillOpacity: 1, interactive: false }).addTo(coucheTroncons);
@@ -784,8 +784,12 @@ document.getElementById("replier").addEventListener("click", e => {
     const n = sim.troncons.length;
     $("#sim-vue").hidden = $("#sim-effacer").hidden = !n;
     $("#sim-exporter").disabled = !n;
-    const libres = sim.nonRaccordes.length;
-    montrerInfo(libres ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "");
+    // Tronçon sans aucun raccord : sans effet (injoignable) ; extrémité libre d'un tronçon raccordé : rejointe à vol d'oiseau
+    const isoles = (sim.isoles || []).map(i => i + 1), libres = sim.nonRaccordes.length - 2 * isoles.length;
+    montrerInfo([
+      isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur un carrefour (point plein).` : "",
+      libres > 0 ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "",
+    ].filter(Boolean).join(" "));
   }
   function montrerInfo(texte, html = false) { const el = $("#sim-info"); el.hidden = !texte; if (html) el.innerHTML = texte; else el.textContent = texte; }
   function selectionner(i) { sim.selection = i; dessinerTroncons(); }
@@ -834,6 +838,57 @@ document.getElementById("replier").addEventListener("click", e => {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = "troncons-simules.geojson"; a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---------- Tracé d'un tronçon ----------
+  // Survol suspendu pendant le tracé ; double-clic de la carte (zoom) désactivé ; les deux clics d'un double-clic
+  // posent deux sommets au même endroit : dédoublonnés en fin de tracé (moins d'1 m)
+  const outil = { actif: false, sommets: [], raccords: [], suiviAvant: false };
+  const coucheTrace = L.layerGroup().addTo(carte);
+  const apercu = L.polyline([], { pane: "trace", color: "#7B2CBF", weight: 4, dashArray: "4 6", interactive: false });
+  const estRaccorde = (lon, lat) => !!vue.P && noeudsProches(vue.P, [[lon, lat]], CFG.raccordMaxM)[0] >= 0;
+  const iconeSommet = raccorde => L.divIcon({ className: "", html: `<div class="sommet-sim${raccorde ? " raccorde" : ""}"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] });
+  // Trait d'aperçu jusqu'à la souris (à chaque mouvement : rien d'autre) ; sommets redessinés au clic seulement,
+  // l'indicateur de raccord parcourant les nœuds de la fenêtre
+  function dessinerTraceEnCours(souris) {
+    const ll = outil.sommets.map(([lon, lat]) => [lat, lon]);
+    apercu.setLatLngs(souris && ll.length ? [...ll, souris] : ll).addTo(coucheTrace);
+    if (souris) return;
+    coucheTrace.clearLayers(); apercu.addTo(coucheTrace);
+    outil.raccords.length = outil.sommets.length;
+    outil.sommets.forEach(([lon, lat], i) => {
+      if (outil.raccords[i] === undefined) outil.raccords[i] = estRaccorde(lon, lat);
+      L.marker([lat, lon], { pane: "trace", icon: iconeSommet(outil.raccords[i]), interactive: false, keyboard: false }).addTo(coucheTrace);
+    });
+  }
+  function commencerTrace() {
+    if (outil.actif) return;
+    outil.actif = true; outil.sommets = []; outil.raccords = []; outil.suiviAvant = etat.suivre;
+    suivre(false); carte.doubleClickZoom.disable();
+    selectionner(-1);
+    $("#sim-tracer").setAttribute("aria-pressed", "true"); $("#sim-tracer").textContent = "Terminer le tronçon";
+    $("#sim-consigne").hidden = false;
+    carte.getContainer().style.cursor = "crosshair";
+  }
+  function finirTrace(garder) {
+    if (!outil.actif) return;
+    const t = outil.sommets.filter((s, i, l) => i === 0 || distanceM(l[i - 1][0], l[i - 1][1], s[0], s[1]) >= 1);
+    outil.actif = false; outil.sommets = [];
+    coucheTrace.clearLayers(); carte.doubleClickZoom.enable();
+    $("#sim-tracer").setAttribute("aria-pressed", "false"); $("#sim-tracer").textContent = "Tracer un tronçon";
+    $("#sim-consigne").hidden = true;
+    carte.getContainer().style.cursor = "";
+    if (garder && t.length >= 2) { sim.troncons.push(t); majSimulation(); }
+    suivre(outil.suiviAvant);
+  }
+  $("#sim-tracer").addEventListener("click", () => (outil.actif ? finirTrace(true) : commencerTrace()));
+  $("#sim-terminer").addEventListener("click", () => finirTrace(true));
+  carte.on("dblclick", () => { if (outil.actif) finirTrace(true); });
+  document.addEventListener("keydown", ev => {
+    if (!outil.actif || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (ev.key === "Enter") { ev.preventDefault(); finirTrace(true); }
+    else if (ev.key === "Escape") finirTrace(false);
+    else if (ev.key === "Backspace") { ev.preventDefault(); outil.sommets.pop(); dessinerTraceEnCours(); }
   });
 
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
@@ -895,6 +950,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (el) el.style.pointerEvents = etat.suivre ? "none" : "";
   }
   carte.on("mousemove", ev => {
+    if (outil.actif) { dessinerTraceEnCours(ev.latlng); return; }
     // Survol en direct : seulement dans le 17 et au zoom détaillé (ailleurs, rien ne bouge)
     if (!etat.suivre || !dansZone(ev.latlng)) return;
     planifierDepart(ev.latlng);
@@ -906,6 +962,8 @@ document.getElementById("replier").addEventListener("click", e => {
     }, 300);
   });
   carte.on("click", ev => {
+    if (outil.actif) { outil.sommets.push([ev.latlng.lng, ev.latlng.lat]); dessinerTraceEnCours(); return; }
+    if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
     if (etat.suivre || !etat.depart) { suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);
   });
