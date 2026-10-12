@@ -352,6 +352,42 @@ function traitsNoirs(P, G, res, min, minConf, minutesMax = 60, seuilKm2 = 10) {
   return out;
 }
 
+// Départs du classement D4 : centres d'une grille régulière de pasM mètres, gardés si leur cellule est dedans
+// (terre du territoire). Pas en degrés pris à la latitude moyenne de la fenêtre.
+function grilleDeparts(g, pasM) {
+  const latMoy = g.n - g.ny * g.dlat / 2, pasLat = pasM / (R_TERRE * RAD), pasLon = pasLat / Math.cos(latMoy * RAD);
+  const out = [];
+  for (let lat = g.n - pasLat / 2; lat > g.n - g.ny * g.dlat; lat -= pasLat)
+    for (let lon = g.w + pasLon / 2; lon < g.w + g.nx * g.dlon; lon += pasLon) {
+      const i = Math.floor((lon - g.w) / g.dlon), j = Math.floor((g.n - lat) / g.dlat);
+      if (g.dedans[j * g.nx + i]) out.push([lon, lat]);
+    }
+  return out;
+}
+
+// Cumul D4 : pour chaque départ, traits noirs (règle de la page) ramenés à leurs voies ; une voie compte une fois
+// par départ. Départ sans voie à accesMaxM : ignoré. rep = départ où un arc de la voie porte la plus forte charge.
+function cumulerMaillons(P, G, points, minutesMax = 60) {
+  const V = voies(P), nV = V.liste.length;
+  const score = new Int32Array(nV), rep = new Array(nV).fill(null), repCharge = new Float64Array(nV);
+  let ignores = 0;
+  for (const [lon, lat] of points) {
+    const dep = departs(P, G.tout, lon, lat);
+    if (!dep.length) { ignores++; continue; }
+    const res = dijkstra(G.tout, sourcesDijkstra(dep), 0, minutesMax * 60);
+    const min = tempsGrille(P, G.tout, res);
+    const minConf = minutesTranquilles(P, G.confort, lon, lat, minutesMax * 60 * CFG.confort.surcout[1]);
+    const vues = new Set();
+    for (const { arc, charge } of traitsNoirs(P, G.tout, res, min, minConf, minutesMax)) {
+      const v = V.voie[G.tout.arete[arc]];
+      if (v < 0) continue;
+      if (!vues.has(v)) { vues.add(v); score[v]++; }
+      if (charge > repCharge[v]) { repCharge[v] = charge; rep[v] = [lon, lat]; }
+    }
+  }
+  return { ...V, score, rep, repCharge, departs: points.length, ignores };
+}
+
 // Minutes par cellule : NaN hors zone de calcul, Infinity si hors d'atteinte.
 // Fenêtre avec tronçons simulés (g.secours = grille d'avant) : la cellule garde le meilleur de son nœud d'avant et
 // du nœud simulé qui l'a reprise ; un nœud simulé injoignable dans ce mode (piste reliée seulement par une route, en
@@ -1084,7 +1120,7 @@ class ChargeurTuiles {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
+  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================
