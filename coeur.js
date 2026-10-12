@@ -837,6 +837,24 @@ function ajouterTroncons(P, troncons) {
   return { P: Q, nonRaccordes, isoles, horsZone };
 }
 
+// Masque d'un territoire (territoires.json, tuiler.py) : plages alternées 0 / 1 sur un rectangle de la grille
+// France ; centre = point d'où la page charge la fenêtre fixe du territoire. total = dénominateur des %.
+function decoderMasque({ i0, j0, nx, ny, total, plages }, gi) {
+  const m = new Uint8Array(nx * ny);
+  for (let k = 0, pos = 0; k < plages.length; k += 2) { pos += plages[k]; m.fill(1, pos, pos + plages[k + 1]); pos += plages[k + 1]; }
+  return { i0, j0, nx, ny, m, total, centre: [gi.lon0 + (i0 + nx / 2) * gi.dlon, gi.lat0 - (j0 + ny / 2) * gi.dlat] };
+}
+// Fenêtre ramenée au territoire : cellules hors masque ni colorées ni comptées (dedans = ile = masque)
+function appliquerMasque(g, z, gi) {
+  const di = Math.round((g.w - gi.lon0) / gi.dlon) - z.i0, dj = Math.round((gi.lat0 - g.n) / gi.dlat) - z.j0;
+  const m = new Uint8Array(g.nx * g.ny);
+  for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++) {
+    const zi = i + di, zj = j + dj;
+    m[j * g.nx + i] = zi >= 0 && zj >= 0 && zi < z.nx && zj < z.ny && z.m[zj * z.nx + zi] ? 1 : 0;
+  }
+  g.dedans = g.ile = m;
+}
+
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
 // Grille de France en degrés ; doit suivre LON0, LAT0, DLON, DLAT, CELLULES_TUILE de format_tuile.py
 const GRILLE_FRANCE = { lon0: -5.5, lat0: 51.5, dlon: 0.00125, dlat: 0.0009, cellulesTuile: 100, pasDistM: 10 };
@@ -1067,6 +1085,6 @@ class ChargeurTuiles {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
+    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles };
 }
 // ===================================== FIN CŒUR =====================================

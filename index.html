@@ -327,14 +327,10 @@ document.getElementById("replier").addEventListener("click", e => {
   // alternées 0 / 1 ; total = dénominateur des % (tout le territoire, pas seulement la fenêtre chargée)
   let masqueZone = null;
   if (terr) {
-    const { i0, j0, nx, ny, total, plages } = terr.masque, m = new Uint8Array(nx * ny);
-    for (let k = 0, pos = 0; k < plages.length; k += 2) { pos += plages[k]; m.fill(1, pos, pos + plages[k + 1]); pos += plages[k + 1]; }
-    masqueZone = { i0, j0, nx, ny, m, total };
-    // Fenêtre fixe centrée sur le territoire : les 5 × 5 tuiles le couvrent en entier (Marennes-Oléron tient
-    // dans 5 × 5 tuiles), donc aucun changement de fenêtre au survol, comme l'ancienne carte d'un seul bloc
-    // (chaque changement gelait la page 0,5 à 1,2 s)
-    const gr = index.grille;
-    masqueZone.centre = [gr.lon0 + (i0 + nx / 2) * gr.dlon, gr.lat0 - (j0 + ny / 2) * gr.dlat];
+    // Fenêtre fixe centrée sur le territoire (masqueZone.centre) : les 5 × 5 tuiles le couvrent en entier
+    // (Marennes-Oléron tient dans 5 × 5 tuiles), donc aucun changement de fenêtre au survol, comme l'ancienne
+    // carte d'un seul bloc (chaque changement gelait la page 0,5 à 1,2 s)
+    masqueZone = decoderMasque(terr.masque, index.grille);
     document.title = `À portée de vélo – ${terr.nom.replace(/^l'/, "L'")}`;
     $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${terr.chapeau}, et dans quel confort, d'après les réseaux des collectivités et OpenStreetMap`;
     $("#titre-couverture").textContent = `Surface ${TERRITOIRE === "oleron" ? "de l'île" : "du territoire"} atteinte depuis ce départ`;
@@ -431,16 +427,7 @@ document.getElementById("replier").addEventListener("click", e => {
     vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
     vue.G = graphes(f.P);
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
-    if (masqueZone) {   // vue territoire : cellules hors du territoire ni colorées ni comptées
-      const g = vue.g, gr = index.grille, z = masqueZone;
-      const di = Math.round((g.w - gr.lon0) / gr.dlon) - z.i0, dj = Math.round((gr.lat0 - g.n) / gr.dlat) - z.j0;
-      const m = new Uint8Array(g.nx * g.ny);
-      for (let j = 0; j < g.ny; j++) for (let i = 0; i < g.nx; i++) {
-        const zi = i + di, zj = j + dj, k = j * g.nx + i;
-        m[k] = zi >= 0 && zj >= 0 && zi < z.nx && zj < z.ny && z.m[zj * z.nx + zi] ? 1 : 0;
-      }
-      g.dedans = g.ile = m;
-    }
+    if (masqueZone) appliquerMasque(vue.g, masqueZone, index.grille);   // vue territoire : cellules hors du territoire ni colorées ni comptées
     preparerSimulation();                      // après le masque : P′ en hérite
     const g = vue.g, bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
     if (!toile || toile.width !== g.nx || toile.height !== g.ny) {
