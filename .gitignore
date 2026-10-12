@@ -5,13 +5,9 @@
 !.gitignore
 !.nojekyll
 !index.html
-!comparer.html
 !coeur.js
 !README.md
 !LICENSE
 !tuiles/
 !tuiles/*.bin
 !tuiles/*.json
-!tuiles_osm/
-!tuiles_osm/*.bin
-!tuiles_osm/*.json

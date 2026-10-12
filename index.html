@@ -93,7 +93,6 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .credits{font-size:.75rem;color:var(--ardoise);padding-top:10px}
 .credits p{margin:0 0 6px}
 .credits a{color:var(--abysse)}
-.lien-comparer{color:var(--abysse);font-weight:600}
 .erreur{margin:14px 0;padding:12px;border-radius:8px;background:#fde7e2;color:#7a1f0e;font-size:.9rem}
 .erreur code{font-size:.85em}
 
@@ -203,7 +202,6 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 
     <div class="bloc">
       <button type="button" class="bouton" id="partager">Copier le lien de cette vue</button>
-      <p class="note" id="lien-comparer" hidden><a href="comparer.html">Comparer avec OpenStreetMap seul</a> : ce qu'apportent les données des collectivités</p>
     </div>
 
     <footer class="credits">
@@ -244,7 +242,7 @@ document.getElementById("replier").addEventListener("click", e => {
   ];
   // ---------- Symbologies « Temps » et « Temps et confort » (11/10/2026) : temps réels dans les deux ----------
   // Modèle (temps réels, classes de confort, trajet tranquille, teinte) : CFG, minutesTranquilles et teinteConfort
-  // dans coeur.js, partagés avec comparer.html. Interdire la route dans le trajet tranquille coupait le réseau
+  // dans coeur.js. Interdire la route dans le trajet tranquille coupait le réseau
   // (193 m de départementale à Saint-Georges = 19 km de détour) : d'où la pénalité ×4 plutôt qu'une interdiction.
   const MAQ_MIN = 60;                          // zone colorée : jusqu'à 60 min
   // Palette bivariée : teinte = confort (bleu / gris / orange, sûre pour les daltoniens), clarté = temps (7 paliers).
@@ -298,8 +296,6 @@ document.getElementById("replier").addEventListener("click", e => {
     document.title = `À portée de vélo – ${terr.nom.replace(/^l'/, "L'")}`;
     $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${terr.chapeau}, et dans quel confort, d'après les réseaux des collectivités et OpenStreetMap`;
     $("#titre-couverture").textContent = `Surface ${TERRITOIRE === "oleron" ? "de l'île" : "du territoire"} atteinte depuis ce départ`;
-    $("#lien-comparer").hidden = false;                // comparaison OSM seul / OSM + collectivités (Marennes-Oléron)
-    $("#lien-comparer a").href = `comparer.html?territoire=${TERRITOIRE}`;
     $("#note-couverture").textContent = `Part des cellules de 100 m ${TERRITOIRE === "oleron" ? "de l'île" : "des 14 communes"} atteintes.`;
   }
 

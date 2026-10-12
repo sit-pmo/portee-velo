@@ -1,5 +1,5 @@
 // coeur.js : cœur de calcul d'« À portée de vélo » (sans DOM, testable sous Node).
-// Partagé par index.html et comparer.html : préparation des données, graphe, Dijkstra, temps par cellule,
+// Utilisé par index.html : préparation des données, graphe, Dijkstra, temps par cellule,
 // couverture et champ d'isolignes.
 // ======================= CŒUR (sans DOM, testable sous Node) =======================
 // Pénalités par classe : 0 piste, 1 bande, 2 rues/service, 3 secondaire, 4 principale, 5 voie communale
