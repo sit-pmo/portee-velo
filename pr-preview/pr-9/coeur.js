@@ -1194,7 +1194,8 @@ function panierPlusProche(Cm, ix, minutes, compte) {
 // Trois mesures d'accès par cellule depuis (lon, lat), en minutes (Infinity si non atteint) :
 // - pistes : réseau aménagé seul (mode « Pistes et bandes », liaisons courtes comprises) ;
 // - tranquille : temps le plus rapide (routes comprises) des cellules en bleu, c'est-à-dire où le trajet qui évite la
-//   route exposée coûte au plus +20 % (teinteConfort) ; Infinity pour les cellules grises ou orange ;
+//   route exposée coûte au plus +20 % (teinteConfort), ou temps par les pistes s'il est plus court ; donc toujours au
+//   moins autant que « pistes » ;
 // - tous : temps le plus rapide, routes comprises (mode « Pistes + routes »).
 // Gs = graphes de la fenêtre ({ tout, amenage, confort }). Coût : trois Dijkstra.
 function minutesAcces(P, Gs, lon, lat, limiteS) {
@@ -1203,7 +1204,10 @@ function minutesAcces(P, Gs, lon, lat, limiteS) {
   const tous = temps(Gs.tout), pistes = temps(Gs.amenage);
   const conf = minutesTranquilles(P, Gs.confort, lon, lat, limiteS * CFG.confort.surcout[1]);
   const tranquille = vide();
-  for (let k = 0; k < N; k++) if (tous[k] < Infinity && teinteConfort(tous[k], conf[k]) === 0) tranquille[k] = tous[k];
+  for (let k = 0; k < N; k++) {
+    if (tous[k] < Infinity && teinteConfort(tous[k], conf[k]) === 0) tranquille[k] = tous[k];
+    if (pistes[k] < tranquille[k]) tranquille[k] = pistes[k];   // ce qu'on atteint par les pistes est tranquille aussi
+  }
   return { pistes, tranquille, tous };
 }
 
