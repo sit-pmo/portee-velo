@@ -135,21 +135,49 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .acces small{display:block;color:var(--ardoise);font-size:.74rem;font-weight:400}
 .acces .gain{color:#7E22CE;font-weight:600;margin-left:3px;font-size:.78rem}
 .acces .total td{font-weight:600}
-.panier{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 0;padding:0;list-style:none}
-.panier li{font-size:.8rem;padding:3px 8px;border-radius:12px;background:var(--brume);color:var(--ardoise)}
-.panier li.niv-pistes{background:#D3EDF2;color:#00475A}
-.panier li.niv-tranquille{background:#DCE8F7;color:#1E3A8A}
-.panier li.niv-tous{background:#FBE3CC;color:#8A3B0B}
-.panier-resume{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.panier-resume li{display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:8px;font-size:.76rem;color:var(--ardoise);border-top:3px solid var(--c)}
-.panier-resume li.niv-pistes{--c:#00657A}
-.panier-resume li.niv-tranquille{--c:#3B6FC4}
-.panier-resume li.niv-tous{--c:#D9631E}
-.panier-resume strong{font-size:1rem;color:var(--encre);font-variant-numeric:tabular-nums}
 .defile-x{overflow-x:auto}
 .acces th{white-space:normal;line-height:1.2;padding-left:8px;vertical-align:bottom}
-.panier li b{font-variant-numeric:tabular-nums}
-.panier-titre{margin:14px 0 0;font-size:.87rem;font-weight:600}
+/* Fonctions du territoire de la demi-heure (13/10/2026) : trois cas, mêmes couleurs partout */
+:root{--cas-tranquille:#3B6FC4;--cas-route:#D9631E;--cas-loin:#5E6A70;--cas-tranquille-fond:#DCE8F7;--cas-route-fond:#FBE3CC;--cas-loin-fond:#E6E9EA}
+.fonctions-titre{margin:14px 0 0;font-size:.87rem;font-weight:600}
+.cas-resume{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cas-resume li{display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:8px;font-size:.76rem;color:var(--ardoise);border-top:3px solid var(--c)}
+.cas-resume strong{font-size:1rem;color:var(--encre);font-variant-numeric:tabular-nums}
+.cas-0{--c:var(--cas-tranquille);--f:var(--cas-tranquille-fond)}
+.cas-1{--c:var(--cas-route);--f:var(--cas-route-fond)}
+.cas-2{--c:var(--cas-loin);--f:var(--cas-loin-fond)}
+.fonctions{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 0;padding:0;list-style:none}
+.fonctions li{font-size:.8rem;padding:3px 8px;border-radius:12px;background:var(--f);color:var(--encre);border-left:3px solid var(--c)}
+.fonctions li b{font-variant-numeric:tabular-nums}
+.fonctions li small{color:var(--ardoise);font-size:.72rem}
+/* Bloc diagnostic (vue territoire) */
+.diag-resume{font-size:.9rem;margin:0 0 10px;line-height:1.45}
+.diag-resume strong{font-variant-numeric:tabular-nums}
+.diag-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.diag-table td{padding:4px 0;border-top:1px solid var(--brume);vertical-align:middle}
+.diag-table td.lib{padding-right:8px}
+.diag-table td.lib small{color:var(--ardoise);font-size:.74rem;margin-left:4px}
+.diag-table td.pct{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;padding-left:8px;width:3.2em}
+.diag-table tr{cursor:pointer}
+.diag-table tr:hover td{background:var(--brume)}
+.diag-table tr[aria-selected="true"] td.lib{font-weight:700;color:var(--abysse)}
+.barre3{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--brume);min-width:80px}
+.barre3 span{display:block;height:100%;background:var(--c)}
+.diag-legende{display:flex;flex-wrap:wrap;gap:10px;font-size:.78rem;color:var(--ardoise);margin:8px 0 0}
+.diag-legende span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:-1px}
+.diag-sous{font-size:.87rem;font-weight:600;margin:14px 0 4px}
+.diag-communes{width:100%;border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums}
+.diag-communes th{font-weight:600;color:var(--ardoise);font-size:.74rem;text-align:right;padding:0 0 3px 6px}
+.diag-communes th:first-child{text-align:left;padding-left:0}
+.diag-communes td{padding:3px 0 3px 6px;border-top:1px solid var(--brume);text-align:right;white-space:nowrap}
+.diag-communes td:first-child{text-align:left;padding-left:0;white-space:normal}
+.diag-communes td.barre{width:38%}
+.diag-maillons{list-style:none;margin:0;padding:0;counter-reset:m}
+.diag-maillons li{display:grid;grid-template-columns:1.6em 1fr auto;gap:6px;align-items:baseline;padding:5px 0;border-top:1px solid var(--brume);font-size:.84rem;cursor:pointer}
+.diag-maillons li::before{counter-increment:m;content:counter(m);color:var(--ardoise);font-variant-numeric:tabular-nums;font-size:.78rem}
+.diag-maillons li[aria-current="true"]{color:#7B2CBF;font-weight:600}
+.diag-maillons small{display:block;color:var(--ardoise);font-size:.74rem;font-weight:400}
+.diag-maillons .chiffre{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
 /* Simulation de tronçons (12/10/2026) */
 .sim-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .sim-actions #sim-tracer{grid-column:1/-1}
@@ -234,16 +262,30 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
         <button type="button" data-seuil-acces="30" aria-pressed="false">30 min</button>
       </div>
       <div class="defile-x"><table class="acces" id="acces"></table></div>
-      <div id="panier-bloc" hidden>
-        <p class="panier-titre" id="panier-titre"></p>
-        <ul class="panier-resume" id="panier-resume"></ul>
-        <ul class="panier" id="panier"></ul>
+      <div id="fonctions-bloc" hidden>
+        <p class="fonctions-titre">Fonctions du quotidien depuis ce départ</p>
+        <ul class="cas-resume" id="fonctions-resume"></ul>
+        <ul class="fonctions" id="fonctions"></ul>
       </div>
       <label class="case-reseau" for="voir-equip" style="margin-top:10px">
         <input type="checkbox" id="voir-equip">
         <span class="entree">Montrer les équipements sur la carte</span>
       </label>
       <p class="note" id="note-acces"></p>
+    </div>
+
+    <div class="bloc" id="bloc-diag" hidden>
+      <h2 id="diag-titre">Territoire de la demi-heure</h2>
+      <p class="diag-resume" id="diag-resume"></p>
+      <table class="diag-table" id="diag-table"></table>
+      <div class="diag-legende"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
+      <button type="button" class="bouton" id="diag-vue" aria-pressed="false" style="margin-top:10px">Voir sur la carte</button>
+      <p class="diag-sous" id="diag-sous-communes"></p>
+      <div class="defile-x"><table class="diag-communes" id="diag-communes"></table></div>
+      <p class="diag-sous" id="diag-sous-maillons"></p>
+      <ol class="diag-maillons" id="diag-maillons"></ol>
+      <button type="button" class="bouton petit" id="diag-amenager" hidden style="margin-top:8px">Aménager et voir le gain</button>
+      <p class="note" id="diag-note"></p>
     </div>
 
     <div class="bloc" id="bloc-sim">
@@ -1095,6 +1137,7 @@ document.getElementById("replier").addEventListener("click", e => {
     });
   }
   function basculerD4(actif) {
+    if (actif && diag.actif) basculerDiag(false);   // une seule vue indépendante du départ à la fois
     d4.actif = actif;
     $("#d4-vue").setAttribute("aria-pressed", String(actif));
     $("#d4-liste").hidden = !actif;
@@ -1167,6 +1210,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // Libellés BPE en capitales (« BOULANGERIE-PÂTISSERIE ») → « Boulangerie-pâtisserie »
   const phrase = t => (t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t);
   const fmtNb = v => (v >= 1000 ? Math.round(v / 10) * 10 : Math.round(v)).toLocaleString("fr-FR");
+  const CAS_LIB = ["Tranquille", "Route seulement", "Trop loin"];
   const fmtMinPanier = m => (m <= 60 ? `${Math.max(1, Math.round(m))} min` : "> 1 h");
   // complet = départ fixé (clic, fin de glisser) : on calcule aussi l'« avant » des tronçons simulés pour le gain
   function afficherAcces(complet = true) {
@@ -1193,20 +1237,17 @@ document.getElementById("replier").addEventListener("click", e => {
       });
     }
     $("#acces").innerHTML = lignes.join("");
-    // Panier du quotidien : nombre d'éléments atteints selon chaque mesure, puis pastille par élément, colorée par
-    // la meilleure mesure qui l'atteint (pistes > tranquille > route seulement > au-delà)
-    const pan = acces.panier;
-    $("#panier-bloc").hidden = !pan.length;
-    if (!pan.length) return;
-    const proche = Object.fromEntries(MESURES.map(([k]) => [k, panierPlusProche(acces, vue.ixAcces, M[k], ile)]));
-    $("#panier-titre").textContent = `Panier du quotidien à ${seuilAcces} min`;
-    $("#panier-resume").innerHTML = MESURES.map(([k, l]) => {
-      const n = proche[k].filter(m => m <= seuilAcces).length;
-      return `<li class="niv-${k}"><span>${l}</span><strong>${n} sur ${pan.length}</strong></li>`;
-    }).join("");
-    $("#panier").innerHTML = pan.map((p, i) => {
-      const niv = MESURES.map(([k]) => k).find(k => proche[k][i] <= seuilAcces) || "loin";
-      return `<li class="niv-${niv}">${echapper(p.libelle.replace(/ \(.*\)$/, ""))} <b>${fmtMinPanier(proche.tous[i])}</b></li>`;
+    // Fonctions (cadre « territoire de la demi-heure ») : chacune à son seuil (15 ou 30 min), trois cas : tranquille,
+    // route seulement (investissement cyclable), trop loin (question de service)
+    const fns = acces.fonctions;
+    $("#fonctions-bloc").hidden = !fns.length;
+    if (!fns.length) return;
+    const K = casFonctions(acces, vue.ixAcces, M, ile), n = [0, 0, 0];
+    K.forEach(k => n[k.cas]++);
+    $("#fonctions-resume").innerHTML = CAS_LIB.map((l, c) => `<li class="cas-${c}"><span>${l}</span><strong>${n[c]} sur ${fns.length}</strong></li>`).join("");
+    $("#fonctions").innerHTML = fns.map((f, b) => {
+      const k = K[b], t = k.cas === 0 ? k.tranquille : k.tous;
+      return `<li class="cas-${k.cas}" title="${CAS_LIB[k.cas]} (seuil ${f.seuil} min)">${echapper(f.libelle)} <b>${fmtMinPanier(t)}</b> <small>/ ${f.seuil}</small></li>`;
     }).join("");
   }
   function dessinerEquipements() {
@@ -1247,6 +1288,126 @@ document.getElementById("replier").addEventListener("click", e => {
     ].filter(Boolean).join(" ");
     indexerAcces(); afficherAcces();
   }).catch(() => {});
+
+  // ---------- Territoire de la demi-heure (diagnostic_<territoire>.json, diagnostic.js ; vue territoire) ----------
+  // Pour chaque habitant et chaque fonction : tranquille, route seulement (investissement cyclable), trop loin
+  // (question de service). Constat par fonction et par commune, carte des lieux habités, maillons classés par
+  // habitants débloqués. Ligne « Toutes » : le pire cas des fonctions de chaque habitant.
+  const diag = { D: null, f: -1, actif: false, choisi: -1 };   // f = -1 : toutes les fonctions
+  carte.createPane("diag").style.zIndex = 352;
+  const renduDiag = L.canvas({ pane: "diag", padding: 0.2 }), coucheDiag = L.layerGroup();
+  const COUL_CAS = ["#3B6FC4", "#D9631E", "#5E6A70"];
+  const pctDe = (t, h) => (h ? Math.round(t / h * 100) : 0);
+  const barre3 = (t, h) => `<div class="barre3">${t.map((x, c) => `<span class="cas-${c}" style="width:${h ? x / h * 100 : 0}%"></span>`).join("")}</div>`;
+  const casDiag = (code, f) => (f < 0 ? Math.max(...code.split("").map(Number)) : Number(code[f]));
+  function installerDiag(D) {
+    if (!D || !Array.isArray(D.fonctions) || !D.fonctions.length || !D.habitants) return;
+    // Cellules : indice global → centre ; maillons : géométrie décodée
+    let k = 0;
+    D.pts = D.cellules.k.map((dk, q) => {
+      k += dk;
+      const gj = Math.floor(k / acces_W(D)), gi = k - gj * acces_W(D), G0 = index.grille;
+      return { lat: G0.lat0 - (gj + .5) * G0.dlat, lon: G0.lon0 + (gi + .5) * G0.dlon, h: D.cellules.h[q] / 10, cas: D.cellules.cas[q] };
+    });
+    D.maillons = (D.maillons || []).map(m => { try { return { ...m, coords: decoderTroncons(m.g) }; } catch { return null; } }).filter(Boolean);
+    diag.D = D;
+    $("#bloc-diag").hidden = false;
+    $("#diag-titre").textContent = `${TERRITOIRE === "oleron" ? "L'île" : "Le territoire"} de la demi-heure`;
+    $("#diag-note").textContent = `Pour chaque habitant (${fmtNb(D.habitants)}, Filosofi carroyé) et chaque fonction, à son seuil : tranquille = par les pistes ou des voies calmes ; route seulement = en passant par une route exposée, un aménagement cyclable peut y répondre ; trop loin = même par la route, question de service plutôt que de piste. Maillons : routes exposées des trajets les plus rapides des habitants « route seulement », classées par habitants concernés. Calcul du ${D.genere.slice(0, 10)}.`;
+    afficherDiag();
+  }
+  function acces_W(D) { return Math.round(360 / index.grille.dlon); }   // largeur de la grille France (comptages.py)
+  function afficherDiag() {
+    const D = diag.D, F = D.fonctions, f = diag.f, h = D.habitants;
+    const tot = f < 0 ? D.global.toutes : D.global.f[f];
+    $("#diag-resume").innerHTML = f < 0
+      ? `<strong>${pctDe(D.global.toutes[0], h)} %</strong> des habitants ont toutes ces fonctions tranquillement à vélo ; <strong>${pctDe(D.global.toutes[1], h)} %</strong> les ont en passant par la route ; <strong>${pctDe(D.global.toutes[2], h)} %</strong> en ont au moins une trop loin.`
+      : `${echapper(F[f].libelle)} à ${F[f].seuil} min : <strong>${pctDe(tot[0], h)} %</strong> des habitants tranquillement, <strong>${pctDe(tot[1], h)} %</strong> par la route seulement, <strong>${pctDe(tot[2], h)} %</strong> trop loin.`;
+    $("#diag-table").innerHTML = [[-1, "Toutes les fonctions", "", D.global.toutes], ...F.map((fn, b) => [b, fn.libelle, `${fn.seuil} min`, D.global.f[b]])]
+      .map(([b, lib, seuil, t]) => `<tr data-f="${b}" aria-selected="${b === f}"><td class="lib">${echapper(lib)}<small>${seuil}</small></td><td>${barre3(t, h)}</td><td class="pct">${pctDe(t[0], h)} %</td></tr>`).join("");
+    // Communes
+    const lib = f < 0 ? "toutes les fonctions" : F[f].libelle.toLowerCase();
+    if (D.communes && D.communes.length > 1) {
+      $("#diag-sous-communes").textContent = `Par commune · ${lib}`;
+      $("#diag-communes").innerHTML = `<tr><th>Commune</th><th>Hab.</th><th></th><th>Tranq.</th></tr>` + D.communes.map(c => {
+        const t = f < 0 ? c.toutes : c.f[f];
+        return `<tr><td>${echapper(c.nom)}</td><td>${fmtNb(c.h)}</td><td class="barre">${barre3(t, c.h)}</td><td><strong>${pctDe(t[0], c.h)} %</strong></td></tr>`;
+      }).join("");
+    } else { $("#diag-sous-communes").textContent = ""; $("#diag-communes").innerHTML = ""; }
+    // Maillons, classés pour la fonction choisie (ou toutes)
+    const ms = D.maillons.map((m, i) => ({ m, i, v: f < 0 ? m.hab : m.f[f] })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 10);
+    diag.liste = ms;
+    $("#diag-sous-maillons").textContent = ms.length ? `Maillons à aménager · ${lib}` : "";
+    $("#diag-maillons").innerHTML = ms.map(({ m, i, v }) =>
+      `<li data-i="${i}" aria-current="${i === diag.choisi}"><span>${nomMaillon(m)}<small>${m.l < 80 ? "" : `${fmtKm(m.l)} · `}${echapper(m.commune || "")}</small></span><span class="chiffre">${fmtNb(v)} hab.</span></li>`).join("");
+    $("#diag-amenager").hidden = diag.choisi < 0;
+    dessinerDiag();
+  }
+  // Moins de 80 m entre deux carrefours de routes exposées : c'est une traversée (giratoire, carrefour) à sécuriser
+  const nomMaillon = m => (m.l < 80 ? "Traversée ou carrefour" : echapper(CLASSES[m.cls] ? CLASSES[m.cls].nom : "Route"));
+  function dessinerDiag() {
+    coucheDiag.clearLayers();
+    if (!diag.actif || !diag.D) { coucheDiag.remove(); return; }
+    const D = diag.D, f = diag.f, dLat = index.grille.dlat / 2, dLon = index.grille.dlon / 2;
+    for (const p of D.pts) {
+      const c = casDiag(p.cas, f);
+      L.rectangle([[p.lat - dLat, p.lon - dLon], [p.lat + dLat, p.lon + dLon]], { renderer: renduDiag, pane: "diag", stroke: false,
+        fillColor: COUL_CAS[c], fillOpacity: Math.min(.9, .35 + p.h / 20), interactive: false }).addTo(coucheDiag);
+    }
+    const sel = D.maillons[diag.choisi];
+    for (const { m, i } of diag.liste) {
+      const choisi = m === sel, w = choisi ? 7 : 4.5;
+      for (const t of m.coords) {
+        const ll = t.map(([lon, lat]) => [lat, lon]);
+        L.polyline(ll, { pane: "d4", color: "#fff", weight: w + 3, opacity: .9, interactive: false }).addTo(coucheDiag);
+        L.polyline(ll, { pane: "d4", color: choisi ? "#7B2CBF" : "#111", weight: w, opacity: .95 })
+          .on("click", ev => { L.DomEvent.stop(ev); choisirDiag(i, false); }).addTo(coucheDiag);
+      }
+    }
+    coucheDiag.addTo(carte);
+  }
+  function basculerDiag(actif) {
+    if (actif && d4.actif) basculerD4(false);
+    diag.actif = actif;
+    $("#diag-vue").setAttribute("aria-pressed", String(actif));
+    $("#diag-vue").textContent = actif ? "Revenir aux temps de trajet" : "Voir sur la carte";
+    for (const nom of ["chaleur", "iso"]) carte.getPane(nom).style.display = actif ? "none" : "";
+    if (actif) { diag.suiviAvant = etat.suivre; suivre(false); }
+    else if (diag.suiviAvant) { diag.suiviAvant = false; suivre(true); }
+    $("#suivre").hidden = actif || !survolPossible;
+    dessinerDiag();
+  }
+  function choisirDiag(i, zoomer) {
+    diag.choisi = i;
+    if (!diag.actif) basculerDiag(true);
+    afficherDiag();
+    if (zoomer) carte.fitBounds(L.latLngBounds(diag.D.maillons[i].coords.flat().map(([lon, lat]) => [lat, lon])).pad(0.4));
+  }
+  $("#diag-table").addEventListener("click", ev => {
+    const tr = ev.target.closest("tr[data-f]");
+    if (!tr) return;
+    diag.f = Number(tr.dataset.f); diag.choisi = -1;
+    afficherDiag();
+  });
+  $("#diag-vue").addEventListener("click", () => basculerDiag(!diag.actif));
+  $("#diag-maillons").addEventListener("click", ev => {
+    const li = ev.target.closest("li[data-i]");
+    if (li) choisirDiag(Number(li.dataset.i), true);
+  });
+  $("#diag-amenager").addEventListener("click", () => {
+    const m = diag.D && diag.D.maillons[diag.choisi];
+    if (!m) return;
+    basculerDiag(false);
+    if (etat.mode !== "tout") choisirMode("tout");
+    const deja = sim.troncons.some(t => m.coords.some(c => encoderTroncons([c]) === encoderTroncons([t])));
+    if (!deja) for (const c of m.coords) sim.troncons.push(c.map(p => p.slice()));
+    majSimulation();
+    suivre(false);
+    placerDepart(L.latLng(m.d[1], m.d[0]), true);
+    montrerInfo("Voie aménagée en piste. Le bloc « À portée » montre en violet ce que gagne ce départ, le plus peuplé parmi ceux que la voie concerne ; déplacez le repère D pour voir ailleurs.");
+  });
+  if (masqueZone)
+    fetch(`tuiles/diagnostic_${TERRITOIRE}.json`).then(r => (r.ok ? r.json() : null)).then(installerDiag).catch(() => {});
   if (TERRITOIRE === "oleron")
     fetch("tuiles/maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
 
