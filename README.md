@@ -35,9 +35,10 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
-Deux réseaux :
+Trois réseaux :
 
 - **Avec les routes** : le réseau aménagé (pistes, voies vertes, bandes) complété par les routes et chemins. C'est le temps du trajet le plus rapide.
+- **Sans départementales** : le même réseau, sans jamais emprunter une départementale ni une nationale (routes tertiaires, secondaires et principales d'OpenStreetMap). On peut seulement la traverser, giratoire ou carrefour décalé compris (au plus 80 m de départementale entre deux accès au reste du réseau) ; une piste qui la longe reste permise. En gris, les secteurs à plus de 800 m de ce réseau. Un hameau desservi par la seule départementale en est coupé : c'est le propos.
 - **Sans les routes** : le réseau aménagé seul, avec de courtes liaisons entre deux pistes (jusqu'à 200 m sur rue calme ou chemin, 100 m sur route) et les traversées de chaussée. En gris, les secteurs à plus de 800 m de ce réseau.
 
 ## 2. Est-ce que j'y vais tranquillement ?
