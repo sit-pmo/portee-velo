@@ -4,11 +4,6 @@
 
 👉 **https://sit-pmo.github.io/portee-velo/**
 
-Vues limitées à un territoire (seul le territoire est coloré, pourcentages de surface atteinte) :
-
-- île d'Oléron : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
-- Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : **https://sit-pmo.github.io/portee-velo/?territoire=pmo**
-
 ## Objectif
 
 Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, dans quel confort, et où il manque des liaisons. Puis aider à décider : mesurer ce qu'apporterait un aménagement avant de le financer, et vérifier si les habitants ont les services du quotidien à portée de vélo, tranquillement.
@@ -25,7 +20,12 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 | [4. Et si on aménageait ici ?](#4-et-si-on-aménageait-ici-) | « Simuler un aménagement » : avant, après, gain |
 | [5. Les habitants ont-ils l'essentiel à portée, tranquillement ?](#5-les-habitants-ont-ils-lessentiel-à-portée-) | « Territoire de la demi-heure » |
 
-Les questions 1, 2 et 4 marchent sur tout le département, comme les traits noirs de la question 3. Le classement des maillons de l'île demande la vue île d'Oléron, la question 5 la vue île d'Oléron ou 14 communes.
+> [!TIP]
+> **Vues limitées à un territoire.** La carte couvre toute la Charente-Maritime ; on peut aussi la limiter à un territoire : seul le territoire est coloré et les pourcentages portent sur sa surface.
+> - île d'Oléron : https://sit-pmo.github.io/portee-velo/?territoire=oleron
+> - Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : https://sit-pmo.github.io/portee-velo/?territoire=pmo
+>
+> Les questions 1, 2 et 4, comme les traits noirs de la question 3, marchent partout. Le classement des maillons de l'île demande la vue île d'Oléron, la question 5 la vue île d'Oléron ou 14 communes.
 
 ## 1. Jusqu'où je vais ?
 
