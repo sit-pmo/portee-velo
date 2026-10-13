@@ -36,9 +36,9 @@ Deux réseaux :
 
 ## 2. Est-ce que j'y vais tranquillement ?
 
-![Depuis Le Château-d'Oléron, passage de « Temps » à « Temps et confort » : l'ouest de l'île devient gris et orange, on ne l'atteint qu'en passant par la route](demo/2-tranquillement.gif)
+![Le pointeur parcourt l'île d'Oléron en « Temps et confort » : en bleu ce qu'on atteint tranquillement, en orange ce qu'on n'atteint qu'en passant par la route](demo/2-tranquillement.gif)
 
-👉 [Essayer : depuis Le Château-d'Oléron, en « Temps et confort »](https://sit-pmo.github.io/portee-velo/?territoire=oleron#m=tout&d=45.88805,-1.19562&v=confort)
+👉 [Essayer : promenez la souris sur l'île d'Oléron, en « Temps et confort »](https://sit-pmo.github.io/portee-velo/?territoire=oleron#v=confort)
 
 En mode « Pistes + routes », le bouton **Temps et confort** ajoute une teinte. La clarté donne toujours le temps ; la teinte dit ce que coûte un trajet **tranquille** (qui préfère pistes, bandes, rues calmes et chemins, chaque minute restante sur route exposée comptant pour 4) par rapport au plus rapide :
 
