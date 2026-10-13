@@ -240,6 +240,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .reglages>summary{font-size:.85rem}
 .reglages[open]>summary{margin-bottom:10px}
 .reglages .bascule+.bascule{margin-top:10px}
+.panneau.diag-actif[data-q="4"] .bloc-reglages{display:none}
 .panneau[data-q="1"] .reglages>summary,.panneau[data-q="1"] #bascule-symbo{display:none}   /* onglet 1 : réseau seul, toujours visible */
 .acces .deplier{all:unset;cursor:pointer;font-weight:600}
 .acces .deplier:focus-visible{outline:3px solid var(--lagon);outline-offset:2px}
@@ -343,9 +344,9 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <div id="erreur" class="erreur" hidden></div>
 
     <!-- Contenus propres à chaque question (data-q : onglets où le bloc apparaît) -->
-    <!-- Réglages de la carte : ouverts à l'onglet 1 (réseau seul) ; repliés à l'onglet 3, qui garde la couleur de
-         l'onglet d'où l'on vient -->
-    <div class="bloc" data-q="1 3">
+    <!-- Réglages de la carte : ouverts à l'onglet 1 (réseau seul) ; repliés aux onglets 3 et 4, qui gardent la couleur
+         de l'onglet d'où l'on vient (cachés à l'onglet 4 quand la carte montre le diagnostic) -->
+    <div class="bloc bloc-reglages" data-q="1 3 4">
       <details class="reglages" id="reglages" open>
         <summary id="reglages-resume">Réglages de la carte</summary>
         <div class="bascule" role="group" aria-label="Réseau utilisé">
@@ -1518,6 +1519,7 @@ document.getElementById("replier").addEventListener("click", e => {
   function basculerDiag(actif) {
     if (actif && d4.actif) basculerD4(false);
     diag.actif = actif;
+    $(".panneau").classList.toggle("diag-actif", actif);
     $("#diag-vue").setAttribute("aria-pressed", String(actif));
     $("#diag-vue").textContent = actif ? "Revenir aux temps de trajet" : "Voir sur la carte";
     for (const nom of ["chaleur", "iso"]) carte.getPane(nom).style.display = actif ? "none" : "";
@@ -1650,7 +1652,10 @@ document.getElementById("replier").addEventListener("click", e => {
     majSymbo();
     if (etat.depart && vue.P) calculer(true);
   }
-  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => choisirMode(b.dataset.mode)));
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
+    if (question === 1) modePortee = b.dataset.mode;          // retrouvé en revenant sur Portée (Confort impose les routes)
+    choisirMode(b.dataset.mode);
+  }));
   // Bascule Temps / Temps et confort ; en mode pistes seules, seul « Temps » reste (pas de route à comparer)
   function majSymbo() {
     document.querySelectorAll("[data-symbo]").forEach(b => {
@@ -1675,7 +1680,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // cumulée, diagnostic, tracé, Gain).
   const QUESTIONS = { 1: "Jusqu'où je vais en 15 ou 30 minutes ?", 2: "Est-ce que j'y vais tranquillement, et qu'est-ce qui coince ?",
     3: "Et si on aménageait ici ?", 4: "Les habitants ont-ils l'essentiel à portée, tranquillement ?" };
-  let question = 1;
+  let question = 1, modePortee = null;   // réseau choisi dans Portée (null : celui du lien)
   function allerA(q) {
     const avant = question;
     question = q;
@@ -1683,7 +1688,7 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#question").textContent = QUESTIONS[q];
     document.querySelectorAll("[data-onglet]").forEach(b => b.setAttribute("aria-selected", String(Number(b.dataset.onglet) === q)));
     if (q === 1) $("#reglages").open = true;
-    else if (q === 3 && avant !== 3) $("#reglages").open = false;
+    else if (q !== avant) $("#reglages").open = false;
     if (q !== 2 && d4.actif) basculerD4(false);
     if (q !== 4 && diag.actif) basculerDiag(false);
     if (q === 4 && diag.D && !diag.actif) basculerDiag(true);
@@ -1692,7 +1697,7 @@ document.getElementById("replier").addEventListener("click", e => {
       if (voie.actif) $("#sim-voie").click();
       if (sim.vue === "gain") $('[data-vue="apres"]').click();
     }
-    const mode = q === 2 ? "tout" : etat.mode, symbo = q === 1 ? "vitesse" : q === 2 ? "confort" : etat.symbo;
+    const mode = q === 2 ? "tout" : q === 1 && modePortee ? modePortee : etat.mode, symbo = q === 1 ? "vitesse" : q === 2 ? "confort" : etat.symbo;
     if (mode !== etat.mode || symbo !== etat.symbo) { etat.symbo = symbo; choisirMode(mode); }   // un seul recalcul
     majLien();
   }
