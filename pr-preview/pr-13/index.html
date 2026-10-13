@@ -207,10 +207,20 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .panneau[data-q="3"] .bloc[data-q]:not([data-q~="3"]),.panneau[data-q="4"] .bloc[data-q]:not([data-q~="4"]){display:none}
 @media (max-width:720px){.question{padding:8px 18px 0;font-size:.92rem}.panneau.replie .question,.panneau.replie .depart{display:none}}
 .legende-carte{position:absolute;z-index:900;right:12px;bottom:26px;width:290px;background:var(--papier);border-radius:10px;box-shadow:0 6px 20px rgba(0,40,52,.2);padding:10px 12px}
-.legende-carte h2{margin-bottom:6px}
+.legende-carte h2{margin-bottom:6px;padding-right:26px}
+.plier-legende{position:absolute;top:5px;right:5px;display:flex;align-items:center;gap:6px;height:28px;min-width:28px;justify-content:center;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--ardoise);font:600 .82rem var(--sans);cursor:pointer}
+.plier-legende:hover{background:var(--brume);color:var(--abysse)}
+.plier-legende .txt{display:none}
+.plier-legende .fl{font-size:1.05rem;line-height:1;transition:transform .2s}
+#sim-legende-gain>:first-child{padding-right:26px;margin-top:0}
+.legende-carte.pliee{width:auto;padding:0}
+.legende-carte.pliee #legende-corps{display:none}
+.legende-carte.pliee .plier-legende{position:static;height:36px;padding:0 12px;color:var(--abysse)}
+.legende-carte.pliee .plier-legende .txt{display:inline}
+.legende-carte.pliee .plier-legende .fl{transform:rotate(180deg)}
 .legende-carte .note{font-size:.76rem;margin-top:5px}
 .legende-carte .case-reseau{margin-top:8px}
-@media (max-width:720px){.legende-carte{top:8px;bottom:auto;left:8px;right:56px;width:auto;padding:7px 9px}.legende-carte .note{display:none}
+@media (max-width:720px){.legende-carte{top:8px;bottom:auto;left:8px;right:56px;width:auto;padding:7px 9px}.legende-carte.pliee{right:auto;padding:0}.plier-legende .fl{transform:rotate(180deg)}.legende-carte.pliee .plier-legende .fl{transform:none}   /* légende en haut : la flèche montre le sens du dépliage */.legende-carte .note{display:none}
   .legende-carte .lire .note{display:block}.legende-carte .lire[open]{max-height:38vh;overflow-y:auto}}
 .entete p{display:none}   /* la question sous les onglets dit déjà de quoi il s'agit */
 /* Allègement (13/10/2026) : départ fixe sous la question, explications repliées, lien et crédits dans l'en-tête */
@@ -249,6 +259,9 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
 
 <!-- Légende détachée du panneau (13/10/2026) : visible quel que soit l'onglet ; montre la légende de la carte affichée -->
 <div class="legende-carte" id="legende-carte" aria-label="Légende de la carte">
+  <!-- Pliable (13/10/2026) : sur mobile, elle cachait le haut de la carte ; pliée par défaut sur petit écran -->
+  <button type="button" class="plier-legende" id="plier-legende" aria-expanded="true" aria-controls="legende-corps" aria-label="Replier la légende" title="Replier la légende"><span class="txt">Légende</span><span class="fl" aria-hidden="true">▾</span></button>
+  <div id="legende-corps">
   <div id="legendes-temps">
     <div id="legende-vitesse">
       <h2>Temps de trajet en minutes</h2>
@@ -288,6 +301,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes</span>
     <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
   </label>
+  </div>
 </div>
 
 <aside class="panneau" data-q="1" aria-label="Réglages et résultats">
@@ -462,6 +476,24 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="coeur.js"></script>
 <script>
+// Légende pliable ; choix retenu d'une visite à l'autre, sinon pliée sur petit écran
+(() => {
+  const carteLeg = document.getElementById("legende-carte"), bouton = document.getElementById("plier-legende"), CLE = "portee-velo.legende";
+  const plier = pliee => {
+    carteLeg.classList.toggle("pliee", pliee);
+    bouton.setAttribute("aria-expanded", String(!pliee));
+    const lib = pliee ? "Déplier la légende" : "Replier la légende";
+    bouton.setAttribute("aria-label", lib); bouton.title = lib;
+  };
+  let choix = null;
+  try { choix = localStorage.getItem(CLE); } catch { /* stockage bloqué : réglage par défaut */ }
+  plier(choix ? choix === "pliee" : matchMedia("(max-width:720px)").matches);
+  bouton.addEventListener("click", () => {
+    const pliee = !carteLeg.classList.contains("pliee");
+    plier(pliee);
+    try { localStorage.setItem(CLE, pliee ? "pliee" : "ouverte"); } catch { /* sans mémoire */ }
+  });
+})();
 // Mobile : replier / déplier le volet du bas
 document.getElementById("replier").addEventListener("click", e => {
   const replie = document.querySelector(".panneau").classList.toggle("replie");
