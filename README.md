@@ -1,6 +1,6 @@
 # À portée de vélo – Charente-Maritime
 
-Carte interactive des temps de trajet à vélo en Charente-Maritime, et du confort de ces trajets.
+**La carte montre jusqu'où on va à vélo, si on peut y aller tranquillement, et ce qu'il faudrait aménager pour que ce soit le cas.**
 
 👉 **https://sit-pmo.github.io/portee-velo/**
 
@@ -9,44 +9,61 @@ Vues limitées à un territoire (seul le territoire est coloré, pourcentages de
 - île d'Oléron : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
 - Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : **https://sit-pmo.github.io/portee-velo/?territoire=pmo**
 
-Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
+## Cinq questions
 
-## Objectif
+| Question | Ce qui y répond |
+|---|---|
+| 1. Jusqu'où je vais en 15 ou 30 minutes ? | la carte des temps, qui suit la souris |
+| 2. Est-ce que j'y vais sans prendre la départementale ? | « Temps et confort » : bleu, gris, orange |
+| 3. Qu'est-ce qui coince ? | les traits noirs, et le classement des maillons manquants de l'île |
+| 4. Et si on aménageait ici ? | « Simuler un aménagement » : avant, après, gain |
+| 5. Les habitants ont-ils l'essentiel à portée, tranquillement ? | « Territoire de la demi-heure » |
 
-Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, dans quel confort, et où il manque des liaisons.
+Les questions 1, 2 et 4 marchent sur tout le département, comme les traits noirs de la question 3. Le classement des maillons de l'île demande la vue île d'Oléron, la question 5 la vue île d'Oléron ou 14 communes.
+
+## 1. Jusqu'où je vais ?
+
+Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
 Deux réseaux :
 
-- **Pistes et bandes** : le réseau aménagé (pistes, voies vertes, bandes), avec de courtes liaisons entre deux pistes (jusqu'à 200 m sur rue calme ou chemin, 100 m sur route) et les traversées de chaussée. En gris, les secteurs à plus de 800 m de ce réseau.
-- **Pistes + routes** : le réseau aménagé complété par les routes et chemins.
+- **Pistes + routes** : le réseau aménagé (pistes, voies vertes, bandes) complété par les routes et chemins. C'est le temps du trajet le plus rapide.
+- **Pistes et bandes** : le réseau aménagé seul, avec de courtes liaisons entre deux pistes (jusqu'à 200 m sur rue calme ou chemin, 100 m sur route) et les traversées de chaussée. En gris, les secteurs à plus de 800 m de ce réseau.
 
-Deux lectures en mode « Pistes + routes » :
+## 2. Est-ce que j'y vais tranquillement ?
 
-- **Temps** : temps du trajet le plus rapide, de 5 à 60 minutes.
-- **Temps et confort** : la clarté donne le même temps ; la teinte dit ce que coûte un trajet **tranquille** (qui préfère pistes, bandes, rues calmes et chemins, chaque minute restante sur route exposée comptant pour 4) par rapport au plus rapide : bleu = moins de 20 % de plus, gris = 20 à 50 %, orange = plus de 50 %. La couleur décrit le trajet depuis le départ, pas l'équipement du lieu : une piste qu'on ne rejoint que par la route reste orange. Les **traits noirs** marquent les tronçons de route par lesquels passent les trajets les plus rapides vers les secteurs orange : les maillons manquants.
+En mode « Pistes + routes », le bouton **Temps et confort** ajoute une teinte. La clarté donne toujours le temps ; la teinte dit ce que coûte un trajet **tranquille** (qui préfère pistes, bandes, rues calmes et chemins, chaque minute restante sur route exposée comptant pour 4) par rapport au plus rapide :
+
+- **bleu** : moins de 20 % de temps en plus, on y va tranquillement ;
+- **gris** : 20 à 50 % de plus ;
+- **orange** : plus de 50 %, en pratique il faut prendre la route.
+
+La couleur décrit le trajet depuis le départ, pas l'équipement du lieu : une piste qu'on ne rejoint que par la route reste orange.
 
 Classement des voies : **calmes** = rues, voies de service, voies communales, chemins ; **exposées** = routes départementales tertiaires ; **très exposées** = routes secondaires et principales.
 
-## Simuler un aménagement
+## 3. Qu'est-ce qui coince ?
+
+Les **traits noirs** marquent les tronçons de route par lesquels passent les trajets les plus rapides vers les secteurs orange : ce sont les maillons manquants, vus depuis le départ choisi.
+
+Avec `?territoire=oleron`, le bloc **« Maillons manquants de l'île »** passe d'un départ à toute l'île. Pour chaque départ d'une grille régulière de 250 m, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
+
+Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
+
+## 4. Et si on aménageait ici ?
 
 Pour mesurer l'effet d'une future piste avant de la financer, par exemple sur un maillon manquant :
 
 - **Tracer un tronçon** : cliquez les sommets de la piste, double-clic (ou Entrée) pour terminer. La piste est raccordée à chaque voie qu'elle croise, et à la voie la plus proche de chaque sommet posé à moins de 25 m (point plein ; cercle creux sinon). Un tronçon qui ne croise rien et dont aucun sommet n'est raccordé reste sans effet.
-- **Importer** un GeoJSON de lignes, en WGS84 ou en Lambert 93 (reconnu automatiquement), par exemple un projet dessiné dans QGIS ; **Exporter** pour reprendre les tracés ailleurs.
 - **Aménager une voie** : chaque clic sur une route la transforme en piste jusqu'aux deux carrefours les plus proches ; cliquez la suite pour la prolonger, Échap pour arrêter.
+- **Importer** un GeoJSON de lignes, en WGS84 ou en Lambert 93 (reconnu automatiquement), par exemple un projet dessiné dans QGIS ; **Exporter** pour reprendre les tracés ailleurs.
 - **Modifier** : cliquez un tronçon, puis faites glisser ses sommets ; cliquez sur son trait (ou sur une poignée de milieu) pour ajouter un sommet, clic droit pour en supprimer un.
 
 La piste simulée compte comme une piste existante (20 km/h, double sens). La carte montre l'**Après** ; **Avant** revient à l'existant ; **Gain** ne colore que les secteurs améliorés : minutes gagnées en « Temps », passage au bleu en « Temps et confort » (une piste le long d'une route change surtout le confort). Le bandeau chiffre le gain en km² atteints (en points de % dans les vues territoire) et en km² passés au bleu.
 
 Les tronçons voyagent dans le lien « Copier le lien de cette vue » (jusqu'à quelques centaines de sommets ; au-delà, exportez-les en GeoJSON) et sont gardés dans votre navigateur d'une visite à l'autre.
 
-## Maillons manquants de l'île (vue Oléron)
-
-Avec `?territoire=oleron`, le bloc « Maillons manquants de l'île » classe les voies qui coupent le plus souvent l'accès tranquille. Pour chaque départ d'une grille régulière de 250 m couvrant l'île, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
-
-Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
-
-## Territoire de la demi-heure
+## 5. Les habitants ont-ils l'essentiel à portée ?
 
 Inspiré de la ville du quart d'heure de Carlos Moreno et de son « territoire de la demi-heure » pour les territoires peu denses : peut-on assurer les fonctions du quotidien à vélo, **tranquillement** ? Neuf fonctions, chacune à son seuil :
 
@@ -60,14 +77,15 @@ Pour chaque habitant et chaque fonction, trois cas :
 - **Route seulement** : dans le seuil, mais en passant par une route exposée. Un aménagement cyclable peut y répondre ;
 - **Trop loin** : au-delà du seuil même par la route. C'est une question de service, pas de piste.
 
-En vue territoire (`?territoire=oleron` ou `pmo`), le bloc « L'île de la demi-heure » donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste. Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
+En vue territoire (`?territoire=oleron` ou `pmo`), le bloc « L'île de la demi-heure » donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste (question 4). Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
 
-Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. À relancer après chaque tuilage.
+Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; les équipements y sont à leur position exacte (au mètre près), et ceux que l'Insee localise mal (qualité « acceptable » ou « mauvaise ») sont repositionnés par géocodage BAN vérifié (`departement17/corriger_bpe.py` → `corrections_bpe.csv`, option `--corrections`) ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. À relancer après chaque tuilage.
 
 ## Données
 
 - **Réseau cyclable des collectivités** sur les 14 communes du Pôle Marennes-Oléron : CdC de l'Île d'Oléron (183 km) et CC du Bassin de Marennes (75 km), complétés par les aménagements OpenStreetMap absents de ces bases, vérifiés un par un dans QGIS. Là, la donnée des collectivités fait foi et remplace les pistes OpenStreetMap ; elle est raccordée aux routes à chaque croisement et aux extrémités (voie la plus proche à moins de 25 m). Les tronçons en projet sont exclus.
 - **OpenStreetMap** partout ailleurs, et pour les routes et chemins sur tout le département. La qualité du réseau cyclable dépend donc de la cartographie OpenStreetMap locale.
+- **Équipements et habitants** (question 5) : Base permanente des équipements 2025 et Filosofi 2021 carroyé de l'Insee.
 
 ## Modèle de calcul
 

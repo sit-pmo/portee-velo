@@ -1129,7 +1129,8 @@ function preparerComptages(A) {
   return {
     W: A.W, domaines: A.domaines || [], types: A.types || [], sources: A.sources || [],
     fonctions: A.fonctions || [],          // [{ id, libelle, seuil }] : bit b de eq.f = fonction b
-    eq: eq ? { k: cumul(eq.k), t: Int32Array.from(eq.t), d: Int8Array.from(eq.d), f: Int32Array.from(eq.f || []) } : null,
+    eq: eq ? { k: cumul(eq.k), t: Int32Array.from(eq.t), d: Int8Array.from(eq.d), f: Int32Array.from(eq.f || []),
+                p: eq.p ? Int16Array.from(eq.p) : null } : null,   // p = 100 × ligne + colonne dans la cellule (centièmes)
     couches: (A.couches || []).map(c => ({ id: c.id, libelle: c.libelle, unite: c.unite || "", source: c.source,
       k: cumul(c.k), v: Float64Array.from(c.v, x => x / (c.echelle || 1)) })),
     communes: A.communes || null,          // { liste: [[code, nom]], c: commune de chaque entrée de la couche population }
@@ -1233,7 +1234,7 @@ function minutesAcces(P, Gs, lon, lat, limiteS) {
   return { pistes, tranquille, tous, resTous };   // resTous : arbre des plus rapides (itinéraires, maillons)
 }
 
-// Équipements de la fenêtre pour la carte : centre de cellule, domaine, type, minutes (Infinity si non atteint)
+// Équipements de la fenêtre pour la carte : position exacte (ou centre de cellule), domaine, type, minutes (Infinity si non atteint)
 function equipementsFenetre(Cm, ix, g, minutes, compte) {
   if (!Cm.eq) return [];
   const out = [];
@@ -1241,7 +1242,9 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
     const c = ix.eq[x];
     if (c < 0 || !compte[c]) continue;
     const i = c % g.nx, j = (c - i) / g.nx;
-    out.push({ cellule: c, lon: g.w + (i + .5) * g.dlon, lat: g.n - (j + .5) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], f: Cm.eq.f[x],
+    // Position exacte si comptages.py l'a donnée (p), sinon centre de cellule
+    const p = Cm.eq.p, dx = p ? (p[x] % 100 + .5) / 100 : .5, dy = p ? (Math.floor(p[x] / 100) + .5) / 100 : .5;
+    out.push({ cellule: c, lon: g.w + (i + dx) * g.dlon, lat: g.n - (j + dy) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], f: Cm.eq.f[x],
                min: minutes && minutes[c] >= 0 ? minutes[c] : Infinity });
   }
   return out;
