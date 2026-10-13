@@ -16,7 +16,7 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 |---|---|---|
 | [1. Jusqu'où je vais en 15 ou 30 minutes ?](#1-jusquoù-je-vais-) | la carte des temps, qui suit la souris | Portée |
 | [2. Est-ce que j'y vais sans prendre la départementale ?](#2-est-ce-que-jy-vais-tranquillement-) | « Temps et confort » : bleu, gris, orange | Confort |
-| [3. Qu'est-ce qui coince ?](#3-quest-ce-qui-coince-) | les traits noirs, et le classement des maillons manquants de l'île | Confort |
+| [3. Qu'est-ce qui coince ?](#3-quest-ce-qui-coince-) | les traits noirs, le classement des maillons manquants de l'île, les croisements avec les routes et leur vitesse | Confort |
 | [4. Et si on aménageait ici ?](#4-et-si-on-aménageait-ici-) | « Simuler un aménagement » : avant, après, gain | Simuler |
 | [5. Les habitants ont-ils l'essentiel à portée, tranquillement ?](#5-les-habitants-ont-ils-lessentiel-à-portée-) | « Territoire de la demi-heure » | Services |
 
@@ -70,6 +70,19 @@ Les **traits noirs** marquent les tronçons de route par lesquels passent les tr
 Avec `?territoire=oleron`, l'onglet Confort propose le bloc **« Maillons manquants de l'île »**, qui passe d'un départ à toute l'île. Pour chaque départ d'une grille régulière de 250 m, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
+
+### Où le réseau cyclable croise les routes
+
+👉 [Essayer : les croisements avec les RD sur l'île d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=2&x=rd)
+
+Dans l'onglet Confort, deux boutons (combinables) affichent les points où une piste, une voie verte ou une bande cyclable rencontre une route, traversée ou retour sur la chaussée :
+
+- **Croisements avec les RD** : routes départementales (ref OpenStreetMap « D … » ; un tronçon sans ref qui prolonge une RD, par exemple dans une traversée de bourg, en prend la ref) ;
+- **Avec les autres routes** : nationales, voies communales, rues et chemins.
+
+La couleur donne la limitation de vitesse de la route croisée : 30 km/h ou moins, 50, 70, 80, 90 et plus, gris pour un chemin. Une grande pastille marque une piste ou une voie verte, une petite une bande. Pour une bande, la chaussée qui la porte n'est pas comptée, seules les voies qui la coupent le sont. Le contour est plein quand la vitesse vient d'OpenStreetMap (`maxspeed`, `zone:maxspeed`), pointillé quand elle est présumée : 20 km/h en zone de rencontre, 50 km/h en agglomération, 80 km/h hors agglomération, l'agglomération étant devinée à la densité de rues (au moins 800 m de rues à moins de 200 m). Les croisements de même catégorie à moins de 15 m sont fusionnés (le plus rapide est gardé). Un clic sur une pastille donne la route et l'origine de la vitesse. Le bloc compte les croisements du territoire, et ceux à 70 km/h ou plus.
+
+Préparation : `departement17/intersections.py --parquet <les 3 régions>` lit le graphe dans les tuiles du site et les tags des routes dans les GeoParquet OpenStreetMap, et produit `tuiles/intersections.json` (environ 40 secondes). À relancer après chaque tuilage.
 
 ## 4. Et si on aménageait ici ?
 
