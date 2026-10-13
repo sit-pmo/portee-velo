@@ -46,17 +46,23 @@ Avec `?territoire=oleron`, le bloc « Maillons manquants de l'île » classe les
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
 
-## Équipements et habitants à portée
+## Territoire de la demi-heure
 
-Si `tuiles/accessibilite.json` est présent, le bloc « À portée depuis ce départ » compte ce qui tombe dans les cellules atteintes à 15 ou 30 min : habitants et résidences principales (Filosofi carroyé), emplacements de camping ou toute autre couche de points pondérés, et équipements, services et commerces de la Base permanente des équipements (BPE) par domaine. Trois colonnes, quel que soit le réseau choisi en haut :
+Inspiré de la ville du quart d'heure de Carlos Moreno et de son « territoire de la demi-heure » pour les territoires peu denses : peut-on assurer les fonctions du quotidien à vélo, **tranquillement** ? Neuf fonctions, chacune à son seuil :
 
-- **Pistes seules** : le réseau aménagé, avec ses courtes liaisons ;
-- **Tranquille** : par les pistes, ou routes comprises dans les cellules en bleu (éviter la route exposée y coûte moins de 20 % de temps en plus) ;
-- **Tous trajets** : routes comprises.
+| 15 min | 30 min |
+|---|---|
+| alimentation, boulangerie, école | médecin généraliste, pharmacie, poste, collège, supermarché, équipement sportif |
 
-En vue territoire, seul le territoire compte et chaque valeur est rapportée à son total. Le **panier du quotidien** (alimentation, boulangerie, pharmacie, médecin généraliste, école, poste) est compté selon les trois mesures ; chaque élément est coloré par la meilleure qui l'atteint. « Montrer les équipements » les place sur la carte (plein = par les pistes ou tranquillement, pâle = par la route seulement, creux = au-delà). Avec des tronçons simulés, le gain s'affiche en violet.
+Pour chaque habitant et chaque fonction, trois cas :
 
-Le fichier est préparé par `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi, points pondérés), à relancer après chaque tuilage. `departement17/quart_heure.js` calcule, pour chaque cellule habitée d'un territoire et selon les trois mesures, les éléments du panier atteints, et la part des habitants qui l'ont en entier à 15 min (synthèse JSON et GeoJSON pour QGIS).
+- **Tranquille** : par les pistes, ou par des voies calmes (le trajet qui évite la route exposée coûte moins de 20 % de temps en plus) ;
+- **Route seulement** : dans le seuil, mais en passant par une route exposée. Un aménagement cyclable peut y répondre ;
+- **Trop loin** : au-delà du seuil même par la route. C'est une question de service, pas de piste.
+
+En vue territoire (`?territoire=oleron` ou `pmo`), le bloc « L'île de la demi-heure » donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste. Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
+
+Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. À relancer après chaque tuilage.
 
 ## Données
 

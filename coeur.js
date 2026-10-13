@@ -1127,10 +1127,12 @@ function preparerComptages(A) {
   const cumul = d => { const t = new Float64Array(d.length); let s = 0; for (let x = 0; x < d.length; x++) { s += d[x]; t[x] = s; } return t; };
   const eq = A.equipements;
   return {
-    W: A.W, domaines: A.domaines || [], panier: A.panier || [], types: A.types || [], sources: A.sources || [],
-    eq: eq ? { k: cumul(eq.k), t: Int32Array.from(eq.t), d: Int8Array.from(eq.d), p: Int8Array.from(eq.p) } : null,
+    W: A.W, domaines: A.domaines || [], types: A.types || [], sources: A.sources || [],
+    fonctions: A.fonctions || [],          // [{ id, libelle, seuil }] : bit b de eq.f = fonction b
+    eq: eq ? { k: cumul(eq.k), t: Int32Array.from(eq.t), d: Int8Array.from(eq.d), f: Int32Array.from(eq.f || []) } : null,
     couches: (A.couches || []).map(c => ({ id: c.id, libelle: c.libelle, unite: c.unite || "", source: c.source,
       k: cumul(c.k), v: Float64Array.from(c.v, x => x / (c.echelle || 1)) })),
+    communes: A.communes || null,          // { liste: [[code, nom]], c: commune de chaque entrée de la couche population }
   };
 }
 
@@ -1153,17 +1155,16 @@ function indexerComptages(Cm, g) {
 function compterAtteints(Cm, ix, minutes, seuils, compte) {
   const S = seuils.length, max = seuils[S - 1];
   const zeros = n => seuils.map(() => new Array(n).fill(0));
-  const r = { total: new Array(S).fill(0), domaines: zeros(Cm.domaines.length), panier: zeros(Cm.panier.length), couches: zeros(Cm.couches.length) };
+  const r = { total: new Array(S).fill(0), domaines: zeros(Cm.domaines.length), couches: zeros(Cm.couches.length) };
   const premier = m => { if (!minutes) return 0; if (!(m <= max)) return S; let s = 0; while (m > seuils[s]) s++; return s; };
   if (Cm.eq) {
-    const { d, p } = Cm.eq, loc = ix.eq;
+    const { d } = Cm.eq, loc = ix.eq;
     for (let x = 0; x < loc.length; x++) {
       const c = loc[x];
       if (c < 0 || !compte[c]) continue;
       for (let s = premier(minutes && minutes[c]); s < S; s++) {
         r.total[s]++;
         if (d[x] >= 0) r.domaines[s][d[x]]++;
-        if (p[x] >= 0) r.panier[s][p[x]]++;
       }
     }
   }
@@ -1178,17 +1179,31 @@ function compterAtteints(Cm, ix, minutes, seuils, compte) {
   return r;
 }
 
-// Temps (min) vers l'équipement le plus proche de chaque élément du panier du quotidien (Infinity si aucun atteint)
-function panierPlusProche(Cm, ix, minutes, compte) {
-  const out = Cm.panier.map(() => Infinity);
+// Équipement le plus proche de chaque fonction : { min (minutes, Infinity si aucun atteint), cellule (-1) }
+function plusProcheParFonction(Cm, ix, minutes, compte) {
+  const out = Cm.fonctions.map(() => ({ min: Infinity, cellule: -1 }));
   if (!Cm.eq || !minutes) return out;
-  const p = Cm.eq.p, loc = ix.eq;
+  const f = Cm.eq.f, loc = ix.eq, nF = out.length;
   for (let x = 0; x < loc.length; x++) {
     const c = loc[x];
-    if (c < 0 || p[x] < 0 || !compte[c]) continue;
-    if (minutes[c] < out[p[x]]) out[p[x]] = minutes[c];
+    if (c < 0 || !f[x] || !compte[c]) continue;
+    const m = minutes[c];
+    if (!(m < Infinity)) continue;
+    for (let b = 0; b < nF; b++) if (f[x] & (1 << b) && m < out[b].min) { out[b].min = m; out[b].cellule = c; }
   }
   return out;
+}
+
+// Cas de chaque fonction depuis un départ (cadre « territoire de la demi-heure ») : 0 tranquille (pistes ou voies
+// calmes, au plus le seuil de la fonction), 1 route seulement (au plus le seuil en passant par une route exposée),
+// 2 trop loin (au-delà du seuil même par la route). M = minutesAcces.
+const CAS = ["tranquille", "route", "loin"];
+function casFonctions(Cm, ix, M, compte) {
+  const tr = plusProcheParFonction(Cm, ix, M.tranquille, compte), to = plusProcheParFonction(Cm, ix, M.tous, compte);
+  return Cm.fonctions.map((fn, b) => ({
+    cas: tr[b].min <= fn.seuil ? 0 : to[b].min <= fn.seuil ? 1 : 2,
+    tranquille: tr[b].min, tous: to[b].min, celluleTous: to[b].cellule,
+  }));
 }
 
 // Trois mesures d'accès par cellule depuis (lon, lat), en minutes (Infinity si non atteint) :
@@ -1200,15 +1215,22 @@ function panierPlusProche(Cm, ix, minutes, compte) {
 // Gs = graphes de la fenêtre ({ tout, amenage, confort }). Coût : trois Dijkstra.
 function minutesAcces(P, Gs, lon, lat, limiteS) {
   const N = P.grille.nx * P.grille.ny, vide = () => new Float32Array(N).fill(Infinity);
-  const temps = G => { const acc = departs(P, G, lon, lat); return acc.length ? tempsGrille(P, G, dijkstra(G, sourcesDijkstra(acc), 0, limiteS)) : vide(); };
-  const tous = temps(Gs.tout), pistes = temps(Gs.amenage);
+  let resTous = null;
+  const temps = (G, garder) => {
+    const acc = departs(P, G, lon, lat);
+    if (!acc.length) return vide();
+    const res = dijkstra(G, sourcesDijkstra(acc), 0, limiteS);
+    if (garder) resTous = res;
+    return tempsGrille(P, G, res);
+  };
+  const tous = temps(Gs.tout, true), pistes = temps(Gs.amenage);
   const conf = minutesTranquilles(P, Gs.confort, lon, lat, limiteS * CFG.confort.surcout[1]);
   const tranquille = vide();
   for (let k = 0; k < N; k++) {
     if (tous[k] < Infinity && teinteConfort(tous[k], conf[k]) === 0) tranquille[k] = tous[k];
     if (pistes[k] < tranquille[k]) tranquille[k] = pistes[k];   // ce qu'on atteint par les pistes est tranquille aussi
   }
-  return { pistes, tranquille, tous };
+  return { pistes, tranquille, tous, resTous };   // resTous : arbre des plus rapides (itinéraires, maillons)
 }
 
 // Équipements de la fenêtre pour la carte : centre de cellule, domaine, type, minutes (Infinity si non atteint)
@@ -1219,7 +1241,7 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
     const c = ix.eq[x];
     if (c < 0 || !compte[c]) continue;
     const i = c % g.nx, j = (c - i) / g.nx;
-    out.push({ cellule: c, lon: g.w + (i + .5) * g.dlon, lat: g.n - (j + .5) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], p: Cm.eq.p[x],
+    out.push({ cellule: c, lon: g.w + (i + .5) * g.dlon, lat: g.n - (j + .5) * g.dlat, d: Cm.eq.d[x], t: Cm.eq.t[x], f: Cm.eq.f[x],
                min: minutes && minutes[c] >= 0 ? minutes[c] : Infinity });
   }
   return out;
@@ -1228,6 +1250,6 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles,
-    preparerComptages, indexerComptages, compterAtteints, panierPlusProche, equipementsFenetre, minutesAcces };
+    preparerComptages, indexerComptages, compterAtteints, plusProcheParFonction, casFonctions, CAS, equipementsFenetre, minutesAcces };
 }
 // ===================================== FIN CŒUR =====================================
