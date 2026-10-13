@@ -9,7 +9,13 @@ Vues limitées à un territoire (seul le territoire est coloré, pourcentages de
 - île d'Oléron : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
 - Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : **https://sit-pmo.github.io/portee-velo/?territoire=pmo**
 
+## Objectif
+
+Rendre visible, en un coup d'œil, ce que le réseau cyclable permet réellement d'atteindre à vélo, dans quel confort, et où il manque des liaisons. Puis aider à décider : mesurer ce qu'apporterait un aménagement avant de le financer, et vérifier si les habitants ont les services du quotidien à portée de vélo, tranquillement.
+
 ## Cinq questions
+
+L'outil répond à cinq questions, de la plus simple à la plus politique :
 
 | Question | Ce qui y répond |
 |---|---|
