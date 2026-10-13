@@ -391,8 +391,9 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
       </div>
       <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise (petit point). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
       <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
-      <!-- Liste repliable (12/10/2026) : avec une dizaine de tronçons, elle repoussait tout le reste du panneau -->
-      <details class="sim-replier" id="sim-details" open hidden>
+      <!-- Liste repliable (12/10/2026) : avec une dizaine de tronçons, elle repoussait tout le reste du panneau ; repliée
+           par défaut et à chaque tracé (13/10/2026), pour garder Avant / Après / Gain en vue -->
+      <details class="sim-replier" id="sim-details" hidden>
         <summary id="sim-resume"></summary>
         <ul class="sim-liste" id="sim-liste"></ul>
       </details>
@@ -1180,6 +1181,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (outil.actif) return;
     finirVoie();
     outil.actif = true; outil.sommets = []; outil.raccords = []; outil.suiviAvant = etat.suivre;
+    $("#sim-details").open = false;
     suivre(false); carte.doubleClickZoom.disable();
     selectionner(-1);
     $("#sim-tracer").setAttribute("aria-pressed", "true"); $("#sim-tracer").textContent = "Terminer le tronçon";
@@ -1216,6 +1218,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (voie.actif) return;
     finirTrace(false);
     voie.actif = true; voie.ajoute = false; voie.suiviAvant = etat.suivre;
+    $("#sim-details").open = false;
     suivre(false); selectionner(-1);
     $("#sim-voie").setAttribute("aria-pressed", "true");
     $("#sim-consigne-voie").hidden = false;
