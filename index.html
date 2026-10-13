@@ -197,34 +197,84 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .sommet-sim{width:12px;height:12px;border-radius:50%;border:2.5px solid #7B2CBF;background:#fff;box-shadow:0 0 0 1.5px #fff;box-sizing:border-box}
 .sommet-sim.raccorde{background:#7B2CBF}
 .milieu-sim{width:11px;height:11px;border-radius:50%;background:#7B2CBF;opacity:.7;cursor:copy;border:1.5px solid #fff;box-sizing:border-box}
+/* Onglets par question (13/10/2026) : les blocs data-q n'apparaissent que dans leurs onglets */
+.onglets{display:grid;grid-template-columns:repeat(5,1fr);background:var(--abysse);padding:0 10px}
+.onglets button{font:600 .74rem var(--sans);border:0;border-radius:8px 8px 0 0;padding:6px 2px 7px;background:transparent;color:#c9edf5;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
+.onglets button b{font:700 1.05rem var(--serif)}
+.onglets button[aria-selected="true"]{background:var(--papier);color:var(--abysse)}
+.question{margin:0;padding:12px 22px 2px;font-family:var(--serif);font-size:1.02rem;line-height:1.3;color:var(--abysse)}
+.panneau[data-q="1"] .bloc[data-q]:not([data-q~="1"]),.panneau[data-q="2"] .bloc[data-q]:not([data-q~="2"]),
+.panneau[data-q="3"] .bloc[data-q]:not([data-q~="3"]),.panneau[data-q="4"] .bloc[data-q]:not([data-q~="4"]),
+.panneau[data-q="5"] .bloc[data-q]:not([data-q~="5"]){display:none}
+@media (max-width:720px){.question{padding:8px 18px 0;font-size:.92rem}.panneau.replie .question{display:none}}
+.legende-carte{position:absolute;z-index:900;right:12px;bottom:26px;width:290px;background:var(--papier);border-radius:10px;box-shadow:0 6px 20px rgba(0,40,52,.2);padding:10px 12px}
+.legende-carte h2{margin-bottom:6px}
+.legende-carte .note{font-size:.76rem;margin-top:5px}
+.legende-carte .case-reseau{margin-top:8px}
+@media (max-width:720px){.legende-carte{top:8px;bottom:auto;left:8px;right:56px;width:auto;padding:7px 9px}.legende-carte .note{display:none}}
+.defile{display:flex;flex-direction:column}
+.defile>#bloc-acces{order:1}.defile>.socle{order:2}.defile>.fin{order:3}.defile>.credits{order:4}   /* onglet 5 : diagnostic (sur la carte) avant le tableau du départ */
+.entete p{display:none}   /* la question sous les onglets dit déjà de quoi il s'agit */
 [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <div id="carte" role="application" aria-label="Carte des temps de trajet à vélo en Charente-Maritime"></div>
 
-<aside class="panneau" aria-label="Réglages et résultats">
+<!-- Légende détachée du panneau (13/10/2026) : visible quel que soit l'onglet ; montre la légende de la carte affichée -->
+<div class="legende-carte" id="legende-carte" aria-label="Légende de la carte">
+  <div id="legendes-temps">
+    <div id="legende-vitesse">
+      <h2>Temps de trajet en minutes</h2>
+      <div class="legende" id="legende"></div>
+      <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45. Au-delà d'une heure : pas de couleur.</p>
+    </div>
+    <div id="legende-maquette" hidden>
+      <h2>Y aller tranquillement, à quel prix ?</h2>
+      <div id="grille-bivariee"></div>
+    </div>
+    <div id="sim-legende-gain" hidden></div>
+  </div>
+  <!-- Vues indépendantes du départ : diagnostic (onglet 5) et maillons cumulés (onglet 3) -->
+  <div id="legende-diag" hidden>
+    <h2>Lieux habités : les fonctions du quotidien</h2>
+    <div class="diag-legende" style="margin:0"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
+    <p class="note">Teinte soutenue = plus d'habitants. Traits noirs : maillons qui débloqueraient le plus d'habitants (violet : choisi).</p>
+  </div>
+  <div id="legende-d4" hidden>
+    <h2>Maillons manquants de l'île</h2>
+    <p class="note" style="margin:0"><span style="display:inline-block;width:26px;height:8px;background:#111;vertical-align:middle;border-radius:2px"></span> ≥ 10 % de l'île
+      <span style="display:inline-block;width:26px;height:5px;background:#111;vertical-align:middle;border-radius:2px;margin-left:6px"></span> ≥ 5 %
+      <span style="display:inline-block;width:26px;height:3px;background:#111;vertical-align:middle;border-radius:2px;margin-left:6px"></span> ≥ 2 %</p>
+    <p class="note">Part des départs de l'île pour lesquels la voie est un trait noir. Violet : voie choisie.</p>
+  </div>
+  <label class="case-reseau" for="voir-reseau">
+    <input type="checkbox" id="voir-reseau" checked>
+    <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes</span>
+    <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
+  </label>
+</div>
+
+<aside class="panneau" data-q="1" aria-label="Réglages et résultats">
   <header class="entete">
     <button type="button" class="replier" id="replier" aria-expanded="true"><span class="texte">Replier</span> <span class="fleche" aria-hidden="true">▾</span></button>
     <h1>À portée de vélo</h1>
     <p>Jusqu'où va-t-on à vélo depuis chaque point de la Charente-Maritime, et dans quel confort, d'après OpenStreetMap</p>
   </header>
+  <!-- Une question par onglet (13/10/2026) : l'onglet règle aussi la carte (allerA) -->
+  <nav class="onglets" role="tablist" aria-label="Questions">
+    <button type="button" role="tab" data-onglet="1" aria-selected="true" title="Jusqu'où je vais en 15 ou 30 minutes ?"><b>1</b>Portée</button>
+    <button type="button" role="tab" data-onglet="2" aria-selected="false" title="Est-ce que j'y vais sans prendre la départementale ?"><b>2</b>Confort</button>
+    <button type="button" role="tab" data-onglet="3" aria-selected="false" title="Qu'est-ce qui coince ?"><b>3</b>Freins</button>
+    <button type="button" role="tab" data-onglet="4" aria-selected="false" title="Et si on aménageait ici ?"><b>4</b>Simuler</button>
+    <button type="button" role="tab" data-onglet="5" aria-selected="false" title="Les habitants ont-ils l'essentiel à portée, tranquillement ?"><b>5</b>Services</button>
+  </nav>
+  <p class="question" id="question">Jusqu'où je vais en 15 ou 30 minutes ?</p>
   <div class="defile">
     <div id="erreur" class="erreur" hidden></div>
 
-    <div class="bloc">
-      <div class="bascule" role="group" aria-label="Réseau utilisé">
-        <button type="button" data-mode="amenage" aria-pressed="false">Pistes et bandes</button>
-        <button type="button" data-mode="tout" aria-pressed="true">Pistes + routes</button>
-      </div>
-      <p class="note" id="note-mode"></p>
-      <div class="bascule" id="bascule-symbo" role="group" aria-label="Couleur de la carte" style="margin-top:10px">
-        <button type="button" data-symbo="vitesse" aria-pressed="true">Temps</button>
-        <button type="button" data-symbo="confort" aria-pressed="false">Temps et confort</button>
-      </div>
-    </div>
-
-    <div class="bloc">
+    <!-- Socle commun à toutes les questions : adresse, départ, trajet (affiché après le contenu de la question) -->
+    <div class="bloc socle">
       <label class="etiquette" for="recherche">Chercher une adresse</label>
       <div class="recherche">
         <input id="recherche" type="search" autocomplete="off" placeholder="Adresse ou rue" aria-controls="suggestions">
@@ -236,7 +286,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <ul id="suggestions" class="suggestions" hidden></ul>
     </div>
 
-    <div class="bloc" aria-live="polite">
+    <div class="bloc socle" aria-live="polite">
       <button type="button" class="bouton" id="suivre" aria-pressed="false" hidden>Suivre la souris</button>
       <p id="consigne" class="consigne">Cliquez sur la carte pour choisir une arrivée. Faites glisser le repère D pour changer de départ.</p>
       <div id="resultat" hidden>
@@ -249,47 +299,39 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
       <p id="message" class="message" hidden></p>
     </div>
 
-    <div class="bloc">
+    <!-- Contenus propres à chaque question (data-q : onglets où le bloc apparaît) -->
+    <div class="bloc" data-q="1 4">
+      <div class="bascule" role="group" aria-label="Réseau utilisé">
+        <button type="button" data-mode="amenage" aria-pressed="false">Pistes et bandes</button>
+        <button type="button" data-mode="tout" aria-pressed="true">Pistes + routes</button>
+      </div>
+      <p class="note" id="note-mode"></p>
+    </div>
+
+    <div class="bloc" data-q="1">
       <h2 id="titre-couverture">Surface de terre atteinte depuis ce départ</h2>
       <div id="couverture" class="couverture"></div>
       <p class="note" id="note-couverture">Barre : part du disque qu'on couvrirait à 20 km/h en ligne droite (5 km de rayon en 15 min). La mer ne compte pas.</p>
     </div>
 
-    <div class="bloc" id="bloc-acces" hidden>
-      <h2 id="titre-acces">À portée depuis ce départ</h2>
-      <div class="bascule petite" id="acces-seuil" role="group" aria-label="Seuil de temps" style="margin-bottom:10px">
-        <button type="button" data-seuil-acces="15" aria-pressed="true">15 min</button>
-        <button type="button" data-seuil-acces="30" aria-pressed="false">30 min</button>
-      </div>
-      <div class="defile-x"><table class="acces" id="acces"></table></div>
-      <div id="fonctions-bloc" hidden>
-        <p class="fonctions-titre">Fonctions du quotidien depuis ce départ</p>
-        <ul class="cas-resume" id="fonctions-resume"></ul>
-        <ul class="fonctions" id="fonctions"></ul>
-      </div>
-      <label class="case-reseau" for="voir-equip" style="margin-top:10px">
-        <input type="checkbox" id="voir-equip">
-        <span class="entree">Montrer les équipements sur la carte</span>
-      </label>
-      <p class="note" id="note-acces"></p>
+    <div class="bloc" data-q="3">
+      <p class="note" style="margin:0">Traits noirs sur la carte : les tronçons de route exposée par lesquels passent les trajets les plus rapides vers les secteurs en orange depuis ce départ. Pour mesurer ce qu’apporterait leur aménagement : question 4.</p>
+      <p class="note" id="q3-ailleurs">Le classement des maillons manquants, tous départs confondus, existe pour <a href="?territoire=oleron#q=3">l'île d'Oléron</a>.</p>
     </div>
 
-    <div class="bloc" id="bloc-diag" hidden>
-      <h2 id="diag-titre">Territoire de la demi-heure</h2>
-      <p class="diag-resume" id="diag-resume"></p>
-      <table class="diag-table" id="diag-table"></table>
-      <div class="diag-legende"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
-      <button type="button" class="bouton" id="diag-vue" aria-pressed="false" style="margin-top:10px">Voir sur la carte</button>
-      <p class="diag-sous" id="diag-sous-communes"></p>
-      <div class="defile-x"><table class="diag-communes" id="diag-communes"></table></div>
-      <p class="diag-sous" id="diag-sous-maillons"></p>
-      <ol class="diag-maillons" id="diag-maillons"></ol>
-      <button type="button" class="bouton petit" id="diag-amenager" hidden style="margin-top:8px">Aménager et voir le gain</button>
-      <p class="note" id="diag-note"></p>
+    <div class="bloc" id="bloc-d4" data-q="3" hidden>
+      <h2>Maillons manquants de l'île</h2>
+      <button type="button" class="bouton" id="d4-vue" aria-pressed="false">Vue cumulée</button>
+      <ol class="sim-liste" id="d4-liste" hidden></ol>
+      <button type="button" class="bouton petit" id="d4-amenager" hidden>Aménager et voir le gain</button>
+      <p class="note" id="d4-note"></p>
     </div>
 
-    <div class="bloc" id="bloc-sim">
-      <h2>Simuler un aménagement</h2>
+    <div class="bloc" id="bloc-sim" data-q="4">
+      <div class="bascule" id="bascule-symbo" role="group" aria-label="Couleur de la carte" style="margin-bottom:12px">
+        <button type="button" data-symbo="vitesse" aria-pressed="true">Temps</button>
+        <button type="button" data-symbo="confort" aria-pressed="false">Temps et confort</button>
+      </div>
       <div class="sim-actions">
         <button type="button" class="bouton" id="sim-tracer" aria-pressed="false">Tracer un tronçon</button>
         <button type="button" class="bouton" id="sim-voie" aria-pressed="false">Aménager une voie</button>
@@ -310,41 +352,55 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
         <button type="button" data-vue="gain" aria-pressed="false">Gain</button>
       </div>
       <div id="sim-gains" class="sim-gains" hidden></div>
-      <div id="sim-legende-gain" hidden></div>
       <p class="note" id="sim-gain-vide" hidden></p>
       <p class="note" id="sim-info" hidden></p>
       <button type="button" class="lien-action" id="sim-effacer" hidden>Tout effacer</button>
       <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets, puis sur son trait pour en ajouter un.</p>
     </div>
 
-    <div class="bloc" id="bloc-d4" hidden>
-      <h2>Maillons manquants de l'île</h2>
-      <button type="button" class="bouton" id="d4-vue" aria-pressed="false">Vue cumulée</button>
-      <ol class="sim-liste" id="d4-liste" hidden></ol>
-      <button type="button" class="bouton petit" id="d4-amenager" hidden>Aménager et voir le gain</button>
-      <p class="note" id="d4-note"></p>
+    <div class="bloc" id="bloc-acces" data-q="5" hidden>
+      <h2 id="titre-acces">À portée depuis ce départ</h2>
+      <div class="bascule petite" id="acces-seuil" role="group" aria-label="Seuil de temps" style="margin-bottom:10px">
+        <button type="button" data-seuil-acces="15" aria-pressed="true">15 min</button>
+        <button type="button" data-seuil-acces="30" aria-pressed="false">30 min</button>
+      </div>
+      <div class="defile-x"><table class="acces" id="acces"></table></div>
+      <div id="fonctions-bloc" hidden>
+        <p class="fonctions-titre">Fonctions du quotidien depuis ce départ</p>
+        <ul class="cas-resume" id="fonctions-resume"></ul>
+        <ul class="fonctions" id="fonctions"></ul>
+      </div>
+      <label class="case-reseau" for="voir-equip" style="margin-top:10px">
+        <input type="checkbox" id="voir-equip">
+        <span class="entree">Montrer les équipements sur la carte</span>
+      </label>
+      <p class="note" id="note-acces"></p>
     </div>
 
-    <div class="bloc" id="legende-maquette" hidden>
-      <h2>Y aller tranquillement, à quel prix ? (60 min)</h2>
-      <div id="grille-bivariee"></div>
-      <p class="note">Clarté = temps de trajet (minutes, en colonnes). Temps du trajet le plus rapide. Teinte = prix pour y aller tranquillement : trajet qui préfère pistes, bandes et voies calmes, chaque minute restante sur route exposée comptant pour 4 ; bleu = moins de 20 % (ou 1 min) de plus que le plus rapide, gris = 20 à 50 %, orange = plus de 50 %. Rampe bleu / orange lisible par les daltoniens.</p>
+    <div class="bloc" data-q="5" id="q5-ailleurs">
+      <p class="note" style="margin:0">Le bilan pour tous les habitants d'un territoire existe pour <a href="?territoire=oleron#q=5">l'île d'Oléron</a> et <a href="?territoire=pmo#q=5">les 14 communes du Pôle Marennes-Oléron</a>.</p>
+    </div>
+
+    <div class="bloc" id="bloc-diag" data-q="5" hidden>
+      <h2 id="diag-titre">Territoire de la demi-heure</h2>
+      <p class="diag-resume" id="diag-resume"></p>
+      <table class="diag-table" id="diag-table"></table>
+      <div class="diag-legende"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
+      <button type="button" class="bouton" id="diag-vue" aria-pressed="false" style="margin-top:10px">Voir sur la carte</button>
+      <p class="diag-sous" id="diag-sous-communes"></p>
+      <div class="defile-x"><table class="diag-communes" id="diag-communes"></table></div>
+      <p class="diag-sous" id="diag-sous-maillons"></p>
+      <ol class="diag-maillons" id="diag-maillons"></ol>
+      <button type="button" class="bouton petit" id="diag-amenager" hidden style="margin-top:8px">Aménager et voir le gain</button>
+      <p class="note" id="diag-note"></p>
+    </div>
+
+    <div class="bloc" data-q="2 3">
+      <p class="note" style="margin:0">Clarté = temps du trajet le plus rapide. Teinte = prix pour y aller tranquillement : trajet qui préfère pistes, bandes et voies calmes, chaque minute restante sur route exposée comptant pour 4 ; bleu = moins de 20 % (ou 1 min) de plus que le plus rapide, gris = 20 à 50 %, orange = plus de 50 %. Rampe bleu / orange lisible par les daltoniens.</p>
       <p class="note">Traits noirs : tronçons de route exposée par lesquels passent les trajets les plus rapides vers au moins 10 km² en orange (épaisseur : 10 / 25 / 60 km² desservis). Vitesses réelles (+5 % sur route pour départager une piste parallèle).</p>
     </div>
-    <div class="bloc">
-      <div id="legende-vitesse">
-      <h2>Temps de trajet en minutes</h2>
-      <div class="legende" id="legende"></div>
-      <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45 min. Au-delà d'une heure, ou hors d'atteinte avec ce réseau : pas de couleur.</p>
-      </div>
-      <label class="case-reseau" for="voir-reseau">
-        <input type="checkbox" id="voir-reseau" checked>
-        <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes et voies vertes</span>
-        <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
-      </label>
-    </div>
 
-    <div class="bloc">
+    <div class="bloc fin">
       <button type="button" class="bouton" id="partager">Copier le lien de cette vue</button>
     </div>
 
@@ -489,7 +545,12 @@ document.getElementById("replier").addEventListener("click", e => {
   const marges = () => etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] };
 
   carte.fitBounds(contour.getBounds(), marges());
-  carte.setMaxBounds(contour.getBounds().pad(terr ? 0.15 : 0.3));
+  // Borne élargie du côté du panneau (ouest, ou sud sur mobile) et de la légende (est, ou nord sur mobile) :
+  // sinon les bords du territoire restent cachés dessous
+  const bc = contour.getBounds(), pb = terr ? 0.15 : 0.3, dLat = bc.getNorth() - bc.getSouth(), dLon = bc.getEast() - bc.getWest();
+  const m = etroit() ? { s: 0.8, n: 0.4, o: 0, e: 0 } : { s: 0, n: 0, o: 0.8, e: 0.6 };
+  carte.setMaxBounds([[bc.getSouth() - dLat * (pb + m.s), bc.getWest() - dLon * (pb + m.o)],
+    [bc.getNorth() + dLat * (pb + m.n), bc.getEast() + dLon * (pb + m.e)]]);
   carte.options.maxBoundsViscosity = 1;
   if (terr) carte.setMinZoom(carte.getZoom() - 0.5);  // pas de dézoom au-delà de la vue d'ensemble du territoire
   // Départ par défaut : mairie de La Rochelle ; sur Marennes-Oléron, celle de Saint-Pierre-d'Oléron
@@ -1119,7 +1180,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (!d4.voies.length) return;
     $("#d4-note").textContent = `Score : part des départs, sur une grille de ${D.pasM} m couvrant l'île, depuis lesquels cette voie est un maillon manquant (trait noir).`
       + (D.osm !== index.genere ? ` Classement calculé sur les données du ${D.osm}.` : "");
-    $("#bloc-d4").hidden = false;
+    $("#bloc-d4").hidden = false; $("#q3-ailleurs").hidden = true;
   }
   function dessinerD4() {
     coucheD4.clearLayers();
@@ -1147,6 +1208,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (actif) { d4.suiviAvant = etat.suivre; suivre(false); }
     else if (d4.suiviAvant) { d4.suiviAvant = false; suivre(true); }
     $("#suivre").hidden = actif || !survolPossible;
+    $("#legendes-temps").hidden = actif; $("#legende-d4").hidden = !actif;
     dessinerD4();
   }
   function choisirD4(i, zoomer) {
@@ -1311,10 +1373,11 @@ document.getElementById("replier").addEventListener("click", e => {
     });
     D.maillons = (D.maillons || []).map(m => { try { return { ...m, coords: decoderTroncons(m.g) }; } catch { return null; } }).filter(Boolean);
     diag.D = D;
-    $("#bloc-diag").hidden = false;
+    $("#bloc-diag").hidden = false; $("#q5-ailleurs").hidden = true;
     $("#diag-titre").textContent = `${TERRITOIRE === "oleron" ? "L'île" : "Le territoire"} de la demi-heure`;
     $("#diag-note").textContent = `Pour chaque habitant (${fmtNb(D.habitants)}, Filosofi carroyé) et chaque fonction, à son seuil : tranquille = par les pistes ou des voies calmes ; route seulement = en passant par une route exposée, un aménagement cyclable peut y répondre ; trop loin = même par la route, question de service plutôt que de piste. Maillons : routes exposées des trajets les plus rapides des habitants « route seulement », classées par habitants concernés. Calcul du ${D.genere.slice(0, 10)}.`;
     afficherDiag();
+    if ($(".panneau").dataset.q === "5") basculerDiag(true);   // lien #q=5 ouvert avant l'arrivée du fichier
   }
   function acces_W(D) { return Math.round(360 / index.grille.dlon); }   // largeur de la grille France (comptages.py)
   function afficherDiag() {
@@ -1375,6 +1438,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (actif) { diag.suiviAvant = etat.suivre; suivre(false); }
     else if (diag.suiviAvant) { diag.suiviAvant = false; suivre(true); }
     $("#suivre").hidden = actif || !survolPossible;
+    $("#legendes-temps").hidden = actif; $("#legende-diag").hidden = !actif;
     dessinerDiag();
   }
   function choisirDiag(i, zoomer) {
@@ -1518,6 +1582,32 @@ document.getElementById("replier").addEventListener("click", e => {
     if (etat.depart && vue.P) calculer(true);
   }
   document.querySelectorAll("[data-symbo]").forEach(b => b.addEventListener("click", () => choisirSymbo(b.dataset.symbo)));
+  // ---------- Onglets : une question = un contenu de panneau + un réglage de la carte ----------
+  // 1 temps, 2 et 3 temps et confort (réseau complet : le confort n'existe qu'en « Pistes + routes »), 4 et 5 sans
+  // changer la couleur. En quittant un onglet, on referme ce qu'il avait ouvert (vue cumulée, diagnostic, tracé, Gain).
+  const QUESTIONS = { 1: "Jusqu'où je vais en 15 ou 30 minutes ?", 2: "Est-ce que j'y vais sans prendre la départementale ?",
+    3: "Qu'est-ce qui coince ?", 4: "Et si on aménageait ici ?", 5: "Les habitants ont-ils l'essentiel à portée, tranquillement ?" };
+  let question = 1;
+  function allerA(q) {
+    question = q;
+    $(".panneau").dataset.q = q;
+    $("#question").textContent = QUESTIONS[q];
+    document.querySelectorAll("[data-onglet]").forEach(b => b.setAttribute("aria-selected", String(Number(b.dataset.onglet) === q)));
+    if (q !== 3 && d4.actif) basculerD4(false);
+    if (q !== 5 && diag.actif) basculerDiag(false);
+    if (q === 5 && diag.D && !diag.actif) basculerDiag(true);
+    if (q !== 4) {
+      if (outil.actif) $("#sim-tracer").click();       // termine le tracé en cours (le tronçon est gardé)
+      if (voie.actif) $("#sim-voie").click();
+      if (sim.vue === "gain") $('[data-vue="apres"]').click();
+    }
+    const mode = q === 2 || q === 3 ? "tout" : etat.mode, symbo = q === 1 ? "vitesse" : q === 2 || q === 3 ? "confort" : etat.symbo;
+    if (mode !== etat.mode || symbo !== etat.symbo) { etat.symbo = symbo; choisirMode(mode); }   // un seul recalcul
+    majLien();
+  }
+  document.querySelectorAll("[data-onglet]").forEach(b => b.addEventListener("click", () => allerA(Number(b.dataset.onglet))));
+  $("#d4-amenager").addEventListener("click", () => allerA(4));   // après son propre gestionnaire : vue Gain dans l'onglet 4
+
   document.querySelectorAll("[data-cible]").forEach(b => b.addEventListener("click", () => {
     etat.cible = b.dataset.cible;
     document.querySelectorAll("[data-cible]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
@@ -1581,7 +1671,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   function majLien() {
     if (!etat.depart) return;
-    const p = [`m=${etat.mode}`, `d=${fmtLL(etat.depart)}`];
+    const p = [`q=${question}`, `m=${etat.mode}`, `d=${fmtLL(etat.depart)}`];
     if (etat.symbo === "confort") p.push("v=confort");
     if (etat.arrivee) p.push(`a=${fmtLL(etat.arrivee)}`);
     if (etat.suivre) p.push("s=1");
@@ -1598,7 +1688,9 @@ document.getElementById("replier").addEventListener("click", e => {
     // Tronçons : null si absents du lien ; lien illisible (copié à moitié) : signalé, la page démarre sans
     let troncons = null, tronconsIllisibles = false;
     if (h.has("t")) { try { troncons = decoderTroncons(h.get("t")); } catch { tronconsIllisibles = true; } }
-    return { mode: h.get("m") === "amenage" ? "amenage" : "tout", symbo, depart: ll(h.get("d")), arrivee: ll(h.get("a")), suivi: h.get("s") === "1",
+    // Onglet : q= ; ancien lien en « Temps et confort » sans q= : question 2
+    const q = Number(h.get("q")) || (symbo === "confort" ? 2 : 1);
+    return { q: q >= 1 && q <= 5 ? q : 1, mode: h.get("m") === "amenage" ? "amenage" : "tout", symbo, depart: ll(h.get("d")), arrivee: ll(h.get("a")), suivi: h.get("s") === "1",
       troncons, tronconsIllisibles };
   }
   $("#partager").addEventListener("click", async () => {
@@ -1643,7 +1735,8 @@ document.getElementById("replier").addEventListener("click", e => {
   etat.suivre = survolPossible && (!lien.depart || lien.suivi);
   await placerDepart(lien.depart || DEPART_DEFAUT, true);
   suivre(etat.suivre);
-  selectionner(-1); majLegendeGain();          // tronçons du lien ou repris : dessinés et listés
+  selectionner(-1); majLegendeGain();
+  allerA(lien.q);          // tronçons du lien ou repris : dessinés et listés
   if (lien.tronconsIllisibles) montrerInfo("Les tronçons du lien sont illisibles (lien incomplet ?) : carte sans tronçon simulé.");
   else if (reprise) {
     const alerte = $("#sim-info").hidden ? "" : ` ${echapper($("#sim-info").textContent)}`;   // extrémités libres, tronçons isolés

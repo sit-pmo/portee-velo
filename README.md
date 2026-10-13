@@ -44,7 +44,7 @@ Deux réseaux :
 
 ![Le pointeur parcourt l'île d'Oléron en « Temps et confort » : en bleu ce qu'on atteint tranquillement, en orange ce qu'on n'atteint qu'en passant par la route](demo/2-tranquillement.gif)
 
-👉 [Essayer : promenez la souris sur l'île d'Oléron, en « Temps et confort »](https://sit-pmo.github.io/portee-velo/?territoire=oleron#v=confort)
+👉 [Essayer : promenez la souris sur l'île d'Oléron, en « Temps et confort »](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=2)
 
 En mode « Pistes + routes », le bouton **Temps et confort** ajoute une teinte. La clarté donne toujours le temps ; la teinte dit ce que coûte un trajet **tranquille** (qui préfère pistes, bandes, rues calmes et chemins, chaque minute restante sur route exposée comptant pour 4) par rapport au plus rapide :
 
@@ -60,11 +60,11 @@ Classement des voies : **calmes** = rues, voies de service, voies communales, ch
 
 ![Depuis Le Château-d'Oléron, les traits noirs marquent les routes à aménager ; la vue cumulée les classe pour toute l'île](demo/3-ce-qui-coince.gif)
 
-👉 [Essayer : les traits noirs depuis Le Château-d'Oléron, puis « Vue cumulée » dans le bloc « Maillons manquants de l'île »](https://sit-pmo.github.io/portee-velo/?territoire=oleron#m=tout&d=45.88805,-1.19562&v=confort)
+👉 [Essayer : les traits noirs depuis Le Château-d'Oléron, puis « Vue cumulée » dans l'onglet 3](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=3&m=tout&d=45.88805,-1.19562&v=confort)
 
 Les **traits noirs** marquent les tronçons de route par lesquels passent les trajets les plus rapides vers les secteurs orange : ce sont les maillons manquants, vus depuis le départ choisi.
 
-Avec `?territoire=oleron`, le bloc **« Maillons manquants de l'île »** passe d'un départ à toute l'île. Pour chaque départ d'une grille régulière de 250 m, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
+Avec `?territoire=oleron`, l'onglet 3 propose le bloc **« Maillons manquants de l'île »**, qui passe d'un départ à toute l'île. Pour chaque départ d'une grille régulière de 250 m, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
 
@@ -72,7 +72,7 @@ Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) 
 
 ![Une piste simulée sur 1,8 km de départementale au sud du Château-d'Oléron : avant, après, puis gain ; le sud de l'île passe au bleu](demo/4-amenager.gif)
 
-👉 [Essayer : 1,8 km de départementale aménagé au sud du Château-d'Oléron (Avant / Après / Gain)](https://sit-pmo.github.io/portee-velo/?territoire=oleron#m=tout&d=45.88805,-1.19562&v=confort&t=%7B%7C~vGbpjF%40_AC%5DIWKWuAgB%5Dm%40e%40iAg%40yAGWAWA_%40B_%40%5CsBB%5B%40%5BCe%40I%5BO%5BSSUO_AO%2Cag_wGltiFyAWYMSUMW%2Cwk_wGxqiFKe%40YsEIu%40Ia%40O_%40SSUIUEUBa%40J%5B%3F%7D%40Ec%40%3FiATW%3F%5BI%7DAs%40%2Cs%7C_wGddiFcAa%40%2Cw~_wGbciFeBs%40UQOS%2Ccc%60wGh%60iFMWWeAMa%40_AyA%2Cwf%60wGnyhF_A%7BA%2Cwh%60wGrvhFWa%40wAcDYYYISAsAVG%40w%40N%2Cwt%60wGxphFO%40%2Cks%60wGrphFYDQ%3F%2Cis%60wGrphFA%3F%2Ccs%60wGpphFE%40%2Cor~vGn_kFOMIOGKGOq%40yB%2Cku~vGzyjFMYQ_%40UW%7BByBk%40m%40IO%2Cs%7C~vGpqjFEUAW)
+👉 [Essayer : 1,8 km de départementale aménagé au sud du Château-d'Oléron (Avant / Après / Gain)](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=4&m=tout&d=45.88805,-1.19562&v=confort&t=%7B%7C~vGbpjF%40_AC%5DIWKWuAgB%5Dm%40e%40iAg%40yAGWAWA_%40B_%40%5CsBB%5B%40%5BCe%40I%5BO%5BSSUO_AO%2Cag_wGltiFyAWYMSUMW%2Cwk_wGxqiFKe%40YsEIu%40Ia%40O_%40SSUIUEUBa%40J%5B%3F%7D%40Ec%40%3FiATW%3F%5BI%7DAs%40%2Cs%7C_wGddiFcAa%40%2Cw~_wGbciFeBs%40UQOS%2Ccc%60wGh%60iFMWWeAMa%40_AyA%2Cwf%60wGnyhF_A%7BA%2Cwh%60wGrvhFWa%40wAcDYYYISAsAVG%40w%40N%2Cwt%60wGxphFO%40%2Cks%60wGrphFYDQ%3F%2Cis%60wGrphFA%3F%2Ccs%60wGpphFE%40%2Cor~vGn_kFOMIOGKGOq%40yB%2Cku~vGzyjFMYQ_%40UW%7BByBk%40m%40IO%2Cs%7C~vGpqjFEUAW)
 
 Pour mesurer l'effet d'une future piste avant de la financer, par exemple sur un maillon manquant :
 
@@ -89,7 +89,7 @@ Les tronçons voyagent dans le lien « Copier le lien de cette vue » (jusqu'à 
 
 ![Le bloc « L'île de la demi-heure » : part des habitants par fonction, lieux habités colorés sur la carte, puis le cas du collège](demo/5-l-essentiel.gif)
 
-👉 [Essayer : le bloc « L'île de la demi-heure », puis « Voir sur la carte » et un clic sur une fonction](https://sit-pmo.github.io/portee-velo/?territoire=oleron)
+👉 [Essayer : l'onglet 5, « L'île de la demi-heure », puis un clic sur une fonction](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=5)
 
 Inspiré de la ville du quart d'heure de Carlos Moreno et de son « territoire de la demi-heure » pour les territoires peu denses : peut-on assurer les fonctions du quotidien à vélo, **tranquillement** ? Neuf fonctions, chacune à son seuil :
 
@@ -103,7 +103,7 @@ Pour chaque habitant et chaque fonction, trois cas :
 - **Route seulement** : dans le seuil, mais en passant par une route exposée. Un aménagement cyclable peut y répondre ;
 - **Trop loin** : au-delà du seuil même par la route. C'est une question de service, pas de piste.
 
-En vue territoire (`?territoire=oleron` ou `pmo`), le bloc « L'île de la demi-heure » donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste (question 4). Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
+En vue territoire (`?territoire=oleron` ou `pmo`), l'onglet 5 ouvre « L'île de la demi-heure » : il donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste (question 4). Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
 
 Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; les équipements y sont à leur position exacte (au mètre près), et ceux que l'Insee localise mal (qualité « acceptable » ou « mauvaise ») sont repositionnés par géocodage BAN vérifié (`departement17/corriger_bpe.py` → `corrections_bpe.csv`, option `--corrections`) ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. À relancer après chaque tuilage.
 
