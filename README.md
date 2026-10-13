@@ -25,7 +25,7 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 > - île d'Oléron : https://sit-pmo.github.io/portee-velo/?territoire=oleron
 > - Pôle Marennes-Oléron (île d'Oléron et bassin de Marennes, 14 communes) : https://sit-pmo.github.io/portee-velo/?territoire=pmo
 >
-> Les questions 1, 2 et 4, comme les traits noirs de la question 3, marchent partout. Le classement des maillons de l'île demande la vue île d'Oléron, la question 5 la vue île d'Oléron ou 14 communes.
+> Les questions 1, 2 et 4, comme les traits noirs de la question 3, marchent partout. Le classement des maillons de l'île demande la vue île d'Oléron. La question 5 donne, sur tout le département, le bilan de l'intercommunalité du départ, et, en vue île d'Oléron ou 14 communes, celui du territoire.
 
 ## 1. Jusqu'où je vais ?
 
@@ -103,9 +103,9 @@ Pour chaque habitant et chaque fonction, trois cas :
 - **Route seulement** : dans le seuil, mais en passant par une route exposée. Un aménagement cyclable peut y répondre ;
 - **Trop loin** : au-delà du seuil même par la route. C'est une question de service, pas de piste.
 
-En vue territoire (`?territoire=oleron` ou `pmo`), l'onglet Services ouvre « L'île de la demi-heure » : il donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste (question 4). Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
+L'onglet Services ouvre « Le territoire de la demi-heure » : sur la carte du département, celui de l'intercommunalité (EPCI) où se trouve le départ D, parmi les 13 de la Charente-Maritime ; en vue territoire (`?territoire=oleron` ou `pmo`), celui de l'île ou des 14 communes. Il donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste (question 4). Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
 
-Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; les équipements y sont à leur position exacte (au mètre près), et ceux que l'Insee localise mal (qualité « acceptable » ou « mauvaise ») sont repositionnés par géocodage BAN vérifié (`departement17/corriger_bpe.py` → `corrections_bpe.csv`, option `--corrections`) ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. À relancer après chaque tuilage.
+Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; les équipements y sont à leur position exacte (au mètre près), et ceux que l'Insee localise mal (qualité « acceptable » ou « mauvaise ») sont repositionnés par géocodage BAN vérifié (`departement17/corriger_bpe.py` → `corrections_bpe.csv`, option `--corrections`) ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. Pour les EPCI : `departement17/epci_contours.py` (contours des communes + composition des EPCI, `epci17.json`, tirée de `@etalab/decoupage-administratif`) produit `tuiles/epci.json`, et `departement17/diagnostic_epci.js` produit `tuiles/diagnostic_epci_<siren>.json` (environ 1 h 30 de calcul pour les 13 EPCI ; les équipements des EPCI et départements voisins comptent). À relancer après chaque tuilage.
 
 ## Données
 
