@@ -46,6 +46,24 @@ Avec `?territoire=oleron`, le bloc « Maillons manquants de l'île » classe les
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
 
+## Territoire de la demi-heure
+
+Inspiré de la ville du quart d'heure de Carlos Moreno et de son « territoire de la demi-heure » pour les territoires peu denses : peut-on assurer les fonctions du quotidien à vélo, **tranquillement** ? Neuf fonctions, chacune à son seuil :
+
+| 15 min | 30 min |
+|---|---|
+| alimentation, boulangerie, école | médecin généraliste, pharmacie, poste, collège, supermarché, équipement sportif |
+
+Pour chaque habitant et chaque fonction, trois cas :
+
+- **Tranquille** : par les pistes, ou par des voies calmes (le trajet qui évite la route exposée coûte moins de 20 % de temps en plus) ;
+- **Route seulement** : dans le seuil, mais en passant par une route exposée. Un aménagement cyclable peut y répondre ;
+- **Trop loin** : au-delà du seuil même par la route. C'est une question de service, pas de piste.
+
+En vue territoire (`?territoire=oleron` ou `pmo`), le bloc « L'île de la demi-heure » donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste. Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
+
+Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. À relancer après chaque tuilage.
+
 ## Données
 
 - **Réseau cyclable des collectivités** sur les 14 communes du Pôle Marennes-Oléron : CdC de l'Île d'Oléron (183 km) et CC du Bassin de Marennes (75 km), complétés par les aménagements OpenStreetMap absents de ces bases, vérifiés un par un dans QGIS. Là, la donnée des collectivités fait foi et remplace les pistes OpenStreetMap ; elle est raccordée aux routes à chaque croisement et aux extrémités (voie la plus proche à moins de 25 m). Les tronçons en projet sont exclus.
@@ -77,6 +95,7 @@ Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB,
 - Réseaux cyclables : CdC de l'Île d'Oléron, CC du Bassin de Marennes.
 - Routes, chemins, réseau cyclable hors Marennes-Oléron, trait de côte : © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL), extraits [Geofabrik](https://download.geofabrik.de).
 - Contours communaux : [geo.api.gouv.fr](https://geo.api.gouv.fr).
+- Équipements : Insee, Base permanente des équipements. Habitants et ménages : Insee, Filosofi carroyé.
 - Fond de carte et recherche d'adresses : [Géoplateforme IGN](https://geoservices.ign.fr).
 - Bibliothèques : [Leaflet](https://leafletjs.com), [d3](https://d3js.org).
 
