@@ -199,8 +199,7 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .milieu-sim{width:11px;height:11px;border-radius:50%;background:#7B2CBF;opacity:.7;cursor:copy;border:1.5px solid #fff;box-sizing:border-box}
 /* Onglets par question (13/10/2026) : les blocs data-q n'apparaissent que dans leurs onglets */
 .onglets{display:grid;grid-template-columns:repeat(4,1fr);background:var(--abysse);padding:0 10px}
-.onglets button{font:600 .74rem var(--sans);border:0;border-radius:8px 8px 0 0;padding:6px 2px 7px;background:transparent;color:#c9edf5;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
-.onglets button b{font:700 1.05rem var(--serif)}
+.onglets button{font:600 .84rem var(--sans);border:0;border-radius:8px 8px 0 0;padding:9px 2px 10px;background:transparent;color:#c9edf5;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
 .onglets button[aria-selected="true"]{background:var(--papier);color:var(--abysse)}
 .question{margin:0;padding:12px 22px 2px;font-family:var(--serif);font-size:1.02rem;line-height:1.3;color:var(--abysse)}
 .panneau[data-q="1"] .bloc[data-q]:not([data-q~="1"]),.panneau[data-q="2"] .bloc[data-q]:not([data-q~="2"]),
@@ -323,10 +322,10 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <!-- Une question par onglet (13/10/2026) : l'onglet règle aussi la carte (allerA). Confort et freins réunis :
        même carte « Temps et confort », les traits noirs y répondent à « qu'est-ce qui coince ? » -->
   <nav class="onglets" role="tablist" aria-label="Questions">
-    <button type="button" role="tab" data-onglet="1" aria-selected="true" title="Jusqu'où je vais en 15 ou 30 minutes ?"><b>1</b>Portée</button>
-    <button type="button" role="tab" data-onglet="2" aria-selected="false" title="Est-ce que j'y vais tranquillement, et qu'est-ce qui coince ?"><b>2</b>Confort</button>
-    <button type="button" role="tab" data-onglet="3" aria-selected="false" title="Et si on aménageait ici ?"><b>3</b>Simuler</button>
-    <button type="button" role="tab" data-onglet="4" aria-selected="false" title="Les habitants ont-ils l'essentiel à portée, tranquillement ?"><b>4</b>Services</button>
+    <button type="button" role="tab" data-onglet="1" aria-selected="true" title="Jusqu'où je vais en 15 ou 30 minutes ?">Portée</button>
+    <button type="button" role="tab" data-onglet="2" aria-selected="false" title="Est-ce que j'y vais tranquillement, et qu'est-ce qui coince ?">Confort</button>
+    <button type="button" role="tab" data-onglet="3" aria-selected="false" title="Et si on aménageait ici ?">Simuler</button>
+    <button type="button" role="tab" data-onglet="4" aria-selected="false" title="Les habitants ont-ils l'essentiel à portée, tranquillement ?">Services</button>
   </nav>
   <p class="question" id="question">Jusqu'où je vais en 15 ou 30 minutes ?</p>
   <!-- Socle commun : l'adresse reste au même endroit dans tous les onglets, hors du défilement -->
