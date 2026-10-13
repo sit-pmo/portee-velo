@@ -12,6 +12,11 @@ const CFG = {
     tout:    [1, 1, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05],
     amenage: [1, 1, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity],
     confort: [1, 1, 1.05, 4, 4, 1.05, 1.05, 4],
+    // Sans les départementales (13/10/2026) : réseau « tout » privé des routes tertiaires, secondaires et principales
+    // (les classes exposées du confort). Seules les traversées restent permises (CFG.traverseeMaxM, comme en mode
+    // pistes) : la route est interdite, pas seulement pénalisée, donc un hameau desservi par la seule départementale
+    // en est coupé (voir la note sur Saint-Georges dans index.html).
+    sansdep: [1, 1, 1.05, Infinity, Infinity, 1.05, 1.05, Infinity],
   },
   // Confort par classe (option A figée le 11/10/2026) : 0 aménagé, 1 calme, 2 exposé, 3 très exposé ; voies
   // communales calmes malgré les 80 km/h possibles en rural. Teinte : bleu si le trajet tranquille coûte au plus
@@ -21,7 +26,14 @@ const CFG = {
   vitesseContreSensKmh: 5,             // sens unique pris à contre-sens : vélo poussé à pied, plutôt qu'interdit
   vitesseAccesKmh: 16,                 // accès au réseau hors voies (base vélo 20 km/h ×0,8)
   detourAcces: 1.3,
-  accesMaxM: { tout: 2000, amenage: 800, confort: 2000 },   // 2 km : couvre les marais de la Seudre, à 1,7 km de toute voie
+  accesMaxM: { tout: 2000, amenage: 800, confort: 2000, sansdep: 800 },   // 2 km : couvre les marais de la Seudre, à 1,7 km de toute voie
+                                       // sansdep : 800 m comme en mode pistes, sinon un bord de départementale serait « atteint » à travers champs
+  // Sans départementales : traversée = enchaînement de départementale d'au plus traverseeDepMaxM entre deux accès
+  // distincts au réseau permis (carrefour décalé, giratoire). 80 m : il en faut autant pour sortir du port du
+  // Château-d'Oléron par les giratoires de la D734 (à 50 m, le port reste une île de 2 km²). ponytail: une
+  // départementale bordée de rues tous les 80 m reste empruntable de proche en proche ; les tuiles ne distinguent
+  // pas giratoire et route.
+  traverseeDepMaxM: 80,
   traverseeMaxM: 30,                   // mode pistes : segment de route < 30 m au contact d'une piste = traversée praticable
   liaisonMaxM: 200,                    // mode pistes : liaison entre deux pistes par voie calme (rue, voie communale, chemin), longueur max
   // Coefficient de longueur par classe dans une liaison : voie calme 1, route exposée 2 (donc ≤ 100 m : 47 m de
@@ -79,16 +91,19 @@ function construireGraphe(P, mode) {
   // ou une bande est praticable (au coût du mode « tout ») : traversées de chaussée et raccords entre deux
   // pistes, qu'OSM classe en route. Sans ça, le réseau de pistes est en miettes (Lyon : 4 nœuds atteints
   // depuis la mairie). Un seul segment au contact d'une piste : la règle ne se propage pas le long d'une route.
-  const penCls = CFG.penalites[mode], penE = new Float32Array(m);
+  // Mode sans départementales : même règle de traversée, sans les liaisons (réservées aux pistes).
+  const penCls = CFG.penalites[mode], penE = new Float32Array(m), restreint = mode === "amenage" || mode === "sansdep";
   let touche = null;
-  if (mode === "amenage") {
+  if (restreint) {
     touche = new Uint8Array(n);
     for (let e = 0; e < m; e++) if (isFinite(penCls[P.cls[e]])) { touche[P.a[e]] = 1; touche[P.b[e]] = 1; }
   }
-  const liaison = touche ? liaisons(P, touche) : null;
+  const liaison = mode === "amenage" ? liaisons(P, touche)
+    : mode === "sansdep" ? liaisons(P, touche, CFG.traverseeDepMaxM, CFG.penalites.sansdep.map(p => (isFinite(p) ? 0 : 1)))
+    : null;
   for (let e = 0; e < m; e++) {
     let p = penCls[P.cls[e]];
-    if (!isFinite(p) && touche && ((P.lm[e] < CFG.traverseeMaxM && (touche[P.a[e]] || touche[P.b[e]])) || liaison[e]))
+    if (!isFinite(p) && touche && ((P.lm[e] < CFG.traverseeMaxM && (touche[P.a[e]] || touche[P.b[e]])) || (liaison && liaison[e])))
       p = CFG.penalites.tout[P.cls[e]];
     penE[e] = p;
   }
@@ -114,8 +129,9 @@ function construireGraphe(P, mode) {
   // Nœuds où un départ peut s'accrocher. Mode pistes : seulement les morceaux d'au moins
   // CFG.morceauMinM mètres ; sinon le départ tombe sur un bout de piste isolé à 50 m (Lyon : 7 nœuds)
   // alors que le vrai réseau (27 000 nœuds) est à 240 m. Mode tout : le graphe est déjà d'un seul tenant.
+  // Sans départementales : même règle (une impasse coupée par la départementale n'est pas un départ).
   let accrochable = actif;
-  if (mode === "amenage") {
+  if (restreint) {
     const parent = new Int32Array(n);
     for (let v = 0; v < n; v++) parent[v] = v;
     const racine = x => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
@@ -125,15 +141,50 @@ function construireGraphe(P, mode) {
     accrochable = new Uint8Array(n);
     for (let v = 0; v < n; v++) accrochable[v] = actif[v] && taille[racine(v)] >= CFG.morceauMinM ? 1 : 0;
   }
-  return { mode, n, nArcs, off, cible, source, poids, arete, actif, accrochable };
+  const G = { mode, n, nArcs, off, cible, source, poids, arete, actif, accrochable };
+  if (mode === "sansdep" && !P.grille.pro.sansdep) rattacherGrille(P, G);
+  return G;
+}
+
+// Sans départementales : les tuiles ne donnent le nœud le plus proche de chaque cellule que pour « tout » et « pistes ».
+// On garde celui de « tout » quand il reste praticable ; sinon (nœud au milieu d'une départementale) on cherche, comme
+// accrocher, le plus proche nœud praticable parmi ceux des cellules voisines, à CFG.accesMaxM.sansdep au plus.
+// Écrit P.grille.pro.sansdep et dist.sansdep (une fois par fenêtre, à la construction du graphe).
+function rattacherGrille(P, G) {
+  const g = P.grille, N = g.nx * g.ny, pro0 = g.pro.tout, d0 = g.dist.tout, max = CFG.accesMaxM[G.mode];
+  const pro = pro0.slice(), dist = d0.slice();
+  for (let k = 0; k < N; k++) {
+    const v0 = pro0[k];
+    if (v0 < 0 || G.actif[v0]) continue;
+    const i0 = k % g.nx, j0 = (k - i0) / g.nx, lon = g.w + (i0 + 0.5) * g.dlon, lat = g.n - (j0 + 0.5) * g.dlat;
+    const cote = Math.min(g.dlat * RAD * R_TERRE, g.dlon * RAD * R_TERRE * Math.cos(lat * RAD));
+    const anneaux = Math.ceil(max / cote) + 1;
+    let meilleur = -1, dMin = Infinity;
+    const essayer = (i, j) => {
+      if (i < 0 || j < 0 || i >= g.nx || j >= g.ny) return;
+      const v = pro0[j * g.nx + i];
+      if (v < 0 || !G.actif[v]) return;
+      const d = distanceM(lon, lat, P.lon[v], P.lat[v]);
+      if (d < dMin) { dMin = d; meilleur = v; }
+    };
+    for (let r = 1; r <= anneaux; r++) {
+      if ((r - 1) * cote > dMin) break;
+      for (let q = -r; q <= r; q++) {
+        essayer(i0 + q, j0 - r); essayer(i0 + q, j0 + r);
+        if (q > -r && q < r) { essayer(i0 - r, j0 + q); essayer(i0 + r, j0 + q); }
+      }
+    }
+    pro[k] = meilleur; dist[k] = meilleur < 0 ? Infinity : dMin;
+  }
+  g.pro.sansdep = pro; g.dist.sansdep = dist;
 }
 
 // Mode pistes : arêtes de voirie formant un chemin court (longueur pondérée par CFG.liaisonFacteur ≤ CFG.liaisonMaxM)
 // entre deux nœuds de piste distincts (touche[v] = 1). Dijkstra multi-source borné depuis toutes les pistes (source
 // virtuelle n) ; une arête dont les deux bouts viennent de pistes différentes, avec d(u) + l + d(v) ≤ max, est une
 // liaison : on la garde avec les arêtes qui remontent à chaque piste. Une rue en impasse au bout d'une piste n'est pas retenue.
-function liaisons(P, touche) {
-  const n = P.n, m = P.m, max = CFG.liaisonMaxM, f = CFG.liaisonFacteur;
+function liaisons(P, touche, max = CFG.liaisonMaxM, f = CFG.liaisonFacteur) {
+  const n = P.n, m = P.m;
   const calme = new Uint8Array(8);             // 1 = arête utilisable en liaison (toute voirie hors pistes et bandes)
   for (let c = 0; c < 8; c++) calme[c] = f[c] > 0 ? 1 : 0;
   const off = new Uint32Array(n + 2);
@@ -254,7 +305,7 @@ function accrocher(P, G, lon, lat) {
 // mais reliée au réseau loin de là rallongeait les trajets (relecture du 12/10/2026). Liste vide : aucune voie.
 function departs(P, G, lon, lat) {
   const a = accrocher(P, G, lon, lat), out = a ? [a] : [], s = P.grille.secours;
-  if (s) {
+  if (s && s.pro[G.mode]) {                  // grille d'avant sans ce mode (sans départementales calculé après) : un seul départ
     const b = accrocher({ ...P, grille: { ...P.grille, pro: s.pro, dist: s.dist } }, G, lon, lat);
     if (b && (!a || b.noeud !== a.noeud)) out.push(b);
   }
@@ -864,7 +915,8 @@ function ajouterTroncons(P, troncons) {
   };
   if (P.global) Q.global = etendre(Float64Array, P.global, rempli(dn, -1));
   const g = P.grille, pro = {}, dist = {};
-  for (const mode of ["tout", "amenage"]) {
+  for (const mode of ["tout", "amenage", "sansdep"]) {
+    if (!g.pro[mode]) continue;              // sansdep : calculé seulement si le mode a servi (rattacherGrille)
     pro[mode] = g.pro[mode].slice(); dist[mode] = g.dist[mode].slice();
     for (const v of relies) rattacher(g, pro[mode], dist[mode], v, Q.lon[v], Q.lat[v], CFG.accesMaxM[mode]);
   }
@@ -1251,7 +1303,7 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
+  module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, rattacherGrille, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
     surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles,
     preparerComptages, indexerComptages, compterAtteints, plusProcheParFonction, casFonctions, CAS, equipementsFenetre, minutesAcces };
 }

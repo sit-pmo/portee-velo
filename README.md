@@ -35,9 +35,10 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 
 Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
 
-Deux réseaux :
+Trois réseaux :
 
 - **Avec les routes** : le réseau aménagé (pistes, voies vertes, bandes) complété par les routes et chemins. C'est le temps du trajet le plus rapide.
+- **Sans départementales** : le même réseau, sans jamais emprunter une départementale ni une nationale (routes tertiaires, secondaires et principales d'OpenStreetMap). On peut seulement la traverser, giratoire ou carrefour décalé compris (au plus 80 m de départementale entre deux accès au reste du réseau) ; une piste qui la longe reste permise. En gris, les secteurs à plus de 800 m de ce réseau. Un hameau desservi par la seule départementale en est coupé : c'est le propos. 👉 [Essayer depuis Saint-Georges-d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=1&m=sansdep&d=45.97340,-1.32890)
 - **Sans les routes** : le réseau aménagé seul, avec de courtes liaisons entre deux pistes (jusqu'à 200 m sur rue calme ou chemin, 100 m sur route) et les traversées de chaussée. En gris, les secteurs à plus de 800 m de ce réseau.
 
 ## 2. Est-ce que j'y vais tranquillement ?
@@ -55,6 +56,8 @@ Avec les routes, le bouton **Temps et confort** ajoute une teinte. La clarté do
 La couleur décrit le trajet depuis le départ, pas l'équipement du lieu : une piste qu'on ne rejoint que par la route reste orange.
 
 Classement des voies : **calmes** = rues, voies de service, voies communales, chemins ; **exposées** = routes départementales tertiaires ; **très exposées** = routes secondaires et principales.
+
+Le confort pénalise la route exposée sans l'interdire : interdite, elle coupe le réseau (193 m de départementale à Saint-Georges-d'Oléron valaient 19 km de détour). Pour voir ce qu'on atteint sans jamais la prendre, choisissez le réseau **Sans départementales** dans l'onglet Portée (question 1).
 
 ## 3. Qu'est-ce qui coince ?
 
@@ -82,6 +85,8 @@ Pour mesurer l'effet d'une future piste avant de la financer, par exemple sur un
 - **Modifier** : cliquez un tronçon, puis faites glisser ses sommets ; cliquez sur son trait (ou sur une poignée de milieu) pour ajouter un sommet, clic droit pour en supprimer un.
 
 La piste simulée compte comme une piste existante (20 km/h, double sens). La carte montre l'**Après** ; **Avant** revient à l'existant ; **Gain** ne colore que les secteurs améliorés : minutes gagnées en « Temps », passage au bleu en « Temps et confort » (une piste le long d'une route change surtout le confort). Le bandeau chiffre le gain en km² atteints (en points de % dans les vues territoire) et en km² passés au bleu.
+
+La simulation marche aussi avec le réseau « Sans départementales » : une piste le long d'une départementale y ouvre des secteurs auparavant coupés.
 
 Les tronçons voyagent dans le lien « Copier le lien de cette vue » (jusqu'à quelques centaines de sommets ; au-delà, exportez-les en GeoJSON) et sont gardés dans votre navigateur d'une visite à l'autre.
 
@@ -123,6 +128,7 @@ Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités,
 | Route | +5 % seulement, pour préférer une piste qui la longe |
 | Sens unique pris à contre-sens | vélo poussé, à 5 km/h |
 | Accès au réseau depuis un point quelconque | à vol d'oiseau, majoré de 30 %, à 16 km/h |
+| Réseau « Sans départementales » | routes tertiaires, secondaires et principales interdites, sauf traversée (au plus 80 m entre deux accès au reste du réseau) ; accès au réseau à 800 m au plus |
 
 Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaque départ, un algorithme de plus court chemin (Dijkstra) calcule le temps vers toutes les voies, puis vers chaque cellule. Tout le calcul se fait dans le navigateur, en quelques dizaines de millisecondes : c'est ce qui permet le suivi en direct de la souris.
 
