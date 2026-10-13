@@ -4,6 +4,8 @@
 
 👉 **https://sit-pmo.github.io/portee-velo/**
 
+![Le pointeur parcourt l'île d'Oléron du nord au sud : la carte des temps de trajet et les surfaces atteintes en 15, 30 et 45 minutes se recalculent en direct](survol.gif)
+
 Vues limitées à un territoire (seul le territoire est coloré, pourcentages de surface atteinte) :
 
 - île d'Oléron : **https://sit-pmo.github.io/portee-velo/?territoire=oleron**
