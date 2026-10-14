@@ -352,7 +352,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <div class="depart">
     <div class="recherche">
       <input id="recherche" type="search" autocomplete="off" placeholder="Chercher une adresse" aria-label="Chercher une adresse" aria-controls="suggestions">
-      <div class="bascule petite" role="group" aria-label="Placer l'adresse comme">
+      <div class="bascule petite" role="group" aria-label="L'adresse ou le clic sur la carte place le">
         <button type="button" data-cible="depart" aria-pressed="true">Départ</button>
         <button type="button" data-cible="arrivee" aria-pressed="false">Arrivée</button>
       </div>
@@ -481,7 +481,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <!-- Socle commun : suivi, consigne et trajet, après le contenu de la question -->
     <div class="bloc socle" aria-live="polite">
       <button type="button" class="bouton" id="suivre" aria-pressed="false" hidden>Suivre la souris</button>
-      <p id="consigne" class="consigne">Cliquez sur la carte pour choisir une arrivée. Faites glisser le repère D pour changer de départ.</p>
+      <p id="consigne" class="consigne">Cliquez sur la carte pour déplacer le départ. Pour un itinéraire, choisissez « Arrivée » en haut puis cliquez sur la carte.</p>
       <div id="resultat" hidden>
         <div class="duree" id="duree"></div>
         <p class="detail" id="detail"></p>
@@ -1730,12 +1730,16 @@ document.getElementById("replier").addEventListener("click", e => {
   const survolPossible = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const CONSIGNES = {
     suivi: `Déplacez la souris sur ${terr ? terr.nom : "la Charente-Maritime"} : les temps suivent. Cliquez pour fixer le départ.`,
-    fixe: "Cliquez sur la carte pour choisir une arrivée. Faites glisser le repère D pour changer de départ.",
+    // Le clic place ce que dit la bascule Départ / Arrivée de la recherche (14/10/2026 : un clic posait une arrivée
+    // sans qu'on l'ait demandé, par exemple en cliquant sur un croisement)
+    fixe: () => etat.cible === "arrivee"
+      ? "Cliquez sur la carte pour choisir l'arrivée. Faites glisser le repère D pour changer de départ."
+      : "Cliquez sur la carte pour déplacer le départ. Pour un itinéraire, choisissez « Arrivée » en haut puis cliquez sur la carte.",
   };
   function suivre(actif) {
     etat.suivre = actif && survolPossible;
     $("#suivre").setAttribute("aria-pressed", String(etat.suivre));
-    $("#consigne").textContent = CONSIGNES[etat.suivre ? "suivi" : "fixe"];
+    $("#consigne").textContent = etat.suivre ? CONSIGNES.suivi : CONSIGNES.fixe();
     const el = marqueurDepart.getElement();
     if (el) el.style.pointerEvents = etat.suivre ? "none" : "";
   }
@@ -1756,7 +1760,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (voie.actif) { amenagerVoie(ev.latlng); return; }
     if (d4.actif) return;                                        // vue cumulée : ni départ ni arrivée (carte cachée)
     if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
-    if (etat.suivre || !etat.depart) { suivre(false); placerDepart(ev.latlng, true); }
+    if (etat.suivre || !etat.depart || etat.cible !== "arrivee") { suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);
   });
   $("#suivre").hidden = !survolPossible;
@@ -1831,6 +1835,7 @@ document.getElementById("replier").addEventListener("click", e => {
   document.querySelectorAll("[data-cible]").forEach(b => b.addEventListener("click", () => {
     etat.cible = b.dataset.cible;
     document.querySelectorAll("[data-cible]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    suivre(etat.suivre && etat.cible === "depart");             // « Arrivée » : le départ cesse de suivre la souris
   }));
 
   // ---------- Recherche d'adresse (Géoplateforme, repli api-adresse), limitée au département ----------

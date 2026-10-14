@@ -33,7 +33,7 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 
 👉 [Essayer : promenez la souris sur l'île d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron)
 
-Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
+Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ ; un nouveau clic le déplace. Pour un itinéraire (durée, part sur aménagement cyclable), choisissez « Arrivée » à côté de la recherche d'adresse, puis cliquez sur la carte. Sur mobile, faites glisser le repère D.
 
 Trois réseaux :
 
