@@ -16,7 +16,7 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 |---|---|---|
 | [1. Jusqu'où je vais en 15 ou 30 minutes ?](#1-jusquoù-je-vais-) | la carte des temps, qui suit la souris | Portée |
 | [2. Est-ce que j'y vais sans prendre la départementale ?](#2-est-ce-que-jy-vais-tranquillement-) | « Temps et confort » : bleu, gris, orange | Confort |
-| [3. Qu'est-ce qui coince ?](#3-quest-ce-qui-coince-) | les traits noirs, et le classement des maillons manquants de l'île | Confort |
+| [3. Qu'est-ce qui coince ?](#3-quest-ce-qui-coince-) | les traits noirs, le classement des maillons manquants de l'île, les croisements avec les routes et leur vitesse | Confort |
 | [4. Et si on aménageait ici ?](#4-et-si-on-aménageait-ici-) | « Simuler un aménagement » : avant, après, gain | Simuler |
 | [5. Les habitants ont-ils l'essentiel à portée, tranquillement ?](#5-les-habitants-ont-ils-lessentiel-à-portée-) | « Territoire de la demi-heure » | Services |
 
@@ -33,12 +33,12 @@ L'outil répond à cinq questions, de la plus simple à la plus politique :
 
 👉 [Essayer : promenez la souris sur l'île d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron)
 
-Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ, puis cliquez ailleurs pour obtenir l'itinéraire, sa durée et sa part sur aménagement cyclable. Sur mobile, faites glisser le repère D.
+Déplacez la souris sur la carte : les temps de trajet depuis le curseur se recalculent en direct, de 5 à 60 minutes. Cliquez pour fixer le départ ; un nouveau clic le déplace. Pour un itinéraire (durée, part sur aménagement cyclable), choisissez « Arrivée » à côté de la recherche d'adresse, puis cliquez sur la carte. Sur mobile, faites glisser le repère D.
 
 Trois réseaux :
 
 - **Avec les routes** : le réseau aménagé (pistes, voies vertes, bandes) complété par les routes et chemins. C'est le temps du trajet le plus rapide.
-- **Sans départementales** : le même réseau, sans jamais emprunter une départementale ni une nationale (routes tertiaires, secondaires et principales d'OpenStreetMap). On peut seulement la traverser, giratoire ou carrefour décalé compris (au plus 80 m de départementale entre deux accès au reste du réseau) ; une piste qui la longe reste permise. En gris, les secteurs à plus de 800 m de ce réseau. Un hameau desservi par la seule départementale en est coupé : c'est le propos. 👉 [Essayer depuis Saint-Georges-d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=1&m=sansdep&d=45.97340,-1.32890)
+- **Sans départementales** : le même réseau, sans jamais emprunter une départementale ni une nationale (RD de la couche du Département dans la Charente-Maritime, routes tertiaires et secondaires d'OpenStreetMap au-delà ; routes principales d'OpenStreetMap). Une case « Départementales », sous la légende, les dessine sur la carte. On peut seulement la traverser, giratoire ou carrefour décalé compris (au plus 80 m de départementale entre deux accès au reste du réseau) ; une piste qui la longe reste permise. En gris, les secteurs à plus de 800 m de ce réseau. Un hameau desservi par la seule départementale en est coupé : c'est le propos. 👉 [Essayer depuis Saint-Georges-d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=1&m=sansdep&d=45.97340,-1.32890)
 - **Sans les routes** : le réseau aménagé seul, avec de courtes liaisons entre deux pistes (jusqu'à 200 m sur rue calme ou chemin, 100 m sur route) et les traversées de chaussée. En gris, les secteurs à plus de 800 m de ce réseau.
 
 ## 2. Est-ce que j'y vais tranquillement ?
@@ -70,6 +70,19 @@ Les **traits noirs** marquent les tronçons de route par lesquels passent les tr
 Avec `?territoire=oleron`, l'onglet Confort propose le bloc **« Maillons manquants de l'île »**, qui passe d'un départ à toute l'île. Pour chaque départ d'une grille régulière de 250 m, on relève les traits noirs (routes exposées par lesquelles passent les trajets les plus rapides vers au moins 10 km² en orange), puis on compte, voie par voie, les départs concernés. Les morceaux consécutifs de même classe qui se suivent sans autre voie classée au carrefour sont regroupés (score du meilleur morceau). « Vue cumulée » les dessine (épaisseur selon la part des départs), un clic dans la liste zoome sur la voie, « Aménager et voir le gain » la simule en piste depuis le départ où elle pèse le plus.
 
 Le classement est précalculé (`departement17/maillons.js`, environ 3 minutes) et doit être relancé après chaque tuilage.
+
+### Où le réseau cyclable croise les routes
+
+👉 [Essayer : les croisements avec les RD sur l'île d'Oléron](https://sit-pmo.github.io/portee-velo/?territoire=oleron#q=2&x=rd)
+
+Dans l'onglet Confort, deux boutons (combinables) affichent les points où une piste, une voie verte ou une bande cyclable rencontre une route, traversée ou retour sur la chaussée :
+
+- **Croisements avec les RD** : routes départementales d'après la couche du Département de la Charente-Maritime (numéro compris), pas d'après OpenStreetMap, dont les numéros sont parfois restés sur une ancienne traversée de bourg ;
+- **Avec les autres routes** : nationales, voies communales, rues et chemins.
+
+La couleur donne la limitation de vitesse de la route croisée : 30 km/h ou moins, 50, 70, 80, 90 et plus, gris pour un chemin. Une grande pastille marque une piste ou une voie verte, une petite une bande. Pour une bande, la chaussée qui la porte n'est pas comptée, seules les voies qui la coupent le sont. Une piste qui longe une route sans en suivre exactement le tracé (piste des collectivités dessinée à côté d'un chemin OSM) la recoupe en zigzag : ces faux croisements sont écartés (route qui part à moins de 40° de la piste, ou qui reste à moins de 12 m de son tracé), sauf si la piste passe d'un côté à l'autre de la route (à plus de 8 m de chaque côté, 80 m avant et après) : elle la longe puis la traverse en biais. Le contour est plein quand la vitesse vient d'OpenStreetMap (`maxspeed`, `zone:maxspeed`), pointillé quand elle est présumée : 20 km/h en zone de rencontre, 50 km/h en agglomération, 80 km/h hors agglomération, l'agglomération étant devinée à la densité de rues (au moins 800 m de rues à moins de 200 m). Les croisements de même catégorie à moins de 15 m sont fusionnés (le plus rapide est gardé). Un clic sur une pastille donne la route et l'origine de la vitesse. Le bloc compte les croisements du territoire, et ceux à 70 km/h ou plus.
+
+Préparation : `departement17/marquer_rd.py` marque dans les tuiles les arêtes qui portent une RD du Département (milieu à moins de 12 m d'une RD et même direction, à 30° près ; hors du département, routes tertiaires et secondaires d'OpenStreetMap), puis `departement17/intersections.py --parquet <les 3 régions>` lit le graphe dans les tuiles du site et les tags des routes dans les GeoParquet OpenStreetMap, et produit `tuiles/intersections.json` (environ 40 secondes). Les deux sont à relancer après chaque tuilage.
 
 ## 4. Et si on aménageait ici ?
 
@@ -128,7 +141,7 @@ Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités,
 | Route | +5 % seulement, pour préférer une piste qui la longe |
 | Sens unique pris à contre-sens | vélo poussé, à 5 km/h |
 | Accès au réseau depuis un point quelconque | à vol d'oiseau, majoré de 30 %, à 16 km/h |
-| Réseau « Sans départementales » | routes tertiaires, secondaires et principales interdites, sauf traversée (au plus 80 m entre deux accès au reste du réseau) ; accès au réseau à 800 m au plus |
+| Réseau « Sans départementales » | routes départementales (couche du Département) et principales interdites, sauf traversée (au plus 80 m entre deux accès au reste du réseau) ; accès au réseau à 800 m au plus |
 
 Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaque départ, un algorithme de plus court chemin (Dijkstra) calcule le temps vers toutes les voies, puis vers chaque cellule. Tout le calcul se fait dans le navigateur, en quelques dizaines de millisecondes : c'est ce qui permet le suivi en direct de la souris.
 
@@ -143,6 +156,7 @@ Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB,
 ## Sources et licences
 
 - Réseaux cyclables : CdC de l'Île d'Oléron, CC du Bassin de Marennes.
+- Routes départementales : Département de la Charente-Maritime, [Routes départementales](https://www.data.gouv.fr/datasets/routes-departementales-charente-maritime) (Licence Ouverte).
 - Routes, chemins, réseau cyclable hors Marennes-Oléron, trait de côte : © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright) (ODbL), extraits [Geofabrik](https://download.geofabrik.de).
 - Contours communaux : [geo.api.gouv.fr](https://geo.api.gouv.fr).
 - Équipements : Insee, Base permanente des équipements. Habitants et ménages : Insee, Filosofi carroyé.
