@@ -76,6 +76,7 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .case-reseau .entree{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .trait-piste,.trait-bande,.trait-itin{display:inline-block;width:26px;height:12px;border-radius:3px;background-color:#0485A1;background-repeat:no-repeat;background-position:center;background-size:100% 2px}
 .trait-piste{background-image:linear-gradient(#fff 0 1px,#00657A 1px 3px,#fff 3px 4px);background-size:100% 4px}
+.trait-rd{display:inline-block;width:26px;height:4px;border-radius:2px;background:#9C2A5E}
 .trait-bande{background-image:repeating-linear-gradient(90deg,#00657A 0 3px,#fff 3px 6px);background-size:100% 2px}
 .trait-itin{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.6) 0 1.5px,transparent 1.5px 5px)}
 .legende{display:grid;grid-template-columns:repeat(8,1fr)}
@@ -315,6 +316,10 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes</span>
     <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
   </label>
+  <label class="case-reseau" for="voir-rd" title="Routes départementales d'après la couche du Département de la Charente-Maritime (au-delà : routes tertiaires et secondaires d'OpenStreetMap)">
+    <input type="checkbox" id="voir-rd">
+    <span class="entree"><span class="trait-rd" aria-hidden="true"></span> Départementales</span>
+  </label>
   </div>
 </div>
 
@@ -438,6 +443,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <!-- Onglet 4 : diagnostic du territoire (sur la carte), puis le tableau du départ, puis le renvoi aux territoires -->
     <div class="bloc" id="bloc-diag" data-q="4" hidden>
       <h2 id="diag-titre">Territoire de la demi-heure</h2>
+      <p class="note" id="diag-epci" hidden style="margin:-4px 0 8px">Intercommunalité du départ D : déplacez-le pour en voir une autre.</p>
       <p class="diag-resume" id="diag-resume"></p>
       <table class="diag-table" id="diag-table"></table>
       <div class="diag-legende"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
@@ -470,7 +476,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     </div>
 
     <div class="bloc" data-q="4" id="q5-ailleurs">
-      <p class="note" style="margin:0">Le bilan pour tous les habitants d'un territoire existe pour <a href="?territoire=oleron#q=4">l'île d'Oléron</a> et <a href="?territoire=pmo#q=4">les 14 communes du Pôle Marennes-Oléron</a>.</p>
+      <p class="note" style="margin:0" id="q5-texte">Le bilan pour tous les habitants est calculé pour chaque intercommunalité de Charente-Maritime : placez le départ D dans le département.</p>
     </div>
 
     <!-- Socle commun : suivi, consigne et trajet, après le contenu de la question -->
@@ -494,8 +500,8 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <h2 id="apropos-titre">À propos</h2>
   <div class="credits">
     <p>Temps réels : 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable, sur piste comme sur route (+5 % sur route pour préférer une piste qui la longe). Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
-    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales : départementales et nationales (routes tertiaires, secondaires et principales d'OpenStreetMap) interdites sauf pour les traverser, giratoire compris. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
-    <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
+    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales : départementales (couche du Département) et nationales interdites sauf pour les traverser, giratoire compris. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
+    <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes départementales : Département de la Charente-Maritime (Licence Ouverte). Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
     <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Réalisation : SIT du Pôle Marennes-Oléron, <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">code source</a> (MIT).</p>
   </div>
 </dialog>
@@ -559,7 +565,7 @@ document.getElementById("replier").addEventListener("click", e => {
   const NOTES = {
     amenage: `Pistes, voies vertes et bandes cyclables d'OpenStreetMap, reliées entre elles par de courtes liaisons : jusqu'à ${CFG.liaisonMaxM} m sur rue calme ou chemin, ${CFG.liaisonMaxM / 2} m sur route, plus les traversées de chaussée. En gris, les secteurs à plus de ${CFG.accesMaxM.amenage} m de ce réseau.`,
     tout: "Pistes et bandes, complétées par les routes et chemins, au temps réel (+5 % sur route pour préférer une piste qui la longe).",
-    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale ni une nationale (routes tertiaires, secondaires et principales d'OpenStreetMap) : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
+    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale (couche du Département de la Charente-Maritime) ni une nationale : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
   };
   const LIBELLES_MODE = { amenage: "sans les routes", sansdep: "sans départementales", tout: "avec les routes" };
 
@@ -646,7 +652,7 @@ document.getElementById("replier").addEventListener("click", e => {
   L.control.zoom({ position: "topright" }).addTo(carte);
   L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
     { maxZoom: 19, attribution: "Fond © IGN | Réseau © contributeurs OpenStreetMap" }).addTo(carte);
-  for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["d4", 440], ["crx", 445], ["trace", 450]]) {
+  for (const [nom, z] of [["chaleur", 350], ["rd", 352], ["reseau", 355], ["iso", 360], ["d4", 440], ["crx", 445], ["trace", 450]]) {
     const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace" && nom !== "d4" && nom !== "crx") p.style.pointerEvents = "none";
   }
   const contour = L.geoJSON(zone, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
@@ -686,6 +692,9 @@ document.getElementById("replier").addEventListener("click", e => {
   // de la carte, chacun redessiné à chaque déplacement (ralentissement progressif au fil du survol)
   const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
   const trace = L.layerGroup().addTo(carte);
+  // Routes départementales (P.rd, couche du Département) sous le réseau cyclable, à la demande
+  const departementales = L.layerGroup(), renduRd = L.canvas({ pane: "rd", padding: 0.3 });
+  $("#voir-rd").addEventListener("change", ev => { if (ev.target.checked) departementales.addTo(carte); else departementales.remove(); });
   $("#voir-reseau").addEventListener("change", ev => { if (ev.target.checked) reseau.addTo(carte); else reseau.remove(); });
 
   const icone = (lettre, cls) => L.divIcon({ className: "", html: `<span class="repere ${cls}">${lettre}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
@@ -723,6 +732,9 @@ document.getElementById("replier").addEventListener("click", e => {
     L.polyline(segments[1], { ...style, color: "#fff", weight: 3.4, opacity: .85 }).addTo(reseau);
     L.polyline(segments[1], { ...style, color: "#00657A", weight: 1.6, opacity: 1, dashArray: "3 3" }).addTo(reseau);
     if ($("#voir-reseau").checked) reseau.addTo(carte);
+    departementales.clearLayers();
+    L.polyline(lignesReseau(P, e => P.rd[e]), { renderer: renduRd, interactive: false, color: "#9C2A5E", weight: 3, opacity: .75, lineCap: "round", lineJoin: "round" }).addTo(departementales);
+    if ($("#voir-rd").checked) departementales.addTo(carte);
   }
 
   // ---------- Dessin ----------
@@ -1558,21 +1570,65 @@ document.getElementById("replier").addEventListener("click", e => {
   const casDiag = (code, f) => (f < 0 ? Math.max(...code.split("").map(Number)) : Number(code[f]));
   function installerDiag(D) {
     if (!D || !Array.isArray(D.fonctions) || !D.fonctions.length || !D.habitants) return;
+    const premier = !diag.D;
+    if (!D.pts) {
     // Cellules : indice global → centre ; maillons : géométrie décodée
     let k = 0;
     D.pts = D.cellules.k.map((dk, q) => {
       k += dk;
       const gj = Math.floor(k / acces_W(D)), gi = k - gj * acces_W(D), G0 = index.grille;
-      return { lat: G0.lat0 - (gj + .5) * G0.dlat, lon: G0.lon0 + (gi + .5) * G0.dlon, h: D.cellules.h[q] / 10, cas: D.cellules.cas[q] };
+      return { gi, gj, lat: G0.lat0 - (gj + .5) * G0.dlat, lon: G0.lon0 + (gi + .5) * G0.dlon, h: D.cellules.h[q] / 10, cas: D.cellules.cas[q] };
     });
     D.maillons = (D.maillons || []).map(m => { try { return { ...m, coords: decoderTroncons(m.g) }; } catch { return null; } }).filter(Boolean);
-    diag.D = D;
+    }
+    diag.D = D; diag.choisi = -1;
     $("#bloc-diag").hidden = false; $("#q5-ailleurs").hidden = true;
-    $("#diag-titre").textContent = `${TERRITOIRE === "oleron" ? "L'île" : "Le territoire"} de la demi-heure`;
+    $("#diag-titre").textContent = D.epci ? `${D.territoire} : territoire de la demi-heure` : `${TERRITOIRE === "oleron" ? "L'île" : "Le territoire"} de la demi-heure`;
+    $("#diag-epci").hidden = !D.epci;
     $("#diag-note").textContent = `Pour chaque habitant (${fmtNb(D.habitants)}, Filosofi carroyé) et chaque fonction, à son seuil : tranquille = par les pistes ou des voies calmes ; route seulement = en passant par une route exposée, un aménagement cyclable peut y répondre ; trop loin = même par la route, question de service plutôt que de piste. Maillons : routes exposées des trajets les plus rapides des habitants « route seulement », classées par habitants concernés. Calcul du ${D.genere.slice(0, 10)}.`;
     afficherDiag();
-    if ($(".panneau").dataset.q === "4") basculerDiag(true);   // lien #q=4 ouvert avant l'arrivée du fichier
+    if (premier && $(".panneau").dataset.q === "4") basculerDiag(true);   // lien #q=4 ouvert avant l'arrivée du fichier
   }
+  // Vue département (13/10/2026) : bilan de l'EPCI où se trouve le départ (tuiles/epci.json pour les contours,
+  // diagnostic_epci.js pour les bilans). Chargé seulement dans l'onglet Services ; gardé en mémoire une fois lu.
+  const epciDiag = { liste: null, code: undefined, lus: new Map() };
+  function dansAnneau(x, y, a) {
+    let dedans = false;
+    for (let i = 0, j = a.length - 1; i < a.length; j = i++)
+      if ((a[i][1] > y) !== (a[j][1] > y) && x < (a[j][0] - a[i][0]) * (y - a[i][1]) / (a[j][1] - a[i][1]) + a[i][0]) dedans = !dedans;
+    return dedans;
+  }
+  function epciDe(ll) {
+    for (const e of epciDiag.liste) {
+      const [w, s, o, n] = e.bornes;
+      if (ll.lng < w || ll.lng > o || ll.lat < s || ll.lat > n) continue;
+      if (e.polygones.some(p => dansAnneau(ll.lng, ll.lat, p[0]) && !p.slice(1).some(t => dansAnneau(ll.lng, ll.lat, t)))) return e;
+    }
+    return null;
+  }
+  function majEpci() {
+    if (!epciDiag.liste || !etat.depart || question !== 4) return;
+    const e = epciDe(etat.depart), code = e ? e.code : null;
+    if (code === epciDiag.code) return;
+    epciDiag.code = code;
+    if (!e) {                                    // départ hors des EPCI de Charente-Maritime : pas de bilan
+      if (diag.actif) basculerDiag(false);
+      diag.D = null; $("#bloc-diag").hidden = true; $("#q5-ailleurs").hidden = false;
+      return;
+    }
+    const installer = D => { if (epciDiag.code === code && D) { epciDiag.lus.set(code, D); installerDiag(D); } };
+    if (epciDiag.lus.has(code)) { installer(epciDiag.lus.get(code)); return; }
+    fetch(`tuiles/diagnostic_epci_${code}.json`).then(r => (r.ok ? r.json() : null)).then(installer).catch(() => {});
+  }
+  if (!masqueZone)
+    fetch("tuiles/epci.json").then(r => (r.ok ? r.json() : null)).then(E => {
+      if (!E || !Array.isArray(E.epci)) return;
+      epciDiag.liste = E.epci.map(e => {
+        const polygones = e.geometrie.type === "Polygon" ? [e.geometrie.coordinates] : e.geometrie.coordinates, pts = polygones.flat(2);
+        return { ...e, polygones, bornes: [Math.min(...pts.map(p => p[0])), Math.min(...pts.map(p => p[1])), Math.max(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1]))] };
+      });
+      majEpci();
+    }).catch(() => {});
   function acces_W(D) { return Math.round(360 / index.grille.dlon); }   // largeur de la grille France (comptages.py)
   function afficherDiag() {
     const D = diag.D, F = D.fonctions, f = diag.f, h = D.habitants;
@@ -1605,11 +1661,23 @@ document.getElementById("replier").addEventListener("click", e => {
   function dessinerDiag() {
     coucheDiag.clearLayers();
     if (!diag.actif || !diag.D) { coucheDiag.remove(); return; }
-    const D = diag.D, f = diag.f, dLat = index.grille.dlat / 2, dLon = index.grille.dlon / 2;
+    const D = diag.D, f = diag.f, G0 = index.grille;
+    // Cellules de 100 m regroupées en blocs d'au moins 4 pixels à l'échelle affichée (13/10/2026) : à l'échelle d'un
+    // grand EPCI, une cellule fait un pixel et ne se voit plus. Couleur du bloc : le cas qui concerne le plus
+    // d'habitants ; opacité : habitants du bloc, comme pour une cellule.
+    const a = carte.latLngToContainerPoint([D.pts[0].lat, D.pts[0].lon]), b = carte.latLngToContainerPoint([D.pts[0].lat, D.pts[0].lon + G0.dlon]);
+    const pas = Math.max(1, Math.ceil(4 / Math.max(.01, Math.abs(b.x - a.x))));
+    const blocs = new Map();
     for (const p of D.pts) {
-      const c = casDiag(p.cas, f);
-      L.rectangle([[p.lat - dLat, p.lon - dLon], [p.lat + dLat, p.lon + dLon]], { renderer: renduDiag, pane: "diag", stroke: false,
-        fillColor: COUL_CAS[c], fillOpacity: Math.min(.9, .35 + p.h / 20), interactive: false }).addTo(coucheDiag);
+      const cle = Math.floor(p.gj / pas) * 1e6 + Math.floor(p.gi / pas);
+      const bl = blocs.get(cle) || blocs.set(cle, { gi: Math.floor(p.gi / pas) * pas, gj: Math.floor(p.gj / pas) * pas, h: [0, 0, 0] }).get(cle);
+      bl.h[casDiag(p.cas, f)] += p.h;
+    }
+    for (const bl of blocs.values()) {
+      const c = bl.h.indexOf(Math.max(...bl.h)), h = bl.h[0] + bl.h[1] + bl.h[2];
+      const n = G0.lat0 - bl.gj * G0.dlat, w = G0.lon0 + bl.gi * G0.dlon;
+      L.rectangle([[n - pas * G0.dlat, w], [n, w + pas * G0.dlon]], { renderer: renduDiag, pane: "diag", stroke: false,
+        fillColor: COUL_CAS[c], fillOpacity: Math.min(.9, .35 + h / pas / pas / 20 * Math.min(pas, 4)), interactive: false }).addTo(coucheDiag);
     }
     const sel = D.maillons[diag.choisi];
     for (const { m, i } of diag.liste) {
@@ -1634,6 +1702,9 @@ document.getElementById("replier").addEventListener("click", e => {
     else if (diag.suiviAvant) { diag.suiviAvant = false; suivre(true); }
     $("#suivre").hidden = actif || !survolPossible;
     $("#legendes-temps").hidden = actif; $("#legende-diag").hidden = !actif;
+    // Vue département : on cadre l'EPCI du bilan (les cellules de 100 m ne se voient pas à l'échelle du département)
+    const e = actif && diag.D && diag.D.epci && epciDiag.liste && epciDiag.liste.find(x => x.code === diag.D.epci);
+    if (e) carte.fitBounds([[e.bornes[1], e.bornes[0]], [e.bornes[3], e.bornes[2]]], marges());
     dessinerDiag();
   }
   function choisirDiag(i, zoomer) {
@@ -1649,6 +1720,7 @@ document.getElementById("replier").addEventListener("click", e => {
     afficherDiag();
   });
   $("#diag-vue").addEventListener("click", () => basculerDiag(!diag.actif));
+  carte.on("zoomend", () => { if (diag.actif) dessinerDiag(); });   // taille des blocs selon l'échelle
   $("#diag-maillons").addEventListener("click", ev => {
     const li = ev.target.closest("li[data-i]");
     if (li) choisirDiag(Number(li.dataset.i), true);
@@ -1682,6 +1754,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const id = ++demande;
     etat.depart = ll;
     marqueurDepart.setLatLng(ll).addTo(carte);
+    if (!masqueZone) majEpci();
     const [lonF, latF] = masqueZone ? masqueZone.centre : [ll.lng, ll.lat];   // vue territoire : fenêtre fixe
     const [tx, ty] = tuileFenetre(ll);
     // Survol (calcul léger) : tant que le départ reste dans les 3 × 3 tuiles centrales de la fenêtre chargée, on
@@ -1799,6 +1872,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (q !== 2 && d4.actif) basculerD4(false);
     if (q !== 2) [0, 1].forEach(c => { if (crx.actifs[c]) basculerCrx(c, false); });
     if (q !== 4 && diag.actif) basculerDiag(false);
+    if (q === 4 && !masqueZone) majEpci();
     if (q === 4 && diag.D && !diag.actif) basculerDiag(true);
     if (q !== 3) {
       if (outil.actif) $("#sim-tracer").click();       // termine le tracé en cours (le tronçon est gardé)
