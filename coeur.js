@@ -12,11 +12,11 @@ const CFG = {
     tout:    [1, 1, 1.05, 1.05, 1.05, 1.05, 1.05, 1.05],
     amenage: [1, 1, Infinity, Infinity, Infinity, Infinity, Infinity, Infinity],
     confort: [1, 1, 1.05, 4, 4, 1.05, 1.05, 4],
-    // Sans les départementales (13/10/2026) : réseau « tout » privé des routes tertiaires, secondaires et principales
-    // (les classes exposées du confort). Seules les traversées restent permises (CFG.traverseeMaxM, comme en mode
-    // pistes) : la route est interdite, pas seulement pénalisée, donc un hameau desservi par la seule départementale
-    // en est coupé (voir la note sur Saint-Georges dans index.html).
-    sansdep: [1, 1, 1.05, Infinity, Infinity, 1.05, 1.05, Infinity],
+    // Sans les départementales (13/10/2026) : réseau « tout » privé des RD (P.rd : couche du Département dans le 17,
+    // marquer_rd.py ; tertiaire et secondaire OSM au-delà, 14/10/2026) et des routes principales (nationales).
+    // Seules les traversées restent permises (CFG.traverseeDepMaxM) : la route est interdite, pas seulement
+    // pénalisée, donc un hameau desservi par la seule départementale en est coupé (note sur Saint-Georges, index.html).
+    sansdep: [1, 1, 1.05, 1.05, Infinity, 1.05, 1.05, 1.05],
   },
   // Confort par classe (option A figée le 11/10/2026) : 0 aménagé, 1 calme, 2 exposé, 3 très exposé ; voies
   // communales calmes malgré les 80 km/h possibles en rural. Teinte : bleu si le trajet tranquille coûte au plus
@@ -63,14 +63,15 @@ function preparer(D) {
   const n = D.noeuds.lon.length, m = D.aretes.a.length;
   const lon = new Float64Array(n), lat = new Float64Array(n);
   for (let i = 0; i < n; i++) { lon[i] = D.noeuds.lon[i] / 1e5; lat[i] = D.noeuds.lat[i] / 1e5; }
-  const lm = new Float32Array(m), cls = new Uint8Array(m), sens = new Uint8Array(m), vit = new Uint8Array(m);
+  const lm = new Float32Array(m), cls = new Uint8Array(m), sens = new Uint8Array(m), vit = new Uint8Array(m), rd = new Uint8Array(m);
   for (let e = 0; e < m; e++) {
     const t = D.aretes.attr[e];
     lm[e] = D.aretes.l[e] / 10; cls[e] = t & 7; sens[e] = (t >> 3) & 3; vit[e] = t >> 5;
+    rd[e] = cls[e] === 3 || cls[e] === 7 ? 1 : 0;   // ancien format, sans couche du Département : RD = classes OSM
   }
   const g = D.grille;
   return {
-    n, m, lon, lat, lm, cls, sens, vit,
+    n, m, lon, lat, lm, cls, sens, vit, rd,
     a: Int32Array.from(D.aretes.a), b: Int32Array.from(D.aretes.b), nom: Int32Array.from(D.aretes.nom),
     noms: D.noms,
     grille: {
@@ -93,16 +94,17 @@ function construireGraphe(P, mode) {
   // depuis la mairie). Un seul segment au contact d'une piste : la règle ne se propage pas le long d'une route.
   // Mode sans départementales : même règle de traversée, sans les liaisons (réservées aux pistes).
   const penCls = CFG.penalites[mode], penE = new Float32Array(m), restreint = mode === "amenage" || mode === "sansdep";
+  const pen0 = mode === "sansdep" ? e => (P.rd[e] ? Infinity : penCls[P.cls[e]]) : e => penCls[P.cls[e]];
   let touche = null;
   if (restreint) {
     touche = new Uint8Array(n);
-    for (let e = 0; e < m; e++) if (isFinite(penCls[P.cls[e]])) { touche[P.a[e]] = 1; touche[P.b[e]] = 1; }
+    for (let e = 0; e < m; e++) if (isFinite(pen0(e))) { touche[P.a[e]] = 1; touche[P.b[e]] = 1; }
   }
   const liaison = mode === "amenage" ? liaisons(P, touche)
-    : mode === "sansdep" ? liaisons(P, touche, CFG.traverseeDepMaxM, CFG.penalites.sansdep.map(p => (isFinite(p) ? 0 : 1)))
+    : mode === "sansdep" ? liaisons(P, touche, CFG.traverseeDepMaxM, e => (isFinite(pen0(e)) ? 0 : 1))
     : null;
   for (let e = 0; e < m; e++) {
-    let p = penCls[P.cls[e]];
+    let p = pen0(e);
     if (!isFinite(p) && touche && ((P.lm[e] < CFG.traverseeMaxM && (touche[P.a[e]] || touche[P.b[e]])) || (liaison && liaison[e])))
       p = CFG.penalites.tout[P.cls[e]];
     penE[e] = p;
@@ -185,19 +187,20 @@ function rattacherGrille(P, G) {
 // liaison : on la garde avec les arêtes qui remontent à chaque piste. Une rue en impasse au bout d'une piste n'est pas retenue.
 function liaisons(P, touche, max = CFG.liaisonMaxM, f = CFG.liaisonFacteur) {
   const n = P.n, m = P.m;
-  const calme = new Uint8Array(8);             // 1 = arête utilisable en liaison (toute voirie hors pistes et bandes)
-  for (let c = 0; c < 8; c++) calme[c] = f[c] > 0 ? 1 : 0;
+  // f : coefficient de longueur par classe, ou fonction e → coefficient (sans départementales : selon P.rd) ;
+  // 0 = arête hors liaison (pistes et bandes)
+  const fe = typeof f === "function" ? Float32Array.from({ length: m }, (_, e) => f(e)) : Float32Array.from(P.cls, c => f[c]);
   const off = new Uint32Array(n + 2);
   let nSrc = 0;
   for (let v = 0; v < n; v++) if (touche[v]) nSrc++;
-  for (let e = 0; e < m; e++) if (calme[P.cls[e]]) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
+  for (let e = 0; e < m; e++) if (fe[e] > 0) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
   off[n + 1] = nSrc;
   for (let i = 0; i <= n; i++) off[i + 1] += off[i];
   const nArcs = off[n + 1], cible = new Int32Array(nArcs), source = new Int32Array(nArcs), poids = new Float32Array(nArcs), arete = new Int32Array(nArcs).fill(-1);
   const cur = off.slice(0, n + 1);
-  for (let e = 0; e < m; e++) if (calme[P.cls[e]]) {
+  for (let e = 0; e < m; e++) if (fe[e] > 0) {
     const a = P.a[e], b = P.b[e];
-    const l = P.lm[e] * f[P.cls[e]];
+    const l = P.lm[e] * fe[e];
     let k = cur[a]++; cible[k] = b; source[k] = a; poids[k] = l; arete[k] = e;
     k = cur[b]++; cible[k] = a; source[k] = b; poids[k] = l; arete[k] = e;
   }
@@ -212,10 +215,10 @@ function liaisons(P, touche, max = CFG.liaisonMaxM, f = CFG.liaisonFacteur) {
   const garder = new Uint8Array(m);
   const remonter = v => { while (res.pred[v] >= 0 && source[res.pred[v]] !== n) { const k = res.pred[v]; garder[arete[k]] = 1; v = source[k]; } };
   for (let e = 0; e < m; e++) {
-    if (!calme[P.cls[e]]) continue;
+    if (!(fe[e] > 0)) continue;
     const a = P.a[e], b = P.b[e];
     if (origine[a] < 0 || origine[b] < 0 || origine[a] === origine[b]) continue;
-    if (res.dist[a] + P.lm[e] * f[P.cls[e]] + res.dist[b] > max) continue;
+    if (res.dist[a] + P.lm[e] * fe[e] + res.dist[b] > max) continue;
     garder[e] = 1; remonter(a); remonter(b);
   }
   return garder;
@@ -315,9 +318,10 @@ const sourcesDijkstra = d => d.map(a => [a.noeud, accesSecondes(a.distM)]);
 
 // Arêtes d'une classe (pistes, ou bandes) regroupées en lignes continues : on suit chaque enchaînement de nœuds
 // de degré 2. Une ligne par arête donnait des dizaines de milliers de tracés à Leaflet (150 à 290 ms par fenêtre).
+// c : classe, ou fonction e → booléen (routes départementales : e => P.rd[e])
 function lignesReseau(P, c) {
-  const n = P.n, deg = new Uint16Array(n), aretes = [];
-  for (let e = 0; e < P.m; e++) if (P.cls[e] === c) { aretes.push(e); deg[P.a[e]]++; deg[P.b[e]]++; }
+  const n = P.n, deg = new Uint16Array(n), aretes = [], garde = typeof c === "function" ? c : e => P.cls[e] === c;
+  for (let e = 0; e < P.m; e++) if (garde(e)) { aretes.push(e); deg[P.a[e]]++; deg[P.b[e]]++; }
   const off = new Uint32Array(n + 1);
   for (const e of aretes) { off[P.a[e] + 1]++; off[P.b[e] + 1]++; }
   for (let v = 0; v < n; v++) off[v + 1] += off[v];
@@ -910,7 +914,7 @@ function ajouterTroncons(P, troncons) {
     lon: etendre(Float64Array, P.lon, nLon), lat: etendre(Float64Array, P.lat, nLat),
     a: etendre(Int32Array, P.a, ea), b: etendre(Int32Array, P.b, eb), lm: etendre(Float32Array, P.lm, el),
     cls: etendre(Uint8Array, P.cls, rempli(dm, 0)), sens: etendre(Uint8Array, P.sens, rempli(dm, 0)),
-    vit: etendre(Uint8Array, P.vit, rempli(dm, CFG.vitesseSimuleeKmh)),
+    vit: etendre(Uint8Array, P.vit, rempli(dm, CFG.vitesseSimuleeKmh)), rd: etendre(Uint8Array, P.rd || new Uint8Array(P.m), rempli(dm, 0)),
     nom: etendre(Int32Array, P.nom, rempli(dm, P.noms.length)), noms: [...P.noms, "Piste (simulée)"],
   };
   if (P.global) Q.global = etendre(Float64Array, P.global, rempli(dn, -1));
@@ -1024,14 +1028,15 @@ function recollerTuiles(tuiles) {
     mTotal += t.m;
   }
   const a = new Int32Array(mTotal), b = new Int32Array(mTotal), lm = new Float32Array(mTotal);
-  const cls = new Uint8Array(mTotal), sens = new Uint8Array(mTotal), vit = new Uint8Array(mTotal);
+  const cls = new Uint8Array(mTotal), sens = new Uint8Array(mTotal), vit = new Uint8Array(mTotal), rd = new Uint8Array(mTotal);
   let m = 0, ecartees = 0;
   for (const { t } of blocs) {
     for (let e = 0; e < t.m; e++) {
       const ia = indice(t.a[e]), ib = indice(t.b[e]);
       if (ia < 0 || ib < 0) { ecartees++; continue; }
       const at = t.attr[e];
-      a[m] = ia; b[m] = ib; lm[m] = t.l[e] / 10; cls[m] = at & 7; sens[m] = (at >> 3) & 3; vit[m] = at >> 5;
+      a[m] = ia; b[m] = ib; lm[m] = t.l[e] / 10; cls[m] = at & 7; sens[m] = (at >> 3) & 3; vit[m] = (at >> 5) & 0x3ff;
+      rd[m] = at >> 15;                                    // bit 15 : route départementale (marquer_rd.py)
       m++;
     }
   }
@@ -1052,7 +1057,7 @@ function recollerTuiles(tuiles) {
     }
   }
   return {
-    n, m, lon, lat, global, lm: lm.subarray(0, m), cls: cls.subarray(0, m), sens: sens.subarray(0, m), vit: vit.subarray(0, m),
+    n, m, lon, lat, global, lm: lm.subarray(0, m), cls: cls.subarray(0, m), sens: sens.subarray(0, m), vit: vit.subarray(0, m), rd: rd.subarray(0, m),
     a: a.subarray(0, m), b: b.subarray(0, m), nom: new Int32Array(m), noms: [""], ecartees,
     grille: {
       w: GRILLE_FRANCE.lon0 + txMin * C * GRILLE_FRANCE.dlon, n: GRILLE_FRANCE.lat0 - tyMin * C * GRILLE_FRANCE.dlat,

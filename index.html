@@ -76,6 +76,7 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .case-reseau .entree{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
 .trait-piste,.trait-bande,.trait-itin{display:inline-block;width:26px;height:12px;border-radius:3px;background-color:#0485A1;background-repeat:no-repeat;background-position:center;background-size:100% 2px}
 .trait-piste{background-image:linear-gradient(#fff 0 1px,#00657A 1px 3px,#fff 3px 4px);background-size:100% 4px}
+.trait-rd{display:inline-block;width:26px;height:4px;border-radius:2px;background:#9C2A5E}
 .trait-bande{background-image:repeating-linear-gradient(90deg,#00657A 0 3px,#fff 3px 6px);background-size:100% 2px}
 .trait-itin{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.6) 0 1.5px,transparent 1.5px 5px)}
 .legende{display:grid;grid-template-columns:repeat(8,1fr)}
@@ -315,6 +316,10 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes</span>
     <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
   </label>
+  <label class="case-reseau" for="voir-rd" title="Routes départementales d'après la couche du Département de la Charente-Maritime (au-delà : routes tertiaires et secondaires d'OpenStreetMap)">
+    <input type="checkbox" id="voir-rd">
+    <span class="entree"><span class="trait-rd" aria-hidden="true"></span> Départementales</span>
+  </label>
   </div>
 </div>
 
@@ -494,8 +499,8 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <h2 id="apropos-titre">À propos</h2>
   <div class="credits">
     <p>Temps réels : 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable, sur piste comme sur route (+5 % sur route pour préférer une piste qui la longe). Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
-    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales : départementales et nationales (routes tertiaires, secondaires et principales d'OpenStreetMap) interdites sauf pour les traverser, giratoire compris. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
-    <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
+    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales : départementales (couche du Département) et nationales interdites sauf pour les traverser, giratoire compris. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
+    <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes départementales : Département de la Charente-Maritime (Licence Ouverte). Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
     <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Réalisation : SIT du Pôle Marennes-Oléron, <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">code source</a> (MIT).</p>
   </div>
 </dialog>
@@ -559,7 +564,7 @@ document.getElementById("replier").addEventListener("click", e => {
   const NOTES = {
     amenage: `Pistes, voies vertes et bandes cyclables d'OpenStreetMap, reliées entre elles par de courtes liaisons : jusqu'à ${CFG.liaisonMaxM} m sur rue calme ou chemin, ${CFG.liaisonMaxM / 2} m sur route, plus les traversées de chaussée. En gris, les secteurs à plus de ${CFG.accesMaxM.amenage} m de ce réseau.`,
     tout: "Pistes et bandes, complétées par les routes et chemins, au temps réel (+5 % sur route pour préférer une piste qui la longe).",
-    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale ni une nationale (routes tertiaires, secondaires et principales d'OpenStreetMap) : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
+    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale (couche du Département de la Charente-Maritime) ni une nationale : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
   };
   const LIBELLES_MODE = { amenage: "sans les routes", sansdep: "sans départementales", tout: "avec les routes" };
 
@@ -646,7 +651,7 @@ document.getElementById("replier").addEventListener("click", e => {
   L.control.zoom({ position: "topright" }).addTo(carte);
   L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
     { maxZoom: 19, attribution: "Fond © IGN | Réseau © contributeurs OpenStreetMap" }).addTo(carte);
-  for (const [nom, z] of [["chaleur", 350], ["reseau", 355], ["iso", 360], ["d4", 440], ["crx", 445], ["trace", 450]]) {
+  for (const [nom, z] of [["chaleur", 350], ["rd", 352], ["reseau", 355], ["iso", 360], ["d4", 440], ["crx", 445], ["trace", 450]]) {
     const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace" && nom !== "d4" && nom !== "crx") p.style.pointerEvents = "none";
   }
   const contour = L.geoJSON(zone, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
@@ -686,6 +691,9 @@ document.getElementById("replier").addEventListener("click", e => {
   // de la carte, chacun redessiné à chaque déplacement (ralentissement progressif au fil du survol)
   const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
   const trace = L.layerGroup().addTo(carte);
+  // Routes départementales (P.rd, couche du Département) sous le réseau cyclable, à la demande
+  const departementales = L.layerGroup(), renduRd = L.canvas({ pane: "rd", padding: 0.3 });
+  $("#voir-rd").addEventListener("change", ev => { if (ev.target.checked) departementales.addTo(carte); else departementales.remove(); });
   $("#voir-reseau").addEventListener("change", ev => { if (ev.target.checked) reseau.addTo(carte); else reseau.remove(); });
 
   const icone = (lettre, cls) => L.divIcon({ className: "", html: `<span class="repere ${cls}">${lettre}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
@@ -723,6 +731,9 @@ document.getElementById("replier").addEventListener("click", e => {
     L.polyline(segments[1], { ...style, color: "#fff", weight: 3.4, opacity: .85 }).addTo(reseau);
     L.polyline(segments[1], { ...style, color: "#00657A", weight: 1.6, opacity: 1, dashArray: "3 3" }).addTo(reseau);
     if ($("#voir-reseau").checked) reseau.addTo(carte);
+    departementales.clearLayers();
+    L.polyline(lignesReseau(P, e => P.rd[e]), { renderer: renduRd, interactive: false, color: "#9C2A5E", weight: 3, opacity: .75, lineCap: "round", lineJoin: "round" }).addTo(departementales);
+    if ($("#voir-rd").checked) departementales.addTo(carte);
   }
 
   // ---------- Dessin ----------
