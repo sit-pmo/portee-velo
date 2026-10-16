@@ -502,10 +502,35 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <p>Temps réels : 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable, sur piste comme sur route (+5 % sur route pour préférer une piste qui la longe). Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
     <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales : départementales (couche du Département) et nationales interdites sauf pour les traverser, giratoire compris. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
     <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes départementales : Département de la Charente-Maritime (Licence Ouverte). Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
+    <p><strong>Mesure d'audience.</strong> Visites et usages des onglets comptés de façon anonyme avec <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a>, sans cookie ni donnée personnelle. Aucun tracé, adresse ni point de départ n'est transmis.</p>
     <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Réalisation : SIT du Pôle Marennes-Oléron, <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">code source</a> (MIT).</p>
   </div>
 </dialog>
 
+<script>
+// Mesure d'audience : GoatCounter (sans cookie ni donnée personnelle, pas de bandeau de consentement).
+// Pages vues classées par vue (/departement, /oleron, /pmo) ; usages comptés comme événements, une fois par visite.
+// Rien n'est envoyé depuis les aperçus de PR ni en local. Compte : https://portee-velo.goatcounter.com
+const GOATCOUNTER = "portee-velo";
+const mesureActive = !/\/pr-preview\//.test(location.pathname) && !/^(localhost|127\.|\[::1\]|$)/.test(location.hostname);
+const dejaMesure = new Set(), enAttenteMesure = [];
+function mesurer(nom) {
+  if (!mesureActive || dejaMesure.has(nom)) return;
+  dejaMesure.add(nom);
+  const ev = { path: nom, title: nom, event: true };
+  if (window.goatcounter && window.goatcounter.count) window.goatcounter.count(ev);
+  else enAttenteMesure.push(ev);   // script pas encore chargé : envoyé à son arrivée
+}
+if (mesureActive) {
+  window.goatcounter = { path: () => "/" + (new URLSearchParams(location.search).get("territoire") || "departement") };
+  const s = document.createElement("script");
+  s.async = true;
+  s.dataset.goatcounter = `https://${GOATCOUNTER}.goatcounter.com/count`;
+  s.src = "https://gc.zgo.at/count.js";
+  s.onload = () => { while (enAttenteMesure.length) window.goatcounter.count(enAttenteMesure.shift()); };
+  document.head.appendChild(s);
+}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="coeur.js"></script>
@@ -1164,6 +1189,7 @@ document.getElementById("replier").addEventListener("click", e => {
   $("#sim-effacer").addEventListener("click", () => { sim.troncons = []; sim.selection = -1; majSimulation(); });
   document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => {
     sim.vue = b.dataset.vue;
+    if (sim.vue === "gain") mesurer("simuler-vue-gain");
     document.querySelectorAll("[data-vue]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     majLegendeGain();
     if (etat.depart && vue.P) calculer(true);
@@ -1176,6 +1202,7 @@ document.getElementById("replier").addEventListener("click", e => {
     catch (e) { montrerInfo(`« ${fichier.name} » : ${/projection/.test(e.message) ? e.message : "ce n'est pas un GeoJSON lisible"}.`); return; }
     if (!r.troncons.length) { montrerInfo(`Aucune ligne dans « ${fichier.name} »${r.ignores ? ` (${r.ignores} géométrie(s) ignorée(s))` : ""}.`); return; }
     sim.troncons.push(...r.troncons); sim.selection = -1;
+    mesurer("simuler-import-geojson");
     majSimulation();
     carte.fitBounds(L.latLngBounds(r.troncons.flat().map(([lon, lat]) => [lat, lon])).pad(0.2));
     if (r.ignores) montrerInfo(`${r.troncons.length} tronçon(s) importé(s), ${r.ignores} géométrie(s) ignorée(s) (seules les lignes comptent).`);
@@ -1186,6 +1213,7 @@ document.getElementById("replier").addEventListener("click", e => {
   zoneDepot.addEventListener("dragover", ev => { ev.preventDefault(); });
   zoneDepot.addEventListener("drop", ev => { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if (f) importer(f); });
   $("#sim-exporter").addEventListener("click", () => {
+    mesurer("simuler-export-geojson");
     const blob = new Blob([JSON.stringify(versGeoJSON(sim.troncons), null, 1)], { type: "application/geo+json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = "troncons-simules.geojson"; a.click();
@@ -1244,7 +1272,7 @@ document.getElementById("replier").addEventListener("click", e => {
     // Départ laissé fixe après un tracé : rétablir le suivi ferait sauter D au premier mouvement et brouillerait les gains
     if (!garder || t.length < 2) suivre(outil.suiviAvant);
   }
-  $("#sim-tracer").addEventListener("click", () => (outil.actif ? finirTrace(true) : commencerTrace()));
+  $("#sim-tracer").addEventListener("click", () => { if (!outil.actif) mesurer("simuler-tracer"); outil.actif ? finirTrace(true) : commencerTrace(); });
   $("#sim-terminer").addEventListener("click", () => finirTrace(true));
   carte.on("dblclick", () => { if (outil.actif) finirTrace(true); });
   document.addEventListener("keydown", ev => {
@@ -1286,7 +1314,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const simple = L.LineUtil.simplify(pts, 3).map(p => { const q = carte.unproject(p, 18); return [q.lng, q.lat]; });
     sim.troncons.push(simple); voie.ajoute = true; majSimulation();
   }
-  $("#sim-voie").addEventListener("click", () => (voie.actif ? finirVoie() : commencerVoie()));
+  $("#sim-voie").addEventListener("click", () => { if (!voie.actif) mesurer("simuler-amenager-voie"); voie.actif ? finirVoie() : commencerVoie(); });
   document.addEventListener("keydown", ev => { if (voie.actif && ev.key === "Escape") finirVoie(); });
 
   // ---------- Maillons manquants de l'île (D4, ?territoire=oleron) : classement précalculé par maillons.js ----------
@@ -1341,12 +1369,13 @@ document.getElementById("replier").addEventListener("click", e => {
     d4.choisi = i; $("#d4-amenager").hidden = false; dessinerD4();
     if (zoomer) carte.fitBounds(L.latLngBounds(d4.voies[i].coords.map(([lon, lat]) => [lat, lon])).pad(0.5));
   }
-  $("#d4-vue").addEventListener("click", () => basculerD4(!d4.actif));
+  $("#d4-vue").addEventListener("click", () => { if (!d4.actif) mesurer("maillons-ile"); basculerD4(!d4.actif); });
   $("#d4-liste").addEventListener("click", ev => {
     if (ev.target.dataset.i === undefined) return;
     choisirD4(Number(ev.target.dataset.i), true);
   });
   $("#d4-amenager").addEventListener("click", () => {
+    mesurer("maillons-ile-amenager");
     const v = d4.voies[d4.choisi];
     if (!v) return;
     basculerD4(false);
@@ -1432,6 +1461,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   document.querySelectorAll("[data-crx]").forEach(b => b.addEventListener("click", () => {
     const cat = Number(b.dataset.crx);
+    if (!crx.actifs[cat]) mesurer(cat === 0 ? "croisements-rd" : "croisements-autres-routes");
     basculerCrx(cat, !crx.actifs[cat]);
   }));
 
@@ -1719,13 +1749,14 @@ document.getElementById("replier").addEventListener("click", e => {
     diag.f = Number(tr.dataset.f); diag.choisi = -1;
     afficherDiag();
   });
-  $("#diag-vue").addEventListener("click", () => basculerDiag(!diag.actif));
+  $("#diag-vue").addEventListener("click", () => { if (!diag.actif) mesurer("diagnostic-territoire"); basculerDiag(!diag.actif); });
   carte.on("zoomend", () => { if (diag.actif) dessinerDiag(); });   // taille des blocs selon l'échelle
   $("#diag-maillons").addEventListener("click", ev => {
     const li = ev.target.closest("li[data-i]");
     if (li) choisirDiag(Number(li.dataset.i), true);
   });
   $("#diag-amenager").addEventListener("click", () => {
+    mesurer("diagnostic-amenager");
     const m = diag.D && diag.D.maillons[diag.choisi];
     if (!m) return;
     basculerDiag(false);
@@ -1822,7 +1853,7 @@ document.getElementById("replier").addEventListener("click", e => {
     if (voie.actif) { amenagerVoie(ev.latlng); return; }
     if (d4.actif) return;                                        // vue cumulée : ni départ ni arrivée (carte cachée)
     if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
-    if (etat.suivre || !etat.depart || etat.cible !== "arrivee") { suivre(false); placerDepart(ev.latlng, true); }
+    if (etat.suivre || !etat.depart || etat.cible !== "arrivee") { mesurer("depart-sur-carte"); suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);
   });
   $("#suivre").hidden = !survolPossible;
@@ -1887,11 +1918,15 @@ document.getElementById("replier").addEventListener("click", e => {
     if (mode !== etat.mode || symbo !== etat.symbo) { etat.symbo = symbo; choisirMode(mode); }   // un seul recalcul
     majLien();
   }
-  document.querySelectorAll("[data-onglet]").forEach(b => b.addEventListener("click", () => allerA(Number(b.dataset.onglet))));
+  const NOMS_ONGLETS = ["portee", "confort", "ce-qui-coince", "simuler", "services"];
+  document.querySelectorAll("[data-onglet]").forEach(b => b.addEventListener("click", () => {
+    mesurer("onglet-" + (NOMS_ONGLETS[Number(b.dataset.onglet)] ?? b.dataset.onglet));
+    allerA(Number(b.dataset.onglet));
+  }));
   $("#d4-amenager").addEventListener("click", () => allerA(3));   // après son propre gestionnaire : vue Gain dans l'onglet Simuler
 
   // À propos : méthode, sources et crédits, dans une fenêtre
-  $("#ouvrir-apropos").addEventListener("click", () => $("#apropos").showModal());
+  $("#ouvrir-apropos").addEventListener("click", () => { mesurer("a-propos"); $("#apropos").showModal(); });
   $("#fermer-apropos").addEventListener("click", () => $("#apropos").close());
   $("#apropos").addEventListener("click", ev => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });   // clic hors du cadre
 
@@ -1942,6 +1977,7 @@ document.getElementById("replier").addEventListener("click", e => {
     liste.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
       const f = res[+b.dataset.i], ll = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
       champ.value = f.properties.label;
+      mesurer("recherche-adresse");
       fermerListe();
       if (etat.cible === "depart") { suivre(false); placerDepart(ll, true); } else definirArrivee(ll);
       if (!carte.getBounds().contains(ll)) carte.panTo(ll);
@@ -1986,6 +2022,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   let minuteurPartage = null;
   $("#partager").addEventListener("click", async () => {
+    mesurer("partager-lien");
     const bulle = $("#partage-etat");
     majLien();
     try {

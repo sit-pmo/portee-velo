@@ -153,6 +153,15 @@ Publication : à chaque push sur `main`, un workflow copie les fichiers publiés
 
 Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB, numpy, shapely, pyproj), à partir des extraits OpenStreetMap de Geofabrik (Poitou-Charentes, Aquitaine, Pays de la Loire) et du réseau consolidé des collectivités. Seuls les fichiers nécessaires à l'affichage sont publiés ici.
 
+## Mesure d'audience
+
+[GoatCounter](https://www.goatcounter.com/) compte les visites sans cookie ni donnée personnelle (pas de bandeau de consentement). Tableau de bord : https://portee-velo.goatcounter.com.
+
+- Pages vues classées par vue : `/departement`, `/oleron`, `/pmo`.
+- Usages comptés une fois par visite, comme événements : `onglet-…`, `depart-sur-carte`, `recherche-adresse`, `simuler-tracer`, `simuler-amenager-voie`, `simuler-import-geojson`, `simuler-export-geojson`, `simuler-vue-gain`, `maillons-ile`, `maillons-ile-amenager`, `croisements-rd`, `croisements-autres-routes`, `diagnostic-territoire`, `diagnostic-amenager`, `partager-lien`, `a-propos`.
+- Rien n'est envoyé depuis les aperçus de PR (`/pr-preview/`) ni en local. Aucun tracé, adresse ni point de départ ne quitte le navigateur.
+- Le code du compte est la constante `GOATCOUNTER` en tête de `index.html`.
+
 ## Sources et licences
 
 - Réseaux cyclables : CdC de l'Île d'Oléron, CC du Bassin de Marennes.
