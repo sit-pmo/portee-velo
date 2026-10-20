@@ -3,7 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>À portée de vélo – Charente-Maritime</title>
+<!-- Base d'URL des données (tuiles/<zone>/…), phase 3 : vide = même site ; sinon par exemple
+     https://portee-velo.<compte>.workers.dev/ pour une page servie ailleurs (les tuiles y ont l'en-tête CORS) -->
+<meta name="donnees" content="https://portee-velo.aurelienchaumet17.workers.dev/">
+<!-- Vitrine sit-pmo (20/10/2026) : les anciens liens ?territoire=oleron|pmo ouvrent la carte Marennes-Oléron
+     (réseau des collectivités), désormais dans marennes-oleron/ -->
+<script>if (/[?&]territoire=(oleron|pmo)(&|$)/.test(location.search)) location.replace("marennes-oleron/" + location.search + location.hash);</script>
+<title>À portée de vélo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -47,6 +53,9 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .bascule.petite button{font-size:.8rem;padding:6px 9px}
 
 .recherche{display:flex;gap:8px;align-items:center}
+.geoloc{flex:none;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid #c3d3d7;border-radius:8px;background:#fff;color:var(--abysse);cursor:pointer}
+.geoloc:hover{background:#eef8fb}
+.geoloc[aria-busy="true"]{opacity:.5;cursor:progress}
 .recherche input{flex:1;min-width:0;font:inherit;font-size:.92rem;padding:9px 11px;border:1px solid #c3d3d7;border-radius:8px;background:#fff;color:var(--encre)}
 .suggestions{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--brume);border-radius:8px;overflow:hidden}
 .suggestions li+li{border-top:1px solid var(--brume)}
@@ -91,6 +100,19 @@ h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
 .bouton:hover{background:#eef8fb}
 .bouton[aria-pressed="true"]{background:var(--abysse);color:#fff}
 #suivre{margin-bottom:10px}
+/* Fiche « Vérifier dans OpenStreetMap » (osm-contrib.js) */
+#osm-verifier{margin-bottom:10px}
+.osm-fiche{border:1px solid var(--brume);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:.84rem}
+.osm-fiche h3{font-size:.86rem;margin:6px 0 4px}
+.osm-lu{margin:2px 0 6px}
+.osm-recent{margin:2px 0 6px;color:#7B2CBF;font-weight:600}
+.osm-tags{border-collapse:collapse;width:100%;font-size:.78rem;margin:4px 0}
+.osm-tags th{text-align:left;font-weight:600;color:var(--ardoise);padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top}
+.osm-tags td{padding:1px 0;word-break:break-word}
+.osm-indices{margin:4px 0;padding-left:18px}
+.osm-indices li{margin:3px 0}
+.osm-actions{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.osm-actions .lien-action{margin-top:0;text-align:left}
 .credits{font-size:.75rem;color:var(--ardoise);padding-top:10px}
 .credits p{margin:0 0 6px}
 .credits a{color:var(--abysse)}
@@ -237,9 +259,16 @@ button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outl
 .depart .suggestions{max-height:40vh;overflow-y:auto}
 @media (max-width:720px){.depart{padding:8px 18px}}
 .outils{position:absolute;top:14px;right:14px;display:flex;gap:4px}
-.outils button{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:#c9edf5;cursor:pointer}
-.outils button:hover{background:rgba(255,255,255,.12);color:#fff}
+.outils button,.outils a{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:#c9edf5;cursor:pointer}
+.outils button:hover,.outils a:hover{background:rgba(255,255,255,.12);color:#fff}
 .outils svg{width:19px;height:19px}
+.outils a{text-decoration:none}
+/* Sélecteur de territoire (phase 2, 16/10/2026) : métropole (le 17 pour l'instant) et les 5 DROM */
+.choix-zone{display:block;margin:.5rem 0 0}
+.choix-zone select{font:500 .85rem var(--sans);color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(201,237,245,.45);border-radius:8px;padding:5px 8px;max-width:100%;cursor:pointer}
+.choix-zone select:hover,.choix-zone select:focus-visible{background:rgba(255,255,255,.18);border-color:#c9edf5}
+.choix-zone option{color:#1E2529;background:#fff}
+@media (max-width:720px){.choix-zone{margin:.35rem 0 0}.choix-zone select{font-size:.8rem;padding:3px 6px}}
 .entete{position:relative}
 .toast{position:absolute;top:52px;right:14px;z-index:2;max-width:250px;margin:0;padding:7px 10px;border-radius:8px;background:var(--encre);color:#fff;font-size:.8rem;box-shadow:0 4px 12px rgba(0,0,0,.25)}
 @media (max-width:720px){.outils{top:11px;right:96px}.toast{top:48px;right:8px}}
@@ -265,7 +294,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
 </style>
 </head>
 <body>
-<div id="carte" role="application" aria-label="Carte des temps de trajet à vélo en Charente-Maritime"></div>
+<div id="carte" role="application" aria-label="Carte des temps de trajet à vélo"></div>
 
 <!-- Légende détachée du panneau (13/10/2026) : visible quel que soit l'onglet ; montre la légende de la carte affichée -->
 <div class="legende-carte" id="legende-carte" aria-label="Légende de la carte">
@@ -316,9 +345,9 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes</span>
     <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
   </label>
-  <label class="case-reseau" for="voir-rd" title="Routes départementales d'après la couche du Département de la Charente-Maritime (au-delà : routes tertiaires et secondaires d'OpenStreetMap)">
+  <label class="case-reseau" for="voir-rd" title="Routes départementales et nationales : numéro D… ou N… porté par la route dans OpenStreetMap">
     <input type="checkbox" id="voir-rd">
-    <span class="entree"><span class="trait-rd" aria-hidden="true"></span> Départementales</span>
+    <span class="entree"><span class="trait-rd" aria-hidden="true"></span> Départementales et nationales</span>
   </label>
   </div>
 </div>
@@ -327,9 +356,24 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <header class="entete">
     <button type="button" class="replier" id="replier" aria-expanded="true"><span class="texte">Replier</span> <span class="fleche" aria-hidden="true">▾</span></button>
     <h1>À portée de vélo</h1>
-    <p>Jusqu'où va-t-on à vélo depuis chaque point de la Charente-Maritime, et dans quel confort, d'après OpenStreetMap</p>
+    <label class="choix-zone" title="Changer de territoire"><span hidden>Territoire</span>
+      <select id="zone" aria-label="Territoire">
+        <option value="fr">Métropole</option>
+        <option value="971">Guadeloupe</option>
+        <option value="972">Martinique</option>
+        <option value="973">Guyane</option>
+        <option value="974">La Réunion</option>
+        <option value="976">Mayotte</option>
+      </select>
+    </label>
+    <!-- Copie SIT seulement (20/10/2026) : lien vers la carte au réseau des collectivités -->
+    <a href="marennes-oleron/" style="display:block;margin-top:.35rem;color:#c9edf5;font-size:.82rem">Marennes-Oléron : réseau cyclable des collectivités →</a>
+    <p>Jusqu'où va-t-on à vélo depuis chaque point du territoire, et dans quel confort, d'après OpenStreetMap</p>
     <!-- Lien et crédits en icônes (13/10/2026) : ils tenaient le bas de chaque onglet -->
     <div class="outils">
+      <a href="classement.html" id="vers-classement" title="Classement des départements" aria-label="Classement des départements">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V11"/><path d="M12 20V5"/><path d="M19 20v-6"/></svg>
+      </a>
       <button type="button" id="partager" title="Copier le lien de cette vue" aria-label="Copier le lien de cette vue">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>
       </button>
@@ -352,6 +396,10 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <div class="depart">
     <div class="recherche">
       <input id="recherche" type="search" autocomplete="off" placeholder="Chercher une adresse" aria-label="Chercher une adresse" aria-controls="suggestions">
+      <!-- Géolocalisation (17/10/2026) : place le départ (ou l'arrivée) là où l'on est -->
+      <button type="button" class="geoloc" id="geoloc" title="Me localiser" aria-label="Me localiser" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
+      </button>
       <div class="bascule petite" role="group" aria-label="L'adresse ou le clic sur la carte place le">
         <button type="button" data-cible="depart" aria-pressed="true">Départ</button>
         <button type="button" data-cible="arrivee" aria-pressed="false">Arrivée</button>
@@ -370,7 +418,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
         <summary id="reglages-resume">Réglages de la carte</summary>
         <div class="bascule reseau" role="group" aria-label="Réseau utilisé">
           <button type="button" data-mode="amenage" aria-pressed="false" title="Pistes, voies vertes et bandes cyclables seulement">Sans les routes</button>
-          <button type="button" data-mode="sansdep" aria-pressed="false" title="Pistes, bandes, rues, voies communales et chemins : routes départementales et nationales interdites, sauf pour les traverser">Sans départementales</button>
+          <button type="button" data-mode="sansdep" aria-pressed="false" title="Pistes, bandes, rues, voies communales et chemins : routes départementales et nationales interdites, sauf pour les traverser">Sans départementales et nationales</button>
           <button type="button" data-mode="tout" aria-pressed="true" title="Pistes et bandes, complétées par les routes et chemins">Avec les routes</button>
         </div>
         <div class="bascule" id="bascule-symbo" role="group" aria-label="Couleur de la carte">
@@ -389,8 +437,8 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     </div>
 
     <div class="bloc" data-q="2">
-      <p class="note" style="margin:0">En bleu, on y va tranquillement, presque aussi vite que par la route. En orange, il faut passer par une route exposée. Les traits noirs marquent les tronçons qui coincent depuis ce départ ; pour mesurer ce qu'apporterait leur aménagement : onglet Simuler.</p>
-      <p class="note" id="q3-ailleurs">Le classement des maillons manquants, tous départs confondus, existe pour <a href="?territoire=oleron#q=2">l'île d'Oléron</a>.</p>
+      <p class="note" style="margin:0">En bleu, on y va tranquillement, presque aussi vite que par la route. En orange, il faut passer par une route exposée. Les traits noirs marquent les tronçons qui coincent depuis ce départ ; pour mesurer ce qu'apporterait leur aménagement : onglet Simuler. Un trait noir sur une voie déjà aménagée ? Elle est peut-être mal décrite dans OpenStreetMap : « Vérifier une voie dans OpenStreetMap », plus bas.</p>
+      <p class="note" id="q3-ailleurs" hidden></p>   <!-- classement des maillons (Oléron) : propre au SIT, absent ici -->
     </div>
 
     <div class="bloc" id="bloc-d4" data-q="2" hidden>
@@ -422,6 +470,7 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
       </div>
       <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise (petit point). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
       <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
+      <p class="note">La piste que vous simulez existe déjà sur le terrain ? Elle manque dans OpenStreetMap, ou y est mal décrite : « Vérifier une voie dans OpenStreetMap », plus bas, pour l'ajouter ou la signaler.</p>
       <!-- Liste repliable (12/10/2026) : avec une dizaine de tronçons, elle repoussait tout le reste du panneau ; repliée
            par défaut et à chaque tracé (13/10/2026), pour garder Avant / Après / Gain en vue -->
       <details class="sim-replier" id="sim-details" hidden>
@@ -476,12 +525,15 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
     </div>
 
     <div class="bloc" data-q="4" id="q5-ailleurs">
-      <p class="note" style="margin:0" id="q5-texte">Le bilan pour tous les habitants est calculé pour chaque intercommunalité de Charente-Maritime : placez le départ D dans le département.</p>
+      <p class="note" style="margin:0" id="q5-texte">Le bilan pour tous les habitants, par intercommunalité, n'est pas encore calculé ici.</p>
     </div>
 
     <!-- Socle commun : suivi, consigne et trajet, après le contenu de la question -->
     <div class="bloc socle" aria-live="polite">
       <button type="button" class="bouton" id="suivre" aria-pressed="false" hidden>Suivre la souris</button>
+      <!-- Boucle de contribution OSM (17/10/2026, osm-contrib.js) : fiche de la voie cliquée, liens vers iD et les notes -->
+      <button type="button" class="bouton petit" id="osm-verifier" aria-pressed="false" title="Voir comment OpenStreetMap décrit une voie, et la corriger">Vérifier une voie dans OpenStreetMap</button>
+      <div id="osm-fiche" class="osm-fiche" hidden></div>
       <p id="consigne" class="consigne">Cliquez sur la carte pour déplacer le départ. Pour un itinéraire, choisissez « Arrivée » en haut puis cliquez sur la carte.</p>
       <div id="resultat" hidden>
         <div class="duree" id="duree"></div>
@@ -500,40 +552,16 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
   <h2 id="apropos-titre">À propos</h2>
   <div class="credits">
     <p>Temps réels : 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable, sur piste comme sur route (+5 % sur route pour préférer une piste qui la longe). Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
-    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales : départementales (couche du Département) et nationales interdites sauf pour les traverser, giratoire compris. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
-    <p><strong>Sources.</strong> Réseau cyclable : communautés de communes de l'île d'Oléron et du bassin de Marennes sur leur territoire, OpenStreetMap ailleurs. Routes départementales : Département de la Charente-Maritime (Licence Ouverte). Routes, contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
-    <p><strong>Mesure d'audience.</strong> Visites et usages des onglets comptés de façon anonyme avec <a href="https://www.goatcounter.com/" target="_blank" rel="noopener">GoatCounter</a>, sans cookie ni donnée personnelle. Aucun tracé, adresse ni point de départ n'est transmis.</p>
+    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales et nationales : routes numérotées D… ou N… dans OpenStreetMap (et routes principales) interdites sauf pour les traverser, giratoire compris. Autoroutes et voies express : jamais empruntées, sauf voie express ouverte au vélo dans OpenStreetMap. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
+    <p><strong>Sources.</strong> Réseau cyclable, routes (départementales et nationales : numéro D… ou N… porté par la route), contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
     <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Réalisation : SIT du Pôle Marennes-Oléron, <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">code source</a> (MIT).</p>
   </div>
 </dialog>
 
-<script>
-// Mesure d'audience : GoatCounter (sans cookie ni donnée personnelle, pas de bandeau de consentement).
-// Pages vues classées par vue (/departement, /oleron, /pmo) ; usages comptés comme événements, une fois par visite.
-// Rien n'est envoyé depuis les aperçus de PR ni en local. Compte : https://portee-velo.goatcounter.com
-const GOATCOUNTER = "portee-velo";
-const mesureActive = !/\/pr-preview\//.test(location.pathname) && !/^(localhost|127\.|\[::1\]|$)/.test(location.hostname);
-const dejaMesure = new Set(), enAttenteMesure = [];
-function mesurer(nom) {
-  if (!mesureActive || dejaMesure.has(nom)) return;
-  dejaMesure.add(nom);
-  const ev = { path: nom, title: nom, event: true };
-  if (window.goatcounter && window.goatcounter.count) window.goatcounter.count(ev);
-  else enAttenteMesure.push(ev);   // script pas encore chargé : envoyé à son arrivée
-}
-if (mesureActive) {
-  window.goatcounter = { path: () => "/" + (new URLSearchParams(location.search).get("territoire") || "departement") };
-  const s = document.createElement("script");
-  s.async = true;
-  s.dataset.goatcounter = `https://${GOATCOUNTER}.goatcounter.com/count`;
-  s.src = "https://gc.zgo.at/count.js";
-  s.onload = () => { while (enAttenteMesure.length) window.goatcounter.count(enAttenteMesure.shift()); };
-  document.head.appendChild(s);
-}
-</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="coeur.js"></script>
+<script src="osm-contrib.js"></script>
 <script>
 // Légende pliable ; choix retenu d'une visite à l'autre, sinon pliée sur petit écran
 (() => {
@@ -590,16 +618,27 @@ document.getElementById("replier").addEventListener("click", e => {
   const NOTES = {
     amenage: `Pistes, voies vertes et bandes cyclables d'OpenStreetMap, reliées entre elles par de courtes liaisons : jusqu'à ${CFG.liaisonMaxM} m sur rue calme ou chemin, ${CFG.liaisonMaxM / 2} m sur route, plus les traversées de chaussée. En gris, les secteurs à plus de ${CFG.accesMaxM.amenage} m de ce réseau.`,
     tout: "Pistes et bandes, complétées par les routes et chemins, au temps réel (+5 % sur route pour préférer une piste qui la longe).",
-    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale (couche du Département de la Charente-Maritime) ni une nationale : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
+    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale ni une nationale (numéro D… ou N… dans OpenStreetMap, ou route principale) : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
   };
-  const LIBELLES_MODE = { amenage: "sans les routes", sansdep: "sans départementales", tout: "avec les routes" };
+  const LIBELLES_MODE = { amenage: "sans les routes", sansdep: "sans départementales et nationales", tout: "avec les routes" };
 
   // ---------- Données : index des tuiles et contour du département ----------
   // fetch ne fonctionne pas en ouvrant le fichier directement (file://) : il faut un serveur (GitHub Pages,
   // ou « python -m http.server » dans ce dossier)
+  // Territoire de la grille (16/10/2026) : ?zone=974 etc. (DROM), métropole par défaut ; une grille et un dossier
+  // de tuiles par territoire (tuiles/<zone>/), la grille est lue dans tuiles.json
+  const ZONE = /^(fr|97[1-46])$/.test(new URLSearchParams(location.search).get("zone")) ? new URLSearchParams(location.search).get("zone") : "fr";
+  const BASE_DONNEES = (document.querySelector('meta[name="donnees"]')?.content || "").replace(/([^/])$/, "$1/");
+  const DOSSIER = `${BASE_DONNEES}tuiles/${ZONE}/`;
+  // Sélecteur de territoire : recharge la page sur l'autre grille (sans le lien de la vue : départ, tronçons…
+  // n'ont pas de sens ailleurs). Branché avant le chargement, pour rester utilisable si les données manquent.
+  $("#zone").value = ZONE;
+  $("#zone").addEventListener("change", ev => {
+    location.href = location.pathname + (ev.target.value === "fr" ? "" : `?zone=${ev.target.value}`);
+  });
   let index, contourDep;
   try {
-    [index, contourDep] = await Promise.all(["tuiles/tuiles.json", "tuiles/contour.json"].map(u => fetch(u).then(r => {
+    [index, contourDep] = await Promise.all([DOSSIER + "tuiles.json", DOSSIER + "contour.json"].map(u => fetch(u).then(r => {
       if (!r.ok) throw new Error(`${u} : ${r.status}`);
       return r.json();
     })));
@@ -611,13 +650,22 @@ document.getElementById("replier").addEventListener("click", e => {
       : `Données indisponibles (${e.message}).`;
     return;
   }
+  definirGrille(index.grille);
+  // Nom du territoire tuilé et ses formes (contour.json, chaine/lieux.py) : plus aucun texte propre au 17
+  const LIEU = { nom: contourDep.nom || "", en: contourDep.en || `en ${contourDep.nom}`, de: contourDep.de || `de ${contourDep.nom}`,
+    sur: contourDep.sur || `sur ${contourDep.nom}` };
+  LIEU.le = LIEU.sur.replace(/^sur /, "");
+  $("#zone").selectedOptions[0].textContent = LIEU.nom;    // « fr » : Charente-Maritime, puis France métropolitaine               // « la Charente-Maritime », « La Réunion », « Mayotte »
+  document.title = `À portée de vélo – ${LIEU.nom}`;
+  $("#carte").setAttribute("aria-label", `Carte des temps de trajet à vélo ${LIEU.en}`);
+  $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${LIEU.de}, et dans quel confort, d'après OpenStreetMap`;
   // ---------- Vue d'un territoire (comme l'ancienne carte Marennes-Oléron) : ?territoire=oleron (l'île),
   // ?territoire=pmo (les 14 communes). Seul le territoire est coloré, l'emprise est bloquée dessus et la
   // couverture est en % de ses cellules de 100 m (centre dans le contour). Sans paramètre : tout le département.
   const TERRITOIRE = new URLSearchParams(location.search).get("territoire");
   let terr = null;
   if (["oleron", "pmo"].includes(TERRITOIRE)) {
-    try { terr = (await fetch("tuiles/territoires.json").then(r => r.json()))[TERRITOIRE]; } catch { terr = null; }
+    try { terr = (await fetch(DOSSIER + "territoires.json").then(r => r.json()))[TERRITOIRE]; } catch { terr = null; }
   }
   const zone = terr ? terr.geometrie : contourDep.geometrie;
   // Masque du territoire sur la grille des tuiles (tuiler.py : centre dans le contour et sur la terre), en plages
@@ -634,10 +682,97 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#note-couverture").textContent = `Part des cellules de 100 m ${TERRITOIRE === "oleron" ? "de l'île" : "des 14 communes"} atteintes.`;
   }
 
-  const chargeur = new ChargeurTuiles({ index, lire: (tx, ty) => fetch(`tuiles/${tx}_${ty}.bin`).then(r => {
-    if (!r.ok) throw new Error(`tuile ${tx}_${ty} : ${r.status}`);
-    return r.arrayBuffer();
-  }) });
+  // Taille de la fenêtre : 7 × 7 tuiles (~35 km autour du départ) depuis le 16/10/2026 (essai d'Aurélien sur
+  // téléphone à Paris : plus fluide, la zone d'une heure n'est plus coupée pendant le survol) ; ?fenetre=5 pour
+  // l'ancienne fenêtre de 5 × 5. Cache : la fenêtre et sa couronne de préchargement, plus une marge pour revenir
+  // en arrière sans relire
+  const FENETRE = new URLSearchParams(location.search).get("fenetre") === "5" ? 5 : 7;
+  const RAYON = (FENETRE - 1) / 2;
+  const OPTIONS_CHARGEUR = { index, rayon: RAYON, capacite: Math.max(60, (2 * RAYON + 3) ** 2 + 20),
+    lire: (tx, ty) => fetch(`${DOSSIER}${tx}_${ty}.bin`).then(r => {
+      if (!r.ok) throw new Error(`tuile ${tx}_${ty} : ${r.status}`);
+      return r.arrayBuffer();
+    }) };
+  // Chargeur dans un Worker (tuiles-worker.js, 19/10/2026) : lecture, décodage, recollage, graphe « tout », sa
+  // contraction et le graphe « sans les routes » hors du fil principal (à Paris, ~2,5 s de gel par changement de
+  // fenêtre). Même interface que ChargeurTuiles ; la fenêtre arrive avec son graphe « tout » (f.G). En cas de panne
+  // du Worker (ou sans Worker), repli sur ChargeurTuiles dans la page, comme avant.
+  class ChargeurWorker {
+    constructor(o) {
+      this.existe = new Set(o.index.tuiles.map(([tx, ty]) => `${tx}_${ty}`));
+      this.rayon = o.rayon; this.options = o; this.distant = true;
+      this.attente = new Map(); this.n = 0; this.dernier = null; this.amenage = null; this.secours = null;
+      this.fenetres = new Map();               // dernières fenêtres reçues avec graphe, par signature (pour leurs suites)
+      this.w = new Worker("tuiles-worker.js");
+      this.w.onmessage = e => {
+        const m = e.data;
+        if (m.type === "amenage") { this.amenage = m; if (this.surAmenage) this.surAmenage(m); return; }
+        if (m.type === "suite") {                // posée sur la fenêtre reçue de même signature, puis signalée à la page
+          const f = this.fenetres.get(m.signature);
+          if (f) {
+            if (m.reseau) f.reseau = m.reseau;
+            if (m.rapide && f.G && !f.G.rapide) f.G.rapide = m.rapide;
+          }
+          if (this.surSuite) this.surSuite(m);
+          return;
+        }
+        const r = this.attente.get(m.id);
+        if (!r) return;
+        this.attente.delete(m.id);
+        if (m.erreur) { r.rejet(new Error(m.erreur)); return; }
+        if (m.meme) { m.P = this.dernier && this.dernier.P; m.G = this.dernier && this.dernier.G; m.reseau = this.dernier && this.dernier.reseau; }
+        else {
+          if (m.G) m.G.rapideAttendu = true;     // contraction en route : la page ne la refait pas (preparerContractions)
+          this.dernier = { signature: m.signature, P: m.P, G: m.G || null, reseau: m.reseau || null };
+          if (m.G) {
+            // Le Worker abandonne les suites de la fenêtre précédente : ce qui n'en est pas arrivé, la page le fera
+            const prec = this.derniereFenetre;
+            if (prec && prec.G && !prec.G.rapide) prec.G.rapideAttendu = false;
+            if (prec && !prec.reseau && this.surAbandon) this.surAbandon(prec);
+            this.derniereFenetre = this.dernier;
+            this.fenetres.set(m.signature, this.dernier);
+            while (this.fenetres.size > 3) this.fenetres.delete(this.fenetres.keys().next().value);
+          }
+        }
+        r.ok(m);
+      };
+      this.w.onerror = e => {                  // script introuvable, erreur au chargement… : repli dans la page
+        e.preventDefault && e.preventDefault();
+        this.panne();
+      };
+      this.w.postMessage({ type: "init", index: o.index, grille: o.index.grille, rayon: o.rayon, capacite: o.capacite,
+        dossier: new URL(DOSSIER, location.href).href });
+    }
+    panne() {
+      if (!this.secours) { this.secours = new ChargeurTuiles(this.options); try { this.w.terminate(); } catch {} }
+      for (const [, r] of this.attente) r.rejet(new Error("Worker indisponible"));
+      this.attente.clear();
+    }
+    tuileDe(lon, lat) { return ChargeurTuiles.prototype.tuileDe.call(this, lon, lat); }
+    voisines(tx, ty, r) { return ChargeurTuiles.prototype.voisines.call(this, tx, ty, r); }
+    demander(msg) {
+      return new Promise((ok, rejet) => { const id = ++this.n; this.attente.set(id, { ok, rejet }); this.w.postMessage({ ...msg, id }); });
+    }
+    async fenetre(lon, lat) {
+      if (this.secours) return this.secours.fenetre(lon, lat);
+      try { return await this.demander({ type: "fenetre", lon, lat }); }
+      catch { this.panne(); return this.secours.fenetre(lon, lat); }
+    }
+    async couloir(lon1, lat1, lon2, lat2, demiLargeurKm) {
+      if (this.secours) return this.secours.couloir(lon1, lat1, lon2, lat2, demiLargeurKm);
+      try { return await this.demander({ type: "couloir", lon1, lat1, lon2, lat2, demiLargeurKm }); }
+      catch { this.panne(); return this.secours.couloir(lon1, lat1, lon2, lat2, demiLargeurKm); }
+    }
+    precharger(lon, lat) {
+      if (this.secours) this.secours.precharger(lon, lat);
+      else this.w.postMessage({ type: "precharger", lon, lat });
+    }
+  }
+  let chargeur;
+  try {
+    if (typeof Worker !== "function" || new URLSearchParams(location.search).has("sansworker")) throw new Error("sans Worker");
+    chargeur = new ChargeurWorker(OPTIONS_CHARGEUR);
+  } catch { chargeur = new ChargeurTuiles(OPTIONS_CHARGEUR); }
 
   // Point dans la zone (département, ou territoire demandé ; Polygon ou MultiPolygon, règle pair-impair)
   const anneaux = (zone.type === "Polygon" ? [zone.coordinates] : zone.coordinates).flat();
@@ -650,7 +785,7 @@ document.getElementById("replier").addEventListener("click", e => {
     return dedans;
   }
 
-  // Fenêtre courante (5 × 5 tuiles recollées) et tout ce qui en dépend
+  // Fenêtre courante (7 × 7 tuiles recollées, 5 × 5 avec ?fenetre=5) et tout ce qui en dépend
   const vue = { P: null, G: null, g: null, centre: null, partielle: false };
   const etat = { mode: "tout", symbo: "vitesse", cible: "depart", depart: null, arrivee: null, acc: null, res: null, minutes: null };
 
@@ -661,7 +796,8 @@ document.getElementById("replier").addEventListener("click", e => {
   const aff = () => (vue.sim && sim.vue !== "avant" ? vue.sim : vue);
   // Graphes d'une fenêtre : « tout » tout de suite, « pistes » (~400 ms avec les liaisons entre pistes) et
   // « confort » à la première demande : en mode « Pistes + routes », un changement de tuile ne paie que « tout »
-  const graphes = P => ({ tout: construireGraphe(P, "tout"),
+  // Gt : graphe « tout » déjà construit (Worker), avec sa contraction ; sinon construit ici
+  const graphes = (P, Gt) => ({ tout: Gt || construireGraphe(P, "tout"),
     get amenage() { return this._amenage || (this._amenage = construireGraphe(P, "amenage")); },
     get confort() { return this._confort || (this._confort = construireGraphe(P, "confort")); },
     get sansdep() { return this._sansdep || (this._sansdep = construireGraphe(P, "sansdep")); } });   // ~30 à 150 ms, grille comprise
@@ -681,7 +817,35 @@ document.getElementById("replier").addEventListener("click", e => {
     const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace" && nom !== "d4" && nom !== "crx") p.style.pointerEvents = "none";
   }
   const contour = L.geoJSON(zone, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
+  // DROM (17/10/2026) : le Plan IGN n'y couvre qu'un rectangle, blanc au-delà ; les îles semblaient flotter dans le
+  // vide. Mer peinte autour du territoire dans le gris qu'a la mer du Plan IGN sous le filtre du fond
+  // (.leaflet-tile-pane : 211, 211, 211), juste au-dessus des tuiles : la carte paraît continue.
+  if (ZONE.startsWith("97")) {
+    carte.createPane("mer").style.zIndex = 250;
+    carte.getPane("mer").style.pointerEvents = "none";
+    const polys = zone.type === "Polygon" ? [zone.coordinates] : zone.type === "MultiPolygon" ? zone.coordinates : [];
+    const exterieur = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]];
+    L.geoJSON({ type: "Polygon", coordinates: [exterieur, ...polys.map(p => p[0])] },
+      { pane: "mer", interactive: false, style: { stroke: false, fillColor: "#d3d3d3", fillOpacity: 1 } }).addTo(carte);
+  }
   const etroit = () => window.matchMedia("(max-width:720px)").matches;
+  // Centre ll dans la partie de la carte que le panneau ne cache pas (en bas sur téléphone, à gauche sinon), d'après sa
+  // place réelle : replié, il ne cache presque rien
+  // Partie visible de la carte, en pixels du conteneur : [x0, y0, x1, y1]
+  function zoneVisible() {
+    const t = carte.getSize(), r = document.querySelector(".panneau").getBoundingClientRect(), c = carte.getContainer().getBoundingClientRect();
+    return etroit() ? [0, 0, t.x, Math.max(40, Math.min(t.y, r.top - c.top))] : [Math.max(0, Math.min(t.x - 40, r.right - c.left)), 0, t.x, t.y];
+  }
+  function centrerVisible(ll, zoom) {
+    const t = carte.getSize(), [x0, y0, x1, y1] = zoneVisible();
+    carte.setView(ll, zoom, { animate: false });
+    carte.panBy([t.x / 2 - (x0 + x1) / 2, t.y / 2 - (y0 + y1) / 2], { animate: false });
+  }
+  // ll déjà dans la partie visible (à 30 px du bord près) ?
+  function estVisible(ll) {
+    const p = carte.latLngToContainerPoint(ll), [x0, y0, x1, y1] = zoneVisible();
+    return p.x >= x0 + 30 && p.x <= x1 - 30 && p.y >= y0 + 30 && p.y <= y1 - 30;
+  }
   const marges = () => etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] };
 
   carte.fitBounds(contour.getBounds(), marges());
@@ -693,8 +857,13 @@ document.getElementById("replier").addEventListener("click", e => {
     [bc.getNorth() + dLat * (pb + m.n), bc.getEast() + dLon * (pb + m.e)]]);
   carte.options.maxBoundsViscosity = 1;
   if (terr) carte.setMinZoom(carte.getZoom() - 0.5);  // pas de dézoom au-delà de la vue d'ensemble du territoire
-  // Départ par défaut : mairie de La Rochelle ; sur Marennes-Oléron, celle de Saint-Pierre-d'Oléron
-  const DEPART_DEFAUT = terr ? L.latLng(45.9443, -1.3063) : L.latLng(46.1595, -1.1513);
+  // Départ par défaut : mairie de la commune la plus peuplée (contour.json, chaine/lieux.py), à défaut le centre
+  // du contour ; sur Marennes-Oléron, celle de Saint-Pierre-d'Oléron
+  // Métropole (contour.json → departs, phase 4) : mairie du chef-lieu d'un département tiré au sort à chaque visite
+  const tirage = !terr && contourDep.departs?.length ? contourDep.departs[Math.floor(Math.random() * contourDep.departs.length)] : null;
+  const DEPART_DEFAUT = terr ? L.latLng(45.9443, -1.3063)
+    : tirage ? L.latLng(tirage.lat, tirage.lon)
+    : contourDep.depart ? L.latLng(contourDep.depart.lat, contourDep.depart.lon) : contour.getBounds().getCenter();
 
   let toile = null, ctx = null, image = null, chaleur = null;
   // Calque Leaflet qui affiche directement un <canvas> (au lieu d'une image PNG) : à chaque image du survol,
@@ -717,21 +886,64 @@ document.getElementById("replier").addEventListener("click", e => {
   // de la carte, chacun redessiné à chaque déplacement (ralentissement progressif au fil du survol)
   const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
   const trace = L.layerGroup().addTo(carte);
-  // Routes départementales (P.rd, couche du Département) sous le réseau cyclable, à la demande
+  // Routes départementales et nationales (P.rd, P.nat : ref D… / N… d'OSM) sous le réseau cyclable, à la demande
   const departementales = L.layerGroup(), renduRd = L.canvas({ pane: "rd", padding: 0.3 });
-  $("#voir-rd").addEventListener("change", ev => { if (ev.target.checked) departementales.addTo(carte); else departementales.remove(); });
+  // Tracé construit seulement case cochée (17/10/2026 : depuis le bit RD posé au tuilage, des dizaines de milliers de
+  // segments refaits à chaque fenêtre, même masqués), et refait à la fenêtre suivante si elle reste cochée
+  let rdDe = null;
+  function dessinerRd() {
+    if (!$("#voir-rd").checked || !vue.P) { departementales.remove(); return; }
+    if (rdDe !== vue.P) {
+      const P = vue.P;
+      departementales.clearLayers(); rdDe = P;
+      L.polyline(lignesReseau(P, e => P.rd[e] || (P.nat && P.nat[e])), { renderer: renduRd, interactive: false, color: "#9C2A5E", weight: 3, opacity: .75, lineCap: "round", lineJoin: "round" }).addTo(departementales);
+    }
+    departementales.addTo(carte);
+  }
+  $("#voir-rd").addEventListener("change", dessinerRd);
   $("#voir-reseau").addEventListener("change", ev => { if (ev.target.checked) reseau.addTo(carte); else reseau.remove(); });
 
   const icone = (lettre, cls) => L.divIcon({ className: "", html: `<span class="repere ${cls}">${lettre}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
   const marqueurDepart = L.marker([0, 0], { draggable: true, icon: icone("D", "repere-d"), title: "Départ, à faire glisser", zIndexOffset: 1000 });
   const marqueurArrivee = L.marker([0, 0], { draggable: true, icon: icone("A", "repere-a"), title: "Arrivée, à faire glisser" });
 
+  // Graphe « sans les routes » envoyé par le Worker après la fenêtre : posé s'il s'agit toujours de la même fenêtre
+  // et que la page ne l'a pas déjà construit elle-même (mode choisi avant son arrivée)
+  function recevoirAmenage(m) {
+    if (!vue.G || vue.signature !== m.signature || vue.G._amenage) return;
+    vue.G._amenage = m.G;
+  }
+  if (chargeur.distant) chargeur.surAmenage = recevoirAmenage;
+  function enregistrerContraction(P, G) {
+    const C = P._contractions || (P._contractions = []);
+    if (!C.some(x => x.G === G)) C.push({ G, pro: P.grille.pro.tout });
+  }
+  // Suites du Worker pour la fenêtre affichée : lignes du réseau à dessiner, contraction (posée sur le graphe par le
+  // chargeur ; « confort » peut alors la reprendre)
+  // Suites abandonnées par le Worker (une autre fenêtre est partie entre-temps) alors que la page affiche toujours
+  // celle-ci : lignes du réseau calculées ici ; la contraction, preparerContractions la fera sur un temps libre
+  if (chargeur.distant) chargeur.surAbandon = f => {
+    if (vue.signature !== f.signature) return;
+    dessinerReseau([lignesReseau(vue.P, 0), lignesReseau(vue.P, 1)]);
+    preparerContractions();
+  };
+  if (chargeur.distant) chargeur.surSuite = m => {
+    if (vue.signature !== m.signature) return;
+    if (m.reseau) dessinerReseau(m.reseau.map(deballerLignes));
+    if (m.rapide) { enregistrerContraction(vue.P, vue.G.tout); preparerContractions(); }
+  };
+
   // Nouvelle fenêtre de tuiles : graphes des deux modes, image de chaleur et réseau dessiné à refaire
   function installerFenetre(f) {
     vue.partielle = f.partielle;
     if (f.P === vue.P) return;
     vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
-    vue.G = graphes(f.P);
+    majCrxFenetre(); majAccesFenetre();
+    vue.G = graphes(f.P, f.G);
+    // Contraction faite par le Worker : enregistrée pour que « confort » la reprenne (graphRapide, coeur.js)
+    if (f.G && f.G.rapide) enregistrerContraction(f.P, f.G);
+    vue.signature = f.signature;
+    if (chargeur.amenage && chargeur.amenage.signature === f.signature) recevoirAmenage(chargeur.amenage);
     vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
     if (masqueZone) appliquerMasque(vue.g, masqueZone, index.grille);   // vue territoire : cellules hors du territoire ni colorées ni comptées
     preparerSimulation();                      // après le masque : P′ en hérite
@@ -746,9 +958,15 @@ document.getElementById("replier").addEventListener("click", e => {
       if (chaleur) chaleur.remove();
       chaleur = new CalqueCanvas(toile, bornes, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
     } else chaleur.setBounds(bornes);
-    // Réseau cyclable de la fenêtre par-dessus la chaleur : trait blanc fin (pistes), tirets (bandes)
+    // Réseau cyclable : lignes faites par le Worker (déjà là, ou à venir dans une suite), sinon calculées ici
     reseau.clearLayers();
-    const P = vue.P, segments = [lignesReseau(P, 0), lignesReseau(P, 1)];
+    if (f.reseau) dessinerReseau(f.reseau.map(deballerLignes));
+    else if (!chargeur.distant || chargeur.secours) dessinerReseau([lignesReseau(vue.P, 0), lignesReseau(vue.P, 1)]);
+    dessinerRd();
+  }
+  // Réseau cyclable de la fenêtre par-dessus la chaleur : trait blanc fin (pistes), tirets (bandes)
+  function dessinerReseau(segments) {
+    reseau.clearLayers();
     const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
     // Bleu canard sous halo blanc : distinct des routes du fond IGN (blanches à liseré gris, qui masquaient un trait
     // blanc hors zone colorée), lisible sur les teintes, distinct des maillons manquants (noirs, épais)
@@ -757,9 +975,6 @@ document.getElementById("replier").addEventListener("click", e => {
     L.polyline(segments[1], { ...style, color: "#fff", weight: 3.4, opacity: .85 }).addTo(reseau);
     L.polyline(segments[1], { ...style, color: "#00657A", weight: 1.6, opacity: 1, dashArray: "3 3" }).addTo(reseau);
     if ($("#voir-reseau").checked) reseau.addTo(carte);
-    departementales.clearLayers();
-    L.polyline(lignesReseau(P, e => P.rd[e]), { renderer: renduRd, interactive: false, color: "#9C2A5E", weight: 3, opacity: .75, lineCap: "round", lineJoin: "round" }).addTo(departementales);
-    if ($("#voir-rd").checked) departementales.addTo(carte);
   }
 
   // ---------- Dessin ----------
@@ -809,6 +1024,8 @@ document.getElementById("replier").addEventListener("click", e => {
     ctx.putImageData(image, 0, 0);                 // affiché tel quel par CalqueCanvas
   }
 
+  // Isolignes en canvas (19/10/2026) : en SVG, 25 000 à 45 000 sommets par fenêtre en ville ; un seul moteur, réutilisé
+  const renduIso = L.canvas({ pane: "iso", padding: 0.3 });
   function dessinerIsolignes(min) {
     iso.clearLayers();
     const P = aff().P, g = P.grille, f = champIsolignes(P, min);
@@ -827,7 +1044,7 @@ document.getElementById("replier").addEventListener("click", e => {
       }
       if (!lignes.length) continue;
       const plein = c.value % 30 === 0;
-      L.polyline(lignes, { pane: "iso", interactive: false, color: "#0B2E38", opacity: .8, weight: plein ? 1.8 : 1.1, dashArray: plein ? null : "4 4" }).addTo(iso);
+      L.polyline(lignes, { renderer: renduIso, pane: "iso", interactive: false, color: "#0B2E38", opacity: .8, weight: plein ? 1.8 : 1.1, dashArray: plein ? null : "4 4" }).addTo(iso);
     }
   }
 
@@ -879,7 +1096,7 @@ document.getElementById("replier").addEventListener("click", e => {
     const acc = etat.res && meilleure(etat.res, departs(s.P, Gm, lng, lat));
     if (acc) { dessinerTrajet(s.P, Gm, etat.res, etat.acc, acc); return; }
     $("#etapes").innerHTML = "";
-    // Tuiles présentes sous l'arrivée (17 et 25 km autour) : l'itinéraire peut se calculer
+    // Tuiles présentes sous l'arrivée (territoire et sa marge) : l'itinéraire peut se calculer
     const tuilee = chargeur.existe.has(chargeur.tuileDe(lng, lat).join("_"));
     if (etat.acc && tuilee) {
       $("#duree").textContent = loin ? "Calcul…" : "Plus loin";
@@ -889,7 +1106,7 @@ document.getElementById("replier").addEventListener("click", e => {
     }
     $("#duree").textContent = "Hors d'atteinte";
     $("#detail").textContent = !etat.acc ? "Le départ n'est relié à aucune voie."
-      : "Cette arrivée est hors de la zone calculée (Charente-Maritime et 25 km autour).";
+      : `Cette arrivée est hors de la zone calculée (${LIEU.nom}${contourDep.margeKm ? ` et ${contourDep.margeKm} km autour` : ""}).`;
   }
 
   // Itinéraire au-delà de la fenêtre : couloir de 10 km de part et d'autre de la ligne droite, élargi à 25 km
@@ -918,7 +1135,7 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#detail").textContent = mode === "amenage"
       ? "Aucun itinéraire par les pistes et bandes entre ces deux points. Essayez le réseau « Avec les routes »."
       : mode === "sansdep"
-      ? "Aucun itinéraire sans départementale entre ces deux points. Essayez le réseau « Avec les routes »."
+      ? "Aucun itinéraire sans départementale ni nationale entre ces deux points. Essayez le réseau « Avec les routes »."
       : "Aucun itinéraire trouvé entre ces deux points, ou l'arrivée est trop loin d'une voie praticable.";
   }
 
@@ -965,13 +1182,42 @@ document.getElementById("replier").addEventListener("click", e => {
     // Départ : nœud accroché et, avec des tronçons simulés, aussi celui d'avant (une piste ne rallonge jamais un trajet)
     const acc = departs(s.P, Gm, lng, lat);
     if (!acc.length) return null;
-    const res = dijkstra(Gm, sourcesDijkstra(acc), 0, LIMITE_S);
+    const res = dijkstraRapide(Gm, s.P, sourcesDijkstra(acc), 0, LIMITE_S);   // graphe contracté, résultat redéplié
     // Trajet tranquille borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
     const minConf = confortActif() ? minutesTranquilles(s.P, s.G.confort, lng, lat, LIMITE_S * CFG.confort.surcout[1]) : null;
     return { acc, res, minutes: tempsGrille(s.P, Gm, res), minConf };
   }
 
+  // Graphes contractés (coeur.js, dijkstraRapide) des graphes du calcul en cours, construits sur un temps libre :
+  // 50 à 320 ms selon la ville, qu'on ne veut pas ajouter au gel d'un changement de fenêtre. D'ici là, calcul
+  // complet comme avant ; ensuite, survol 2 fois plus rapide, mêmes temps.
+  CFG.contractionImmediate = false;
+  let contractionPrevue = false;
+  function preparerContractions() {
+    if (contractionPrevue) return;
+    const s = [vue, vue.sim].filter(x => x && x.G), aFaire = [];
+    for (const x of s) {
+      // Contraction de « tout » attendue du Worker : rien à faire ici (« confort » la reprendra à son arrivée)
+      if (x.G.tout.rapideAttendu && !x.G.tout.rapide && !chargeur.secours) continue;
+      aFaire.push([x.G[etat.mode], x.P]);
+      if (confortActif()) aFaire.push([x.G.confort, x.P]);
+      if ($(".panneau").dataset.q === "4") aFaire.push([x.G.tout, x.P], [x.G.amenage, x.P], [x.G.confort, x.P]);   // Services : les trois mesures
+    }
+    if (aFaire.every(([G]) => G.rapide)) return;
+    contractionPrevue = true;
+    const faire = () => {
+      contractionPrevue = false;
+      const suivant = aFaire.find(([G]) => !G.rapide);          // un graphe par temps libre
+      if (!suivant || !vue.G) return;
+      graphRapide(suivant[0], suivant[1]);
+      preparerContractions();
+    };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(faire, { timeout: 1500 });
+    else setTimeout(faire, 300);                                 // Safari : pas de requestIdleCallback
+  }
+
   function calculer(complet) {
+    preparerContractions();
     const g = vue.g;
     // Sans tronçon : un seul calcul. Avec : avant (P) et après (P′) à chaque image, pour le bandeau et la vue Gain
     // (mesuré sur Oléron : 23 ms sans tronçon, ~45 ms avec, temps et confort compris)
@@ -1189,7 +1435,6 @@ document.getElementById("replier").addEventListener("click", e => {
   $("#sim-effacer").addEventListener("click", () => { sim.troncons = []; sim.selection = -1; majSimulation(); });
   document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => {
     sim.vue = b.dataset.vue;
-    if (sim.vue === "gain") mesurer("simuler-vue-gain");
     document.querySelectorAll("[data-vue]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
     majLegendeGain();
     if (etat.depart && vue.P) calculer(true);
@@ -1202,7 +1447,6 @@ document.getElementById("replier").addEventListener("click", e => {
     catch (e) { montrerInfo(`« ${fichier.name} » : ${/projection/.test(e.message) ? e.message : "ce n'est pas un GeoJSON lisible"}.`); return; }
     if (!r.troncons.length) { montrerInfo(`Aucune ligne dans « ${fichier.name} »${r.ignores ? ` (${r.ignores} géométrie(s) ignorée(s))` : ""}.`); return; }
     sim.troncons.push(...r.troncons); sim.selection = -1;
-    mesurer("simuler-import-geojson");
     majSimulation();
     carte.fitBounds(L.latLngBounds(r.troncons.flat().map(([lon, lat]) => [lat, lon])).pad(0.2));
     if (r.ignores) montrerInfo(`${r.troncons.length} tronçon(s) importé(s), ${r.ignores} géométrie(s) ignorée(s) (seules les lignes comptent).`);
@@ -1213,7 +1457,6 @@ document.getElementById("replier").addEventListener("click", e => {
   zoneDepot.addEventListener("dragover", ev => { ev.preventDefault(); });
   zoneDepot.addEventListener("drop", ev => { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if (f) importer(f); });
   $("#sim-exporter").addEventListener("click", () => {
-    mesurer("simuler-export-geojson");
     const blob = new Blob([JSON.stringify(versGeoJSON(sim.troncons), null, 1)], { type: "application/geo+json" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob); a.download = "troncons-simules.geojson"; a.click();
@@ -1251,7 +1494,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   function commencerTrace() {
     if (outil.actif) return;
-    finirVoie();
+    finirVoie(); contrib.arreter();
     outil.actif = true; outil.sommets = []; outil.raccords = []; outil.suiviAvant = etat.suivre;
     $("#sim-details").open = false;
     suivre(false); carte.doubleClickZoom.disable();
@@ -1272,7 +1515,7 @@ document.getElementById("replier").addEventListener("click", e => {
     // Départ laissé fixe après un tracé : rétablir le suivi ferait sauter D au premier mouvement et brouillerait les gains
     if (!garder || t.length < 2) suivre(outil.suiviAvant);
   }
-  $("#sim-tracer").addEventListener("click", () => { if (!outil.actif) mesurer("simuler-tracer"); outil.actif ? finirTrace(true) : commencerTrace(); });
+  $("#sim-tracer").addEventListener("click", () => (outil.actif ? finirTrace(true) : commencerTrace()));
   $("#sim-terminer").addEventListener("click", () => finirTrace(true));
   carte.on("dblclick", () => { if (outil.actif) finirTrace(true); });
   document.addEventListener("keydown", ev => {
@@ -1288,7 +1531,7 @@ document.getElementById("replier").addEventListener("click", e => {
   const voie = { actif: false, suiviAvant: false, ajoute: false };
   function commencerVoie() {
     if (voie.actif) return;
-    finirTrace(false);
+    finirTrace(false); contrib.arreter();
     voie.actif = true; voie.ajoute = false; voie.suiviAvant = etat.suivre;
     $("#sim-details").open = false;
     suivre(false); selectionner(-1);
@@ -1314,7 +1557,11 @@ document.getElementById("replier").addEventListener("click", e => {
     const simple = L.LineUtil.simplify(pts, 3).map(p => { const q = carte.unproject(p, 18); return [q.lng, q.lat]; });
     sim.troncons.push(simple); voie.ajoute = true; majSimulation();
   }
-  $("#sim-voie").addEventListener("click", () => { if (!voie.actif) mesurer("simuler-amenager-voie"); voie.actif ? finirVoie() : commencerVoie(); });
+  $("#sim-voie").addEventListener("click", () => (voie.actif ? finirVoie() : commencerVoie()));
+
+  // ---------- Vérifier une voie dans OpenStreetMap (osm-contrib.js) : exclusif des outils de simulation ----------
+  const contrib = installerContribOsm({ carte, $, vue: () => vue.P, CLASSES, genere: index.genere, etat, suivre, areteProche,
+    avantDebut: () => { finirTrace(false); finirVoie(); selectionner(-1); } });
   document.addEventListener("keydown", ev => { if (voie.actif && ev.key === "Escape") finirVoie(); });
 
   // ---------- Maillons manquants de l'île (D4, ?territoire=oleron) : classement précalculé par maillons.js ----------
@@ -1369,13 +1616,12 @@ document.getElementById("replier").addEventListener("click", e => {
     d4.choisi = i; $("#d4-amenager").hidden = false; dessinerD4();
     if (zoomer) carte.fitBounds(L.latLngBounds(d4.voies[i].coords.map(([lon, lat]) => [lat, lon])).pad(0.5));
   }
-  $("#d4-vue").addEventListener("click", () => { if (!d4.actif) mesurer("maillons-ile"); basculerD4(!d4.actif); });
+  $("#d4-vue").addEventListener("click", () => basculerD4(!d4.actif));
   $("#d4-liste").addEventListener("click", ev => {
     if (ev.target.dataset.i === undefined) return;
     choisirD4(Number(ev.target.dataset.i), true);
   });
   $("#d4-amenager").addEventListener("click", () => {
-    mesurer("maillons-ile-amenager");
     const v = d4.voies[d4.choisi];
     if (!v) return;
     basculerD4(false);
@@ -1404,16 +1650,41 @@ document.getElementById("replier").addEventListener("click", e => {
   $("#crx-legende").innerHTML = CRX_PALIERS.map(([, c, nom]) => `<i style="background:${c}"></i><span>${nom}</span>`).join("")
     + `<i style="background:${CRX_CHEMIN}"></i><span>Chemin (sans objet)</span>`
     + `<i class="presumee" style="background:#fff"></i><span>Vitesse présumée</span>`;
-  function chargerCrx() {
-    if (!crx.charge) crx.charge = fetch("tuiles/intersections.json").then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => {
-      if (!D || !Array.isArray(D.lon)) return null;
-      const pts = D.lon.map((lo, i) => ({ lon: lo / 1e5, lat: D.lat[i] / 1e5, c: D.c[i], t: D.t[i], v: D.v[i], s: D.s[i], k: D.k[i], nom: D.noms[D.n[i]] || "" }))
-        .filter(p => !terr || d3.geoContains(terr.geometrie, [p.lon, p.lat]));
-      crx.D = { ...D, pts };
-      if (!D.tags) $("#crx-note").textContent += " Fichier d'essai : vitesses toutes présumées, RD devinées par la classe de la route.";
-      return crx.D;
-    });
-    return crx.charge;
+  // Croisements par blocs de tuiles (croisements.py, phase 5) : crx/index.json et crx/<bx>_<by>.json ; seuls les
+  // blocs qui couvrent la fenêtre sont lus (cache), et relus quand la fenêtre change. À défaut, l'ancien fichier
+  // unique intersections.json (intersections.py, un département).
+  const versPoints = D => D.lon.map((lo, i) => ({ lon: lo / 1e5, lat: D.lat[i] / 1e5, c: D.c[i], t: D.t[i], v: D.v[i], s: D.s[i], k: D.k[i], nom: D.noms[D.n[i]] || "" }))
+    .filter(p => !terr || d3.geoContains(terr.geometrie, [p.lon, p.lat]));
+  async function chargerCrx() {
+    if (crx.mode === undefined) {
+      const I = await fetch(DOSSIER + "crx/index.json").then(r => (r.ok ? r.json() : null)).catch(() => null);
+      if (I && I.bloc) Object.assign(crx, { mode: "blocs", index: I, blocs: new Map(), existe: new Set(I.blocs.map(([x, y]) => `${x}_${y}`)) });
+      else crx.mode = "fichier";
+      if (I && !I.tags) $("#crx-note").textContent += " Fichier d'essai : vitesses toutes présumées.";
+    }
+    if (crx.mode === "fichier") {
+      if (!crx.charge) crx.charge = fetch(DOSSIER + "intersections.json").then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => {
+        if (!D || !Array.isArray(D.lon)) return null;
+        crx.D = { ...D, pts: versPoints(D) };
+        if (!D.tags) $("#crx-note").textContent += " Fichier d'essai : vitesses toutes présumées, RD devinées par la classe de la route.";
+        return crx.D;
+      });
+      return crx.charge;
+    }
+    if (!vue.centre) return null;
+    const [cx, cy] = vue.centre, B = crx.index.bloc, cles = [];
+    for (let by = Math.floor((cy - RAYON) / B); by <= Math.floor((cy + RAYON) / B); by++)
+      for (let bx = Math.floor((cx - RAYON) / B); bx <= Math.floor((cx + RAYON) / B); bx++)
+        if (crx.existe.has(`${bx}_${by}`)) cles.push(`${bx}_${by}`);
+    await Promise.all(cles.filter(k => !crx.blocs.has(k)).map(k => fetch(`${DOSSIER}crx/${k}.json`)
+      .then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => crx.blocs.set(k, D && Array.isArray(D.lon) ? versPoints(D) : []))));
+    crx.D = { tags: crx.index.tags, pts: cles.flatMap(k => crx.blocs.get(k)) };
+    return crx.D;
+  }
+  // Fenêtre déplacée : blocs de croisements de la nouvelle fenêtre (installerFenetre)
+  function majCrxFenetre() {
+    if (crx.mode !== "blocs" || !crx.actifs.some(Boolean)) return;
+    chargerCrx().then(() => { [0, 1].forEach(dessinerCrx); resumeCrx(); });
   }
   function bulleCrx(p) {
     const route = p.c === 0 ? (p.nom || "Route départementale") : (p.nom || CLASSES[p.k].nom);
@@ -1440,7 +1711,7 @@ document.getElementById("replier").addEventListener("click", e => {
   function resumeCrx() {
     const el = $("#crx-resume");
     if (!crx.D || !crx.actifs.some(Boolean)) { el.hidden = true; return; }
-    const lieu = terr ? terr.nom : "la Charente-Maritime";
+    const lieu = crx.mode === "blocs" && !terr ? "dans la zone chargée autour du départ" : terr ? terr.nom : LIEU.le;
     el.innerHTML = [0, 1].filter(c => crx.actifs[c]).map(c => {
       const pts = crx.D.pts.filter(p => p.c === c), vite = pts.filter(p => p.s !== 2 && p.v >= 70).length;
       return `<b>${pts.length.toLocaleString("fr-FR")}</b> croisements avec ${c === 0 ? "une RD" : "d'autres routes"}, dont <b>${vite.toLocaleString("fr-FR")}</b> à 70 km/h ou plus`;
@@ -1461,7 +1732,6 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   document.querySelectorAll("[data-crx]").forEach(b => b.addEventListener("click", () => {
     const cat = Number(b.dataset.crx);
-    if (!crx.actifs[cat]) mesurer(cat === 0 ? "croisements-rd" : "croisements-autres-routes");
     basculerCrx(cat, !crx.actifs[cat]);
   }));
 
@@ -1483,7 +1753,8 @@ document.getElementById("replier").addEventListener("click", e => {
     if (!acces || !vue.g) return;
     vue.ixAcces = indexerComptages(acces, vue.g);
     vue.totAcces = masqueZone ? compterAtteints(acces, vue.ixAcces, null, [1], vue.g.ile) : null;
-    setTimeout(() => { if (vue.G) vue.G.amenage; }, 0);   // graphe « pistes » (~400 ms) préparé hors du survol
+    // Graphe « pistes » (~400 ms, 1,5 s à Paris) préparé hors du survol ; avec le Worker, il arrive tout fait
+    if (!chargeur.distant || chargeur.secours) setTimeout(() => { if (vue.G) vue.G.amenage; }, 0);
   }
   // Mesures d'un état (vue ou vue.sim) pour le départ courant ; deux emplacements de cache (avant / après)
   const cacheAcces = [];
@@ -1503,8 +1774,17 @@ document.getElementById("replier").addEventListener("click", e => {
   const CAS_LIB = ["Tranquille", "Route seulement", "Trop loin"];
   const fmtMinPanier = m => (m <= 60 ? `${Math.max(1, Math.round(m))} min` : "> 1 h");
   // complet = départ fixé (clic, fin de glisser) : on calcule aussi l'« avant » des tronçons simulés pour le gain
+  // Comptages (trois Dijkstra de plus, ~0,8 s à Paris en fenêtre 7 × 7) : seulement dans l'onglet Services, et au
+  // survol après une pause de la souris (17/10/2026 : faits à chaque image dans tous les onglets, la page ramait)
+  let minuteurAcces = null;
+  let question = 1;                            // onglet affiché (allerA, plus bas)
   function afficherAcces(complet = true) {
-    if (!acces || !vue.ixAcces || !etat.depart || !vue.P) return;
+    clearTimeout(minuteurAcces);
+    if (question !== 4 || !acces || !vue.ixAcces || !etat.depart || !vue.P) return;
+    if (!complet && !enCache(vue.sim && sim.vue !== "avant" ? vue.sim : vue)) {
+      minuteurAcces = setTimeout(() => { afficherAcces(false); dessinerEquipements(); }, 250);
+      return;
+    }
     const voirApres = vue.sim && sim.vue !== "avant", ile = vue.g.ile, S = [seuilAcces];
     const M = mesuresAcces(voirApres ? vue.sim : vue);
     const Mav = voirApres && (complet || enCache(vue)) ? mesuresAcces(vue) : null;   // au survol, l'avant n'est pas recalculé
@@ -1544,7 +1824,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   function dessinerEquipements() {
     equip.clearLayers();
-    if (!acces || !vue.ixAcces || !etat.depart || !vue.P || !$("#voir-equip").checked) return;
+    if (question !== 4 || !acces || !vue.ixAcces || !etat.depart || !vue.P || !$("#voir-equip").checked) return;
     const M = mesuresAcces(vue.sim && sim.vue !== "avant" ? vue.sim : vue);
     const pts = equipementsFenetre(acces, vue.ixAcces, vue.g, M.tous, vue.g.ile);
     // Plein = atteint par les pistes ou tranquillement ; pâle = par la route seulement ; creux = au-delà du seuil
@@ -1572,8 +1852,44 @@ document.getElementById("replier").addEventListener("click", e => {
     $("#acces .deplier").setAttribute("aria-expanded", String(accesDetail));
     $("#acces").querySelectorAll("tr.sous").forEach(tr => { tr.hidden = !accesDetail; });
   });
-  fetch("tuiles/accessibilite.json").then(r => (r.ok ? r.json() : null)).then(A => {
-    if (!A) return;
+  // Données par blocs de tuiles (comptages_blocs.py, phase 6) : acces/index.json (libellés, sources) et
+  // acces/<bx>_<by>.json ; seuls les blocs de la fenêtre sont lus, fusionnés puis repris à chaque fenêtre. À défaut,
+  // l'ancien fichier unique accessibilite.json (comptages.py, un département).
+  let accesBlocs = null;
+  const absolus = d => { const t = new Array(d.length); let s = 0; for (let x = 0; x < d.length; x++) { s += d[x]; t[x] = s; } return t; };
+  const enDeltas = k => k.map((v, x) => (x ? v - k[x - 1] : v));
+  async function chargerAccesBlocs() {
+    if (!accesBlocs || !vue.centre) return;
+    const [cx, cy] = vue.centre, I = accesBlocs.I, B = I.bloc, cles = [];
+    for (let by = Math.floor((cy - RAYON) / B); by <= Math.floor((cy + RAYON) / B); by++)
+      for (let bx = Math.floor((cx - RAYON) / B); bx <= Math.floor((cx + RAYON) / B); bx++)
+        if (accesBlocs.existe.has(`${bx}_${by}`)) cles.push(`${bx}_${by}`);
+    const cle = cles.join();
+    if (cle === accesBlocs.cle) return;
+    await Promise.all(cles.filter(k => !accesBlocs.cache.has(k)).map(k => fetch(`${DOSSIER}acces/${k}.json`)
+      .then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => accesBlocs.cache.set(k, D))));
+    const blocs = cles.map(k => accesBlocs.cache.get(k)).filter(Boolean);
+    const eqs = blocs.map(D => D.equipements).filter(Boolean);
+    const eq = eqs.length ? { k: enDeltas(eqs.flatMap(e => absolus(e.k))), t: eqs.flatMap(e => e.t), d: eqs.flatMap(e => e.d),
+      f: eqs.flatMap(e => e.f), p: eqs.flatMap(e => e.p) } : null;
+    const couches = I.couches.map(c => {
+      const parts = blocs.map(D => (D.couches || []).find(x => x.id === c.id)).filter(Boolean);
+      return { ...c, k: enDeltas(parts.flatMap(x => absolus(x.k))), v: parts.flatMap(x => x.v) };
+    });
+    accesBlocs.cle = cle;
+    const A = { ...I, equipements: eq, couches };
+    if (!acces) installerAcces(A);
+    else { acces = preparerComptages(A); indexerAcces(); afficherAcces(); }
+  }
+  const majAccesFenetre = () => { if (accesBlocs && question === 4) chargerAccesBlocs(); };
+  fetch(DOSSIER + "acces/index.json").then(r => (r.ok ? r.json() : null)).catch(() => null).then(I => {
+    if (I && I.bloc) {
+      accesBlocs = { I, cache: new Map(), existe: new Set(I.blocs.map(([x, y]) => `${x}_${y}`)), cle: null };
+      return majAccesFenetre();                  // blocs lus à la première ouverture de l'onglet Services
+    }
+    return fetch(DOSSIER + "accessibilite.json").then(r => (r.ok ? r.json() : null)).then(A => { if (A) installerAcces(A); });
+  }).catch(() => {});
+  function installerAcces(A) {
     acces = preparerComptages(A);
     $("#bloc-acces").hidden = false;
     if (masqueZone) $("#titre-acces").textContent = `À portée depuis ce départ, dans ${nomTerr}`;
@@ -1583,9 +1899,10 @@ document.getElementById("replier").addEventListener("click", e => {
       acces.eq ? "Équipements au point géolocalisé par l'Insee ; carte : plein = par les pistes ou tranquillement, pâle = par la route seulement, creux = au-delà du seuil." : "",
       acces.couches.some(c => c.id === "population") ? "Habitants : population fiscale, répartie dans chaque carreau de 200 m." : "",
       `Sources : ${[...acces.sources, ...acces.couches.filter(c => !/Filosofi/.test(c.source)).map(c => `${c.libelle} : ${c.source}`)].join(" ; ")}.`,
+      acces.couches.some(c => c.id === "population") ? "" : "Pas de données d'habitants pour ce territoire (carroyage Filosofi indisponible).",
     ].filter(Boolean).join(" ");
     indexerAcces(); afficherAcces();
-  }).catch(() => {});
+  }
 
   // ---------- Territoire de la demi-heure (diagnostic_<territoire>.json, diagnostic.js ; vue territoire) ----------
   // Pour chaque habitant et chaque fonction : tranquille, route seulement (investissement cyclable), trop loin
@@ -1641,24 +1958,26 @@ document.getElementById("replier").addEventListener("click", e => {
     const e = epciDe(etat.depart), code = e ? e.code : null;
     if (code === epciDiag.code) return;
     epciDiag.code = code;
-    if (!e) {                                    // départ hors des EPCI de Charente-Maritime : pas de bilan
+    if (!e) {                                    // départ hors des EPCI calculés : pas de bilan
       if (diag.actif) basculerDiag(false);
       diag.D = null; $("#bloc-diag").hidden = true; $("#q5-ailleurs").hidden = false;
       return;
     }
     const installer = D => { if (epciDiag.code === code && D) { epciDiag.lus.set(code, D); installerDiag(D); } };
     if (epciDiag.lus.has(code)) { installer(epciDiag.lus.get(code)); return; }
-    fetch(`tuiles/diagnostic_epci_${code}.json`).then(r => (r.ok ? r.json() : null)).then(installer).catch(() => {});
+    fetch(`${DOSSIER}diagnostic_epci_${code}.json`).then(r => (r.ok ? r.json() : null)).then(installer).catch(() => {});
   }
-  if (!masqueZone)
-    fetch("tuiles/epci.json").then(r => (r.ok ? r.json() : null)).then(E => {
+  // Contours des EPCI (communes_epci.py) lus à la première ouverture de l'onglet Services (quelques Mo en métropole)
+  let epciCharge = null;
+  const chargerEpci = () => epciCharge || (epciCharge = masqueZone ? Promise.resolve() :
+    fetch(DOSSIER + "epci.json").then(r => (r.ok ? r.json() : null)).then(E => {
       if (!E || !Array.isArray(E.epci)) return;
       epciDiag.liste = E.epci.map(e => {
         const polygones = e.geometrie.type === "Polygon" ? [e.geometrie.coordinates] : e.geometrie.coordinates, pts = polygones.flat(2);
         return { ...e, polygones, bornes: [Math.min(...pts.map(p => p[0])), Math.min(...pts.map(p => p[1])), Math.max(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1]))] };
       });
       majEpci();
-    }).catch(() => {});
+    }).catch(() => {}));
   function acces_W(D) { return Math.round(360 / index.grille.dlon); }   // largeur de la grille France (comptages.py)
   function afficherDiag() {
     const D = diag.D, F = D.fonctions, f = diag.f, h = D.habitants;
@@ -1749,14 +2068,13 @@ document.getElementById("replier").addEventListener("click", e => {
     diag.f = Number(tr.dataset.f); diag.choisi = -1;
     afficherDiag();
   });
-  $("#diag-vue").addEventListener("click", () => { if (!diag.actif) mesurer("diagnostic-territoire"); basculerDiag(!diag.actif); });
+  $("#diag-vue").addEventListener("click", () => basculerDiag(!diag.actif));
   carte.on("zoomend", () => { if (diag.actif) dessinerDiag(); });   // taille des blocs selon l'échelle
   $("#diag-maillons").addEventListener("click", ev => {
     const li = ev.target.closest("li[data-i]");
     if (li) choisirDiag(Number(li.dataset.i), true);
   });
   $("#diag-amenager").addEventListener("click", () => {
-    mesurer("diagnostic-amenager");
     const m = diag.D && diag.D.maillons[diag.choisi];
     if (!m) return;
     basculerDiag(false);
@@ -1769,9 +2087,9 @@ document.getElementById("replier").addEventListener("click", e => {
     montrerInfo("Voie aménagée en piste. Le bloc « À portée » montre en violet ce que gagne ce départ, le plus peuplé parmi ceux que la voie concerne ; déplacez le repère D pour voir ailleurs.");
   });
   if (masqueZone)
-    fetch(`tuiles/diagnostic_${TERRITOIRE}.json`).then(r => (r.ok ? r.json() : null)).then(installerDiag).catch(() => {});
+    fetch(`${DOSSIER}diagnostic_${TERRITOIRE}.json`).then(r => (r.ok ? r.json() : null)).then(installerDiag).catch(() => {});
   if (TERRITOIRE === "oleron")
-    fetch("tuiles/maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
+    fetch(DOSSIER + "maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
 
   // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
   let demande = 0;
@@ -1781,7 +2099,7 @@ document.getElementById("replier").addEventListener("click", e => {
 
   // recentrer : force le recentrage même pendant le survol (appel à l'arrêt de la souris)
   async function placerDepart(ll, complet, recentrer = false) {
-    if (!dansZone(ll)) { afficherMessage(`Le départ doit être ${terr ? "sur " + terr.nom : "en Charente-Maritime"}.`); return; }
+    if (!dansZone(ll)) { afficherMessage(`Le départ doit être ${terr ? "sur " + terr.nom : LIEU.en}.`); return; }
     const id = ++demande;
     etat.depart = ll;
     marqueurDepart.setLatLng(ll).addTo(carte);
@@ -1822,7 +2140,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // ---------- Survol : le départ suit la souris (écrans à pointeur fin uniquement) ----------
   const survolPossible = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
   const CONSIGNES = {
-    suivi: `Déplacez la souris sur ${terr ? terr.nom : "la Charente-Maritime"} : les temps suivent. Cliquez pour fixer le départ.`,
+    suivi: `Déplacez la souris ${terr ? "sur " + terr.nom : LIEU.sur} : les temps suivent. Cliquez pour fixer le départ.`,
     // Le clic place ce que dit la bascule Départ / Arrivée de la recherche (14/10/2026 : un clic posait une arrivée
     // sans qu'on l'ait demandé, par exemple en cliquant sur un croisement)
     fixe: () => etat.cible === "arrivee"
@@ -1838,7 +2156,7 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   carte.on("mousemove", ev => {
     if (outil.actif) { dessinerTraceEnCours(ev.latlng); return; }
-    // Survol en direct : seulement dans le 17 et au zoom détaillé (ailleurs, rien ne bouge)
+    // Survol en direct : seulement dans le territoire et au zoom détaillé (ailleurs, rien ne bouge)
     if (!etat.suivre || !dansZone(ev.latlng)) return;
     planifierDepart(ev.latlng);
     clearTimeout(minuteurPause);
@@ -1849,11 +2167,12 @@ document.getElementById("replier").addEventListener("click", e => {
     }, 300);
   });
   carte.on("click", ev => {
+    if (contrib.actif) { contrib.clic(ev.latlng); return; }
     if (outil.actif) { outil.sommets.push([ev.latlng.lng, ev.latlng.lat]); dessinerTraceEnCours(); return; }
     if (voie.actif) { amenagerVoie(ev.latlng); return; }
     if (d4.actif) return;                                        // vue cumulée : ni départ ni arrivée (carte cachée)
     if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
-    if (etat.suivre || !etat.depart || etat.cible !== "arrivee") { mesurer("depart-sur-carte"); suivre(false); placerDepart(ev.latlng, true); }
+    if (etat.suivre || !etat.depart || etat.cible !== "arrivee") { suivre(false); placerDepart(ev.latlng, true); }
     else definirArrivee(ev.latlng);
   });
   $("#suivre").hidden = !survolPossible;
@@ -1895,7 +2214,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // cumulée, diagnostic, tracé, Gain).
   const QUESTIONS = { 1: "Jusqu'où je vais en 15 ou 30 minutes ?", 2: "Est-ce que j'y vais tranquillement, et qu'est-ce qui coince ?",
     3: "Et si on aménageait ici ?", 4: "Les habitants ont-ils l'essentiel à portée, tranquillement ?" };
-  let question = 1, modePortee = null;   // réseau choisi dans Portée (null : celui du lien)
+  let modePortee = null;   // réseau choisi dans Portée (null : celui du lien) ; question : plus haut (Services)
   function allerA(q) {
     const avant = question;
     question = q;
@@ -1907,8 +2226,13 @@ document.getElementById("replier").addEventListener("click", e => {
     if (q !== 2 && d4.actif) basculerD4(false);
     if (q !== 2) [0, 1].forEach(c => { if (crx.actifs[c]) basculerCrx(c, false); });
     if (q !== 4 && diag.actif) basculerDiag(false);
-    if (q === 4 && !masqueZone) majEpci();
+    if (q === 4 && !masqueZone) chargerEpci().then(majEpci);
     if (q === 4 && diag.D && !diag.actif) basculerDiag(true);
+    if (q === 4 && q !== avant) {                // comptages et équipements, mis en attente hors de cet onglet
+      if (accesBlocs) chargerAccesBlocs().then(() => { afficherAcces(); dessinerEquipements(); });
+      else { afficherAcces(); dessinerEquipements(); }
+    }
+    if (q !== 4) { clearTimeout(minuteurAcces); equip.clearLayers(); }
     if (q !== 3) {
       if (outil.actif) $("#sim-tracer").click();       // termine le tracé en cours (le tronçon est gardé)
       if (voie.actif) $("#sim-voie").click();
@@ -1918,15 +2242,11 @@ document.getElementById("replier").addEventListener("click", e => {
     if (mode !== etat.mode || symbo !== etat.symbo) { etat.symbo = symbo; choisirMode(mode); }   // un seul recalcul
     majLien();
   }
-  const NOMS_ONGLETS = ["portee", "confort", "ce-qui-coince", "simuler", "services"];
-  document.querySelectorAll("[data-onglet]").forEach(b => b.addEventListener("click", () => {
-    mesurer("onglet-" + (NOMS_ONGLETS[Number(b.dataset.onglet)] ?? b.dataset.onglet));
-    allerA(Number(b.dataset.onglet));
-  }));
+  document.querySelectorAll("[data-onglet]").forEach(b => b.addEventListener("click", () => allerA(Number(b.dataset.onglet))));
   $("#d4-amenager").addEventListener("click", () => allerA(3));   // après son propre gestionnaire : vue Gain dans l'onglet Simuler
 
   // À propos : méthode, sources et crédits, dans une fenêtre
-  $("#ouvrir-apropos").addEventListener("click", () => { mesurer("a-propos"); $("#apropos").showModal(); });
+  $("#ouvrir-apropos").addEventListener("click", () => $("#apropos").showModal());
   $("#fermer-apropos").addEventListener("click", () => $("#apropos").close());
   $("#apropos").addEventListener("click", ev => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });   // clic hors du cadre
 
@@ -1969,20 +2289,54 @@ document.getElementById("replier").addEventListener("click", e => {
       } catch (e) { if (e.name === "AbortError") return; }
     }
     if (!fc) { liste.innerHTML = `<li class="vide">Le service d'adresses ne répond pas. Placez le repère directement sur la carte.</li>`; liste.hidden = false; return; }
-    const res = (fc.features || []).filter(f => dansZone(L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]))).slice(0, 6);
+    // Recherche sur toute la France (20/10/2026, demande d'Aurélien) : une adresse d'un autre territoire recharge la
+    // page sur sa grille, départ posé (lien #d=). Territoire d'après le code Insee ; COM (975, 977, 978, 98x) écartées.
+    const zoneDe = f => { const c = String(f.properties.citycode || ""); return /^97[1-46]/.test(c) ? c.slice(0, 3) : /^9[78]/.test(c) ? null : "fr"; };
+    const res = (fc.features || []).filter(zoneDe).slice(0, 6);
     liste.innerHTML = res.length
       ? res.map((f, i) => `<li><button type="button" data-i="${i}">${echapper(f.properties.name || f.properties.label)}<small>${echapper([f.properties.postcode, f.properties.city].filter(Boolean).join(" "))}</small></button></li>`).join("")
-      : `<li class="vide">Aucune adresse trouvée ${terr ? "sur " + terr.nom : "en Charente-Maritime"} pour « ${echapper(q)} ».</li>`;
+      : `<li class="vide">Aucune adresse trouvée pour « ${echapper(q)} ».</li>`;
     liste.hidden = false;
     liste.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
-      const f = res[+b.dataset.i], ll = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]);
+      const f = res[+b.dataset.i], ll = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]), z = zoneDe(f);
+      if (z !== ZONE || (terr && !dansZone(ll))) {   // autre territoire (ou hors de la vue Oléron / PMO) : on y va
+        location.href = location.pathname + (z === "fr" ? "" : `?zone=${z}`) + `#d=${ll.lat.toFixed(5)},${ll.lng.toFixed(5)}`;
+        return;
+      }
       champ.value = f.properties.label;
-      mesurer("recherche-adresse");
       fermerListe();
       if (etat.cible === "depart") { suivre(false); placerDepart(ll, true); } else definirArrivee(ll);
-      if (!carte.getBounds().contains(ll)) carte.panTo(ll);
+      if (!estVisible(ll)) centrerVisible(ll, carte.getZoom());   // pas sous le panneau (comme la géolocalisation)
     }));
   }
+
+  // ---------- Géolocalisation (17/10/2026) ----------
+  // Place le départ ou l'arrivée (selon la bascule) sur la position du navigateur ; avec « Vérifier une voie dans
+  // OpenStreetMap » actif, centre seulement la carte (pour corriger ce qu'on a sous les yeux). Rien n'est envoyé
+  // ailleurs : la position reste dans la page. Point bleu et cercle de précision jusqu'au prochain clic sur le bouton.
+  const geoloc = $("#geoloc"), couchePosition = L.layerGroup().addTo(carte);
+  geoloc.hidden = !("geolocation" in navigator);
+  geoloc.addEventListener("click", () => {
+    if (geoloc.getAttribute("aria-busy") === "true") return;
+    geoloc.setAttribute("aria-busy", "true");
+    navigator.geolocation.getCurrentPosition(pos => {
+      geoloc.removeAttribute("aria-busy");
+      const ll = L.latLng(pos.coords.latitude, pos.coords.longitude), prec = pos.coords.accuracy;
+      couchePosition.clearLayers();
+      if (!dansZone(ll)) { afficherMessage(`Votre position est hors ${terr ? "de " + terr.nom : "du territoire de la carte"} : choisissez un autre territoire ou placez le départ sur la carte.`); return; }
+      afficherMessage("");
+      L.circle(ll, { radius: prec, pane: "trace", color: "#1A73E8", weight: 1, fillOpacity: .1, interactive: false }).addTo(couchePosition);
+      L.circleMarker(ll, { pane: "trace", radius: 6, color: "#fff", weight: 2, fillColor: "#1A73E8", fillOpacity: 1, interactive: false }).addTo(couchePosition);
+      centrerVisible(ll, Math.max(carte.getZoom(), prec > 500 ? 14 : 16));
+      if (contrib.actif) return;
+      if (etat.cible === "depart") { suivre(false); placerDepart(ll, true); } else definirArrivee(ll);
+    }, err => {
+      geoloc.removeAttribute("aria-busy");
+      afficherMessage(err.code === err.PERMISSION_DENIED
+        ? "Localisation refusée : autorisez-la pour ce site dans le navigateur, ou cherchez une adresse."
+        : "Position introuvable pour l'instant. Réessayez, ou cherchez une adresse.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+  });
 
   // ---------- Lien de partage ----------
   const fmtLL = ll => `${ll.lat.toFixed(5)},${ll.lng.toFixed(5)}`;
@@ -2022,7 +2376,6 @@ document.getElementById("replier").addEventListener("click", e => {
   }
   let minuteurPartage = null;
   $("#partager").addEventListener("click", async () => {
-    mesurer("partager-lien");
     const bulle = $("#partage-etat");
     majLien();
     try {
@@ -2041,7 +2394,8 @@ document.getElementById("replier").addEventListener("click", e => {
     + `<span></span>` + MAQ_PALIERS.map(s => `<span style="text-align:center">${s}</span>`).join("") + `</div>`;
   $("#legende").innerHTML = COULEURS.map(c => `<span class="case" style="background:${c}"></span>`).join("")
     + `<div class="graduations">${SEUILS.map(s => `<span><i>${s}</i></span>`).join("")}<span></span></div>`;
-  const NOMS_REGIONS = { "poitou-charentes": "Poitou-Charentes", "aquitaine": "Aquitaine", "pays-de-la-loire": "Pays de la Loire" };
+  const NOMS_REGIONS = { "poitou-charentes": "Poitou-Charentes", "aquitaine": "Aquitaine", "pays-de-la-loire": "Pays de la Loire",
+    "guadeloupe": "Guadeloupe", "martinique": "Martinique", "guyane": "Guyane", "reunion": "La Réunion", "mayotte": "Mayotte" };
   const regions = index.sources.map(s => s.replace(".parquet", "")).map(s => NOMS_REGIONS[s] || s);
   $("#meta").textContent = `Extraits Geofabrik ${regions.join(", ")} ; tuiles générées le ${index.genere.slice(0, 10).split("-").reverse().join("/")}.`;
   afficherCouverture(null);
@@ -2064,6 +2418,9 @@ document.getElementById("replier").addEventListener("click", e => {
   $("#note-mode").textContent = NOTES[etat.mode];
   if (lien.arrivee) { etat.arrivee = lien.arrivee; marqueurArrivee.setLatLng(lien.arrivee).addTo(carte); }
   etat.suivre = survolPossible && (!lien.depart || lien.suivi);
+  // Territoire trop grand pour la vue d'ensemble (métropole ; Guyane, 84 000 km² dont seul le littoral est habité) : la
+  // carte s'ouvre sur le départ, à l'échelle d'un département (centré dans la partie que le panneau ne cache pas)
+  if ((contourDep.departs?.length || ZONE === "973") && !terr) centrerVisible(lien.depart || DEPART_DEFAUT, 10);
   await placerDepart(lien.depart || DEPART_DEFAUT, true);
   suivre(etat.suivre);
   selectionner(-1); majLegendeGain();

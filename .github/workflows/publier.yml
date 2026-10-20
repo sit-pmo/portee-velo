@@ -23,8 +23,10 @@ jobs:
       - name: Rassembler les fichiers publiés
         run: |
           mkdir _site
-          cp index.html coeur.js README.md LICENSE .nojekyll _site/
-          cp -r tuiles _site/
+          cp index.html classement.html coeur.js tuiles-worker.js osm-contrib.js README.md LICENSE .nojekyll _site/
+          mkdir _site/marennes-oleron
+          cp marennes-oleron/index.html marennes-oleron/coeur.js _site/marennes-oleron/
+          cp -r marennes-oleron/tuiles _site/marennes-oleron/
 
       - name: Publier sur gh-pages
         uses: JamesIves/github-pages-deploy-action@v4

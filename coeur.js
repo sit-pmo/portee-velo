@@ -23,6 +23,10 @@ const CFG = {
   // +20 % (ou +1 min) de plus que le plus rapide, gris jusqu'à +50 %, orange au-delà. Autour du départ
   // (departLibreM), la route exposée n'est pas pénalisée : on part de chez soi par la rue qu'on a.
   confort: { classes: [0, 0, 1, 3, 3, 1, 1, 2], departLibreM: 300, surcout: [1.2, 1.5], surcoutMin: 1 },
+  // Graphe contracté (dijkstraRapide) : true = construit au premier calcul (scripts, tests) ; la page met false et le
+  // construit sur un temps libre (preparerContractions), pour ne pas allonger le gel d'un changement de fenêtre :
+  // tant qu'il n'est pas prêt, le calcul se fait sur le graphe complet, comme avant (19/10/2026)
+  contractionImmediate: true,
   vitesseContreSensKmh: 5,             // sens unique pris à contre-sens : vélo poussé à pied, plutôt qu'interdit
   vitesseAccesKmh: 16,                 // accès au réseau hors voies (base vélo 20 km/h ×0,8)
   detourAcces: 1.3,
@@ -71,7 +75,7 @@ function preparer(D) {
   }
   const g = D.grille;
   return {
-    n, m, lon, lat, lm, cls, sens, vit, rd,
+    n, m, lon, lat, lm, cls, sens, vit, rd, nat: new Uint8Array(m),
     a: Int32Array.from(D.aretes.a), b: Int32Array.from(D.aretes.b), nom: Int32Array.from(D.aretes.nom),
     noms: D.noms,
     grille: {
@@ -94,7 +98,8 @@ function construireGraphe(P, mode) {
   // depuis la mairie). Un seul segment au contact d'une piste : la règle ne se propage pas le long d'une route.
   // Mode sans départementales : même règle de traversée, sans les liaisons (réservées aux pistes).
   const penCls = CFG.penalites[mode], penE = new Float32Array(m), restreint = mode === "amenage" || mode === "sansdep";
-  const pen0 = mode === "sansdep" ? e => (P.rd[e] ? Infinity : penCls[P.cls[e]]) : e => penCls[P.cls[e]];
+  // Sans départementales et nationales (17/10/2026) : RD (P.rd, bit 15) et nationales (P.nat, bit 14) interdites
+  const pen0 = mode === "sansdep" ? e => (P.rd[e] || (P.nat && P.nat[e]) ? Infinity : penCls[P.cls[e]]) : e => penCls[P.cls[e]];
   let touche = null;
   if (restreint) {
     touche = new Uint8Array(n);
@@ -229,14 +234,18 @@ function liaisons(P, touche, max = CFG.liaisonMaxM, f = CFG.liaisonFacteur) {
 // but (facultatif) : nœud d'arrivée ; le calcul s'arrête dès que son temps est définitif (itinéraire au-delà
 // de la fenêtre de survol). ponytail: pas d'A* ; mesuré sur un couloir de 30 tuiles, l'heuristique coûtait plus
 // qu'elle ne faisait gagner (57 ms contre 38 ms). À reconsidérer pour des couloirs bien plus grands.
-function dijkstra(G, src, t0, limite = Infinity, but = -1) {
-  const dist = new Float64Array(G.n).fill(Infinity), pred = new Int32Array(G.n).fill(-1);
-  let cap = 4096, hn = new Int32Array(cap), hd = new Float64Array(cap), taille = 0;
+// t (facultatif) : tampons réutilisés d'un appel à l'autre { dist, pred, hn, hd } (dijkstraRapide : sans eux, le
+// ramasse-miettes prenait ~35 ms par image de survol à Paris) ; le tas grandi y est rangé pour l'appel suivant.
+function dijkstra(G, src, t0, limite = Infinity, but = -1, t = null) {
+  const dist = t ? t.dist.fill(Infinity) : new Float64Array(G.n).fill(Infinity);
+  const pred = t ? t.pred.fill(-1) : new Int32Array(G.n).fill(-1);
+  let hn = t ? t.hn : new Int32Array(4096), hd = t ? t.hd : new Float64Array(4096), cap = hn.length, taille = 0;
   const pousser = (v, d) => {
     if (taille === cap) {
       cap *= 2;
       const n2 = new Int32Array(cap); n2.set(hn); hn = n2;
       const d2 = new Float64Array(cap); d2.set(hd); hd = d2;
+      if (t) { t.hn = hn; t.hd = hd; }
     }
     let i = taille++;
     while (i > 0) { const p = (i - 1) >> 1; if (hd[p] <= d) break; hn[i] = hn[p]; hd[i] = hd[p]; i = p; }
@@ -270,6 +279,204 @@ function dijkstra(G, src, t0, limite = Infinity, but = -1) {
     }
   }
   return { dist, pred, src };
+}
+
+// ---------- Graphe contracté (19/10/2026) : même résultat que dijkstra(), 2 à 3 fois plus vite en ville ----------
+// 80 % des nœuds des tuiles sont des points de tracé : degré 2, deux voisins distincts. On les retire du graphe de
+// calcul : chaque chaîne de tels nœuds entre deux nœuds gardés devient un arc par sens, de poids la somme des arcs
+// d'origine. Gardés : nœuds cités par la grille du mode (départs, arrivées, temps des cellules) et tous les nœuds
+// qui ne sont pas de simples points de tracé (carrefours, impasses, sommets d'arêtes parallèles).
+// Après le calcul, le résultat est « redéplié » : temps et prédécesseur de chaque point de tracé, depuis les deux
+// bouts de sa chaîne. dijkstraRapide rend donc { dist, pred, src } sur le graphe complet (pred = arcs d'origine) :
+// tempsGrille, itineraire, traitsNoirs… n'y voient pas de différence. Seuls changent les arrondis (sommes dans un
+// autre ordre, ~1e-12 s) et, à temps strictement égal, le choix entre deux chemins.
+// Le graphe complet reste celui de la simulation, de l'accrochage et du dessin : rien n'y est retiré.
+function noeudsCites(P, mode) {
+  const g = P.grille, garder = new Uint8Array(P.n);
+  const marquer = t => { if (t) for (let k = 0; k < t.length; k++) if (t[k] >= 0) garder[t[k]] = 1; };
+  marquer(g.pro[mode] || g.pro.tout);
+  if (g.secours && g.secours.pro) marquer(g.secours.pro[mode]);
+  return garder;
+}
+
+function contracter(G, garder) {
+  const n = G.n, off = G.off, cible = G.cible, poids = G.poids;
+  // Point de tracé : exactement deux arcs sortants vers deux voisins distincts (les arcs vont par paires, un par
+  // sens, donc les voisins entrants sont les mêmes), et pas cité par la grille
+  const trace = new Uint8Array(n);
+  for (let v = 0; v < n; v++) {
+    if (garder[v] || off[v + 1] - off[v] !== 2) continue;
+    const t1 = cible[off[v]], t2 = cible[off[v] + 1];
+    if (t1 !== t2 && t1 !== v && t2 !== v) trace[v] = 1;
+  }
+  const arcVers = (u, v) => { for (let k = off[u]; k < off[u + 1]; k++) if (cible[k] === v) return k; return -1; };
+  // Chaînes : départ a (gardé), points de tracé dans l'ordre, arrivée b (gardé ; b = a pour une boucle).
+  // av[i] : arc d'origine qui entre dans le i-ème point depuis a ; ar[i] : celui qui y entre depuis b.
+  // Les deux bouts : finA (arc qui entre dans b depuis le dernier point), finB (arc qui entre dans a depuis le premier).
+  // Tableaux typés dimensionnés au pire (une chaîne par point de tracé) : 525 → ~150 ms à Paris
+  let nTrace = 0;
+  for (let v = 0; v < n; v++) nTrace += trace[v];
+  const pts = new Int32Array(nTrace), av = new Int32Array(nTrace), ar = new Int32Array(nTrace);
+  const chA = new Int32Array(nTrace), chB = new Int32Array(nTrace), finA = new Int32Array(nTrace), finB = new Int32Array(nTrace);
+  const chDebut = new Int32Array(nTrace + 1);
+  const vu = new Uint8Array(n);
+  let nP = 0, nCh = 0;
+  for (let a = 0; a < n; a++) {
+    if (trace[a]) continue;
+    for (let k0 = off[a]; k0 < off[a + 1]; k0++) {
+      let v = cible[k0];
+      if (!trace[v] || vu[v]) continue;
+      const debut = nP;
+      let prec = a, kEntre = k0;
+      for (;;) {
+        const o = off[v], premier = cible[o] === prec;
+        const suiv = premier ? cible[o + 1] : cible[o], kSuiv = premier ? o + 1 : o;
+        vu[v] = 1; pts[nP] = v; av[nP] = kEntre; ar[nP] = arcVers(suiv, v); nP++;
+        prec = v; v = suiv; kEntre = kSuiv;
+        if (!trace[v]) break;
+        if (vu[v]) { v = -1; break; }           // garde-fou : ne devrait pas arriver (chaîne déjà parcourue)
+      }
+      if (v < 0) { nP = debut; continue; }
+      chA[nCh] = a; chB[nCh] = v; finA[nCh] = kEntre; finB[nCh] = arcVers(pts[debut], a);
+      chDebut[++nCh] = nP;
+    }
+  }
+  // Boucles faites uniquement de points de tracé : aucune source n'y mène (les sources sont des nœuds gardés)
+  // Graphe contracté en CSR sur la même numérotation : arcs directs entre nœuds gardés + 2 arcs par chaîne
+  const deg = new Uint32Array(n + 1);
+  for (let u = 0; u < n; u++) {
+    if (trace[u]) continue;
+    for (let k = off[u]; k < off[u + 1]; k++) if (!trace[cible[k]]) deg[u + 1]++;
+  }
+  for (let c = 0; c < nCh; c++) { deg[chA[c] + 1]++; deg[chB[c] + 1]++; }
+  for (let i = 0; i < n; i++) deg[i + 1] += deg[i];
+  const nArcs = deg[n], cur = deg.slice(0, n);
+  const cCible = new Int32Array(nArcs), cPoids = new Float64Array(nArcs), cOrig = new Int32Array(nArcs);
+  for (let u = 0; u < n; u++) {
+    if (trace[u]) continue;
+    for (let k = off[u]; k < off[u + 1]; k++) if (!trace[cible[k]]) { const j = cur[u]++; cCible[j] = cible[k]; cPoids[j] = poids[k]; cOrig[j] = k; }
+  }
+  // cOrig < 0 : arc de chaîne, -(2c + 1) dans le sens a → b, -(2c + 2) dans le sens b → a
+  const versC = new Int32Array(G.nArcs).fill(-1);       // arc d'origine → arc contracté qui le contient
+  const ch = { chA, chB, chDebut, finA, finB, pts, av, ar, n: nCh };
+  for (let c = 0; c < nCh; c++) {
+    const j1 = cur[chA[c]]++; cCible[j1] = chB[c]; cOrig[j1] = -(2 * c + 1);
+    const j2 = cur[chB[c]]++; cCible[j2] = chA[c]; cOrig[j2] = -(2 * c + 2);
+    let s1 = 0, s2 = 0;                                  // mêmes sommes, dans le même ordre, que poidsChaine
+    for (let i = chDebut[c]; i < chDebut[c + 1]; i++) { versC[av[i]] = j1; versC[ar[i]] = j2; s1 += poids[av[i]]; }
+    for (let i = chDebut[c + 1] - 1; i >= chDebut[c]; i--) s2 += poids[ar[i]];
+    versC[finA[c]] = j1; versC[finB[c]] = j2;
+    cPoids[j1] = s1 + poids[finA[c]]; cPoids[j2] = s2 + poids[finB[c]];
+  }
+  for (let j = 0; j < nArcs; j++) if (cOrig[j] >= 0) versC[cOrig[j]] = j;
+  return { n, nArcs, off: deg, cible: cCible, poids: cPoids, orig: cOrig, versC, ch, trace, nCh };
+}
+
+// Poids d'un arc de chaîne : somme, dans l'ordre du parcours, des arcs d'origine (G.poids peut avoir changé :
+// minutesTranquilles relâche temporairement les routes autour du départ)
+function poidsChaine(G, R, j) {
+  const o = R.orig[j], c = (-o - 1) >> 1, ch = R.ch;
+  let s = 0;
+  if ((-o - 1) % 2 === 0) { for (let i = ch.chDebut[c]; i < ch.chDebut[c + 1]; i++) s += G.poids[ch.av[i]]; s += G.poids[ch.finA[c]]; }
+  else { for (let i = ch.chDebut[c + 1] - 1; i >= ch.chDebut[c]; i--) s += G.poids[ch.ar[i]]; s += G.poids[ch.finB[c]]; }
+  return s;
+}
+
+// Reporte sur le graphe contracté un changement de G.poids pour les arcs d'origine donnés
+function ajusterContracte(G, arcs) {
+  const R = G.rapide;
+  if (!R) return;
+  const faits = new Set();
+  for (const k of arcs) {
+    const j = R.versC[k];
+    if (j < 0 || faits.has(j)) continue;
+    faits.add(j);
+    R.poids[j] = R.orig[j] >= 0 ? G.poids[k] : poidsChaine(G, R, j);
+  }
+}
+
+// Graphe contracté de G, construit à la première demande et gardé sur G (une fois par fenêtre et par mode)
+// « confort » a les mêmes arcs que « tout » (pénalités toutes finies, même ordre CSR) et la même grille : on reprend
+// sa contraction et on ne recalcule que les poids (~20 ms au lieu de 150 à 320 ms en ville)
+function graphRapide(G, P) {
+  if (G.rapide) return G.rapide;
+  const g = P.grille, pro = g.pro[G.mode] || g.pro.tout;
+  const jumeau = (P._contractions || []).find(x => x.pro === pro && x.G.nArcs === G.nArcs && x.G.n === G.n
+    && memesTableaux(x.G.off, G.off) && memesTableaux(x.G.cible, G.cible));
+  if (jumeau) {
+    const R0 = jumeau.G.rapide, poids = new Float64Array(R0.nArcs);
+    G.rapide = { ...R0, poids };
+    for (let j = 0; j < R0.nArcs; j++) poids[j] = R0.orig[j] >= 0 ? G.poids[R0.orig[j]] : poidsChaine(G, G.rapide, j);
+  } else {
+    G.rapide = contracter(G, noeudsCites(P, G.mode));
+    (P._contractions || (P._contractions = [])).push({ G, pro });
+  }
+  return G.rapide;
+}
+function memesTableaux(a, b) {
+  if (a === b) return true;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+// Dijkstra sur le graphe contracté, résultat redéplié sur G. Repli sur dijkstra() si une source est un point de
+// tracé (départ hors de la grille du mode) ou si un arrêt à l'arrivée (but) est demandé.
+function dijkstraRapide(G, P, src, t0, limite = Infinity) {
+  if (!G.rapide && !CFG.contractionImmediate) return dijkstra(G, src, t0, limite);
+  const R = graphRapide(G, P);
+  const sources = Array.isArray(src) ? src : [[src, t0]];
+  if (sources.some(([v]) => R.trace[v])) return dijkstra(G, src, t0, limite);
+  // Tampons du graphe contracté, partagés par ses calculs successifs ; numéro de génération pour savoir si un
+  // résultat gardé (etat.res, resTous des Services…) a été écrasé depuis : il est alors refait sur ses propres tableaux
+  const t = R.tampons || (R.tampons = { dist: new Float64Array(R.n), pred: new Int32Array(R.n), hn: new Int32Array(4096), hd: new Float64Array(4096), gen: 0 });
+  const gen = ++t.gen;
+  let brut = dijkstra(R, src, t0, limite, -1, t), dist = brut.dist, pred = brut.pred;
+  const ch = R.ch;
+  const valide = () => {
+    if (dist !== t.dist || t.gen === gen) return;
+    brut = dijkstra(R, src, t0, limite); dist = brut.dist; pred = brut.pred;   // écrasé : refait, hors tampons
+    if (deplie) { deplie = false; deplier(); }
+  };
+  // Redépliage à la première lecture de dist ou pred (itinéraire, maillons, arrivée) ; le survol n'en a pas
+  // besoin : tempsGrille lit distGardes (nœuds cités par la grille, gardés, donc déjà exacts). ~45 ms à Paris.
+  let deplie = false;
+  const deplier = () => {
+    if (deplie) return;
+    deplie = true;
+    // Le redépliage écrit dans les tableaux : on sort des tampons pour qu'un calcul suivant ne l'efface pas
+    if (dist === t.dist) { dist = Float64Array.from(dist); pred = Int32Array.from(pred); }
+    // Prédécesseurs des nœuds gardés : arc d'origine qui y entre
+    for (let v = 0; v < R.n; v++) {
+      const j = pred[v];
+      if (j < 0) continue;
+      const o = R.orig[j];
+      if (o >= 0) pred[v] = o;
+      else { const c = (-o - 1) >> 1; pred[v] = (-o - 1) % 2 === 0 ? ch.finA[c] : ch.finB[c]; }
+    }
+    // Points de tracé : meilleur des deux bouts de leur chaîne, avec la même borne que dijkstra()
+    for (let c = 0; c < ch.n; c++) {
+      const d0 = ch.chDebut[c], d1 = ch.chDebut[c + 1];
+      let f = dist[ch.chA[c]];
+      for (let i = d0; i < d1; i++) {
+        f += G.poids[ch.av[i]];
+        if (f <= limite) { dist[ch.pts[i]] = f; pred[ch.pts[i]] = ch.av[i]; } else break;
+      }
+      let b = dist[ch.chB[c]];
+      for (let i = d1 - 1; i >= d0; i--) {
+        b += G.poids[ch.ar[i]];
+        if (!(b <= limite)) break;
+        const v = ch.pts[i];
+        if (b < dist[v]) { dist[v] = b; pred[v] = ch.ar[i]; }
+      }
+    }
+  };
+  return {
+    src: brut.src,
+    get distGardes() { valide(); return dist; },
+    get dist() { valide(); deplier(); return dist; },
+    get pred() { valide(); deplier(); return pred; },
+  };
 }
 
 // Nœud accrochable (G.accrochable) le plus proche d'un point, cherché par anneaux de cellules autour du point (chaque cellule
@@ -347,6 +554,27 @@ function lignesReseau(P, c) {
   return lignes;
 }
 
+// Lignes de lignesReseau à plat, pour passer du Worker à la page sans copier 200 000 petits tableaux :
+// coords = lat, lon, lat, lon… ; debut[i] = indice du premier point de la ligne i (debut[nb] = nombre de points)
+function emballerLignes(lignes) {
+  let nPts = 0;
+  for (const l of lignes) nPts += l.length;
+  const coords = new Float64Array(2 * nPts), debut = new Uint32Array(lignes.length + 1);
+  let k = 0;
+  lignes.forEach((l, i) => { debut[i] = k; for (const [la, lo] of l) { coords[2 * k] = la; coords[2 * k + 1] = lo; k++; } });
+  debut[lignes.length] = k;
+  return { coords, debut };
+}
+function deballerLignes({ coords, debut }) {
+  const lignes = new Array(debut.length - 1);
+  for (let i = 0; i < lignes.length; i++) {
+    const l = new Array(debut[i + 1] - debut[i]);
+    for (let k = debut[i], j = 0; k < debut[i + 1]; k++, j++) l[j] = [coords[2 * k], coords[2 * k + 1]];
+    lignes[i] = l;
+  }
+  return lignes;
+}
+
 // Confort : voie exposée (départementale, secondaire, principale) ?
 function expose(c) { return CFG.confort.classes[c] >= 2; }
 
@@ -369,8 +597,10 @@ function minutesTranquilles(P, Gc, lon, lat, limiteS) {
       }
     }
   }
-  const min = tempsGrille(P, Gc, dijkstra(Gc, sourcesDijkstra(dep), 0, limiteS));
+  ajusterContracte(Gc, libres);
+  const min = tempsGrille(P, Gc, dijkstraRapide(Gc, P, sourcesDijkstra(dep), 0, limiteS));
   libres.forEach((k, i) => { Gc.poids[k] = sauves[i]; });   // valeurs d'origine (une division dériverait en Float32)
+  ajusterContracte(Gc, libres);
   return min;
 }
 
@@ -429,7 +659,7 @@ function cumulerMaillons(P, G, points, minutesMax = 60) {
   for (const [lon, lat] of points) {
     const dep = departs(P, G.tout, lon, lat);
     if (!dep.length) { ignores++; continue; }
-    const res = dijkstra(G.tout, sourcesDijkstra(dep), 0, minutesMax * 60);
+    const res = dijkstraRapide(G.tout, P, sourcesDijkstra(dep), 0, minutesMax * 60);
     const min = tempsGrille(P, G.tout, res);
     const minConf = minutesTranquilles(P, G.confort, lon, lat, minutesMax * 60 * CFG.confort.surcout[1]);
     const vues = new Set();
@@ -451,7 +681,9 @@ function tempsGrille(P, G, res) {
   const g = P.grille, N = g.nx * g.ny, out = new Float32Array(N);
   const pro = g.pro[G.mode], dd = g.dist[G.mode], max = CFG.accesMaxM[G.mode];
   const sp = g.secours && g.secours.pro[G.mode], sd = g.secours && g.secours.dist[G.mode];
-  const temps = (v, d) => (v >= 0 && d <= max && isFinite(res.dist[v]) ? (res.dist[v] + accesSecondes(d)) / 60 : Infinity);
+  // distGardes (dijkstraRapide) : temps des nœuds gardés, sans attendre le redépliage des points de tracé
+  const D = res.distGardes || res.dist;
+  const temps = (v, d) => (v >= 0 && d <= max && isFinite(D[v]) ? (D[v] + accesSecondes(d)) / 60 : Infinity);
   for (let k = 0; k < N; k++) {
     if (!g.dedans[k]) { out[k] = NaN; continue; }
     out[k] = sp ? Math.min(temps(pro[k], dd[k]), temps(sp[k], sd[k])) : temps(pro[k], dd[k]);
@@ -915,6 +1147,7 @@ function ajouterTroncons(P, troncons) {
     a: etendre(Int32Array, P.a, ea), b: etendre(Int32Array, P.b, eb), lm: etendre(Float32Array, P.lm, el),
     cls: etendre(Uint8Array, P.cls, rempli(dm, 0)), sens: etendre(Uint8Array, P.sens, rempli(dm, 0)),
     vit: etendre(Uint8Array, P.vit, rempli(dm, CFG.vitesseSimuleeKmh)), rd: etendre(Uint8Array, P.rd || new Uint8Array(P.m), rempli(dm, 0)),
+    nat: etendre(Uint8Array, P.nat || new Uint8Array(P.m), rempli(dm, 0)),
     nom: etendre(Int32Array, P.nom, rempli(dm, P.noms.length)), noms: [...P.noms, "Piste (simulée)"],
   };
   if (P.global) Q.global = etendre(Float64Array, P.global, rempli(dn, -1));
@@ -950,6 +1183,10 @@ function appliquerMasque(g, z, gi) {
 // ======================= TUILES (format v1, encodeur : format_tuile.py) =======================
 // Grille de France en degrés ; doit suivre LON0, LAT0, DLON, DLAT, CELLULES_TUILE de format_tuile.py
 const GRILLE_FRANCE = { lon0: -5.5, lat0: 51.5, dlon: 0.00125, dlat: 0.0009, cellulesTuile: 100, pasDistM: 10 };
+// Grille d'un autre territoire (DROM : tuiles.json → grille) : remplace les valeurs, garde l'objet partagé
+function definirGrille(g) {
+  for (const k of ["lon0", "lat0", "dlon", "dlat", "cellulesTuile"]) if (g && g[k] != null) GRILLE_FRANCE[k] = g[k];
+}
 
 // Décompresse un fichier de tuile (gzip) avec l'API native du navigateur / de Node ≥ 18
 async function decompresserTuile(buffer) {
@@ -1028,15 +1265,16 @@ function recollerTuiles(tuiles) {
     mTotal += t.m;
   }
   const a = new Int32Array(mTotal), b = new Int32Array(mTotal), lm = new Float32Array(mTotal);
-  const cls = new Uint8Array(mTotal), sens = new Uint8Array(mTotal), vit = new Uint8Array(mTotal), rd = new Uint8Array(mTotal);
+  const cls = new Uint8Array(mTotal), sens = new Uint8Array(mTotal), vit = new Uint8Array(mTotal), rd = new Uint8Array(mTotal), nat = new Uint8Array(mTotal);
   let m = 0, ecartees = 0;
   for (const { t } of blocs) {
     for (let e = 0; e < t.m; e++) {
       const ia = indice(t.a[e]), ib = indice(t.b[e]);
       if (ia < 0 || ib < 0) { ecartees++; continue; }
       const at = t.attr[e];
-      a[m] = ia; b[m] = ib; lm[m] = t.l[e] / 10; cls[m] = at & 7; sens[m] = (at >> 3) & 3; vit[m] = (at >> 5) & 0x3ff;
-      rd[m] = at >> 15;                                    // bit 15 : route départementale (marquer_rd.py)
+      a[m] = ia; b[m] = ib; lm[m] = t.l[e] / 10; cls[m] = at & 7; sens[m] = (at >> 3) & 3; vit[m] = (at >> 5) & 0x1ff;
+      rd[m] = at >> 15;                                    // bit 15 : route départementale (tuiler.py, ref D…)
+      nat[m] = (at >> 14) & 1;                             // bit 14 : route nationale (ref N…, 17/10/2026)
       m++;
     }
   }
@@ -1057,7 +1295,7 @@ function recollerTuiles(tuiles) {
     }
   }
   return {
-    n, m, lon, lat, global, lm: lm.subarray(0, m), cls: cls.subarray(0, m), sens: sens.subarray(0, m), vit: vit.subarray(0, m), rd: rd.subarray(0, m),
+    n, m, lon, lat, global, lm: lm.subarray(0, m), cls: cls.subarray(0, m), sens: sens.subarray(0, m), vit: vit.subarray(0, m), rd: rd.subarray(0, m), nat: nat.subarray(0, m),
     a: a.subarray(0, m), b: b.subarray(0, m), nom: new Int32Array(m), noms: [""], ecartees,
     grille: {
       w: GRILLE_FRANCE.lon0 + txMin * C * GRILLE_FRANCE.dlon, n: GRILLE_FRANCE.lat0 - tyMin * C * GRILLE_FRANCE.dlat,
@@ -1277,7 +1515,7 @@ function minutesAcces(P, Gs, lon, lat, limiteS) {
   const temps = (G, garder) => {
     const acc = departs(P, G, lon, lat);
     if (!acc.length) return vide();
-    const res = dijkstra(G, sourcesDijkstra(acc), 0, limiteS);
+    const res = dijkstraRapide(G, P, sourcesDijkstra(acc), 0, limiteS);
     if (garder) resTous = res;
     return tempsGrille(P, G, res);
   };
@@ -1309,7 +1547,7 @@ function equipementsFenetre(Cm, ix, g, minutes, compte) {
 
 if (typeof module !== "undefined") {
   module.exports = { CFG, preparer, construireGraphe, lignesReseau, expose, minutesTranquilles, teinteConfort, CELLULE_KM2, traitsNoirs, grilleDeparts, cumulerMaillons, dijkstra, accrocher, rattacherGrille, tempsGrille, itineraire, etapes, couverture, champIsolignes, accesSecondes, distanceM,
-    surfaceKm2, GRILLE_FRANCE, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles,
+    surfaceKm2, GRILLE_FRANCE, definirGrille, contracter, dijkstraRapide, graphRapide, ajusterContracte, emballerLignes, deballerLignes, l93VersWgs84, encoderTroncons, decoderTroncons, lireGeoJSON, versGeoJSON, longueurTroncon, noeudsProches, areteProche, aretesProches, croisements, voies, voieAuClic, decoderMasque, appliquerMasque, ajouterTroncons, gainSurface, gainConfort, departs, sourcesDijkstra, decompresserTuile, decoderTuile, recollerTuiles, ChargeurTuiles,
     preparerComptages, indexerComptages, compterAtteints, plusProcheParFonction, casFonctions, CAS, equipementsFenetre, minutesAcces };
 }
 // ===================================== FIN CŒUR =====================================
