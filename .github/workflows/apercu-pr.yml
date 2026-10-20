@@ -25,8 +25,10 @@ jobs:
         if: github.event.action != 'closed'
         run: |
           mkdir _site
-          cp index.html coeur.js .nojekyll _site/
-          cp -r tuiles _site/
+          cp index.html classement.html coeur.js tuiles-worker.js osm-contrib.js .nojekyll _site/
+          mkdir _site/marennes-oleron
+          cp marennes-oleron/index.html marennes-oleron/coeur.js _site/marennes-oleron/
+          cp -r marennes-oleron/tuiles _site/marennes-oleron/
 
       - name: Publier ou retirer l'aperçu
         uses: rossjrw/pr-preview-action@v1

@@ -8,12 +8,19 @@
 !.github/workflows/
 !.github/workflows/*.yml
 !index.html
+!classement.html
 !coeur.js
+!tuiles-worker.js
+!osm-contrib.js
 !README.md
 !LICENSE
-!tuiles/
-!tuiles/*.bin
-!tuiles/*.json
+# Carte Marennes-Oléron (réseau CCIO + CCBM) ; la carte France à la racine lit ses tuiles sur Cloudflare
+!marennes-oleron/
+!marennes-oleron/index.html
+!marennes-oleron/coeur.js
+!marennes-oleron/tuiles/
+!marennes-oleron/tuiles/*.bin
+!marennes-oleron/tuiles/*.json
 # Animations de démonstration, affichées dans le README sur GitHub (non copiées sur le site)
 !demo/
 !demo/*.gif
