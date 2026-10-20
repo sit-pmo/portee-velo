@@ -1,0 +1,2438 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Base d'URL des données (tuiles/<zone>/…), phase 3 : vide = même site ; sinon par exemple
+     https://portee-velo.<compte>.workers.dev/ pour une page servie ailleurs (les tuiles y ont l'en-tête CORS) -->
+<meta name="donnees" content="https://portee-velo.aurelienchaumet17.workers.dev/">
+<!-- Vitrine sit-pmo (20/10/2026) : les anciens liens ?territoire=oleron|pmo ouvrent la carte Marennes-Oléron
+     (réseau des collectivités), désormais dans marennes-oleron/ -->
+<script>if (/[?&]territoire=(oleron|pmo)(&|$)/.test(location.search)) location.replace("marennes-oleron/" + location.search + location.hash);</script>
+<title>À portée de vélo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root{
+  --abysse:#005267;
+  --lagon:#08B8DC;
+  --soleil:#FFDE12;
+  --encre:#13252B;
+  --ardoise:#4F6268;
+  --brume:#E4EDEF;
+  --papier:#FFFFFF;
+  --serif:"Libre Baskerville", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--sans);color:var(--encre);background:#d5dfe2;font-size:15px;line-height:1.45}
+#carte{position:fixed;inset:0}
+.leaflet-container{font-family:var(--sans);background:#cfdbdf}
+.leaflet-tile-pane{filter:grayscale(1) contrast(.9) brightness(1.07)}
+.leaflet-control-attribution{font-size:11px}
+
+.panneau{position:absolute;z-index:1000;top:16px;left:16px;bottom:16px;width:min(380px,calc(100vw - 32px));
+  background:var(--papier);border-radius:12px;box-shadow:0 12px 32px rgba(0,40,52,.2);display:flex;flex-direction:column;overflow:hidden}
+.entete{padding:20px 22px 16px;background:var(--abysse);color:#fff}
+.entete h1{font-family:var(--serif);font-weight:700;font-size:1.6rem;line-height:1.15;margin:0;letter-spacing:-.01em}
+.entete p{margin:.45rem 0 0;color:#c9edf5;font-size:.9rem;max-width:32ch}
+.defile{overflow-y:auto;padding:2px 22px 18px;flex:1}
+.bloc{padding:14px 0;border-bottom:1px solid var(--brume)}
+.bloc:last-of-type{border-bottom:0}
+h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
+.etiquette{display:block;font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 6px}
+.note{font-size:.83rem;color:var(--ardoise);margin:8px 0 0}
+
+.bascule{display:grid;grid-template-columns:1fr 1fr;background:var(--brume);border-radius:8px;padding:3px;gap:3px}
+.bascule button{font:inherit;font-size:.86rem;font-weight:600;border:0;border-radius:6px;padding:8px 6px;background:transparent;color:var(--ardoise);cursor:pointer}
+.bascule button[aria-pressed="true"]{background:var(--papier);color:var(--abysse);box-shadow:0 1px 3px rgba(0,40,52,.18)}
+.bascule.petite{grid-template-columns:auto auto;flex:none}
+.bascule.petite button{font-size:.8rem;padding:6px 9px}
+
+.recherche{display:flex;gap:8px;align-items:center}
+.geoloc{flex:none;display:flex;align-items:center;justify-content:center;width:40px;height:40px;border:1px solid #c3d3d7;border-radius:8px;background:#fff;color:var(--abysse);cursor:pointer}
+.geoloc:hover{background:#eef8fb}
+.geoloc[aria-busy="true"]{opacity:.5;cursor:progress}
+.recherche input{flex:1;min-width:0;font:inherit;font-size:.92rem;padding:9px 11px;border:1px solid #c3d3d7;border-radius:8px;background:#fff;color:var(--encre)}
+.suggestions{list-style:none;margin:8px 0 0;padding:0;border:1px solid var(--brume);border-radius:8px;overflow:hidden}
+.suggestions li+li{border-top:1px solid var(--brume)}
+.suggestions button{all:unset;box-sizing:border-box;display:block;width:100%;padding:8px 11px;cursor:pointer;font-size:.88rem}
+.suggestions button:hover,.suggestions button:focus-visible{background:#eef8fb}
+.suggestions small{display:block;color:var(--ardoise);font-size:.78rem}
+.suggestions .vide{padding:8px 11px;font-size:.85rem;color:var(--ardoise)}
+
+.consigne{margin:0;font-size:.9rem;color:var(--ardoise)}
+.duree{font-family:var(--serif);font-size:2.7rem;line-height:1;color:var(--abysse);margin:2px 0 6px}
+.detail{margin:0 0 10px;font-size:.9rem}
+.etapes{list-style:none;margin:0;padding:0}
+.etapes li{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:baseline;padding:6px 0 6px 12px;border-left:4px solid var(--c);margin-bottom:3px;font-size:.87rem}
+.etapes .nom{overflow-wrap:anywhere}
+.etapes .nom small{display:block;color:var(--ardoise);font-size:.76rem}
+.etapes .chiffre{color:var(--ardoise);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+.message{margin:10px 0 0;padding:9px 11px;background:#fff8cc;border-radius:8px;font-size:.87rem}
+.lien-action{font:inherit;font-size:.85rem;background:none;border:0;padding:0;margin-top:8px;color:var(--abysse);text-decoration:underline;cursor:pointer}
+
+.couverture .ligne{display:grid;grid-template-columns:4.2em 1fr 3em;gap:10px;align-items:center;font-size:.87rem;margin-bottom:6px}
+.couverture .jauge{height:8px;background:var(--brume);border-radius:4px;overflow:hidden}
+.couverture .jauge span{display:block;height:100%;background:var(--abysse)}
+.couverture .valeur{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+
+.case-reseau{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;margin-top:10px;font-size:.83rem;color:var(--ardoise);cursor:pointer}
+.case-reseau input{margin:0;accent-color:var(--abysse)}
+.case-reseau .entree{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.trait-piste,.trait-bande,.trait-itin{display:inline-block;width:26px;height:12px;border-radius:3px;background-color:#0485A1;background-repeat:no-repeat;background-position:center;background-size:100% 2px}
+.trait-piste{background-image:linear-gradient(#fff 0 1px,#00657A 1px 3px,#fff 3px 4px);background-size:100% 4px}
+.trait-rd{display:inline-block;width:26px;height:4px;border-radius:2px;background:#9C2A5E}
+.trait-bande{background-image:repeating-linear-gradient(90deg,#00657A 0 3px,#fff 3px 6px);background-size:100% 2px}
+.trait-itin{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.6) 0 1.5px,transparent 1.5px 5px)}
+.legende{display:grid;grid-template-columns:repeat(8,1fr)}
+.legende .case{height:12px}
+.legende .case:first-child{border-radius:3px 0 0 3px}
+.legende .case:last-child{border-radius:0 3px 3px 0}
+.legende .graduations{grid-column:1/-1;display:grid;grid-template-columns:repeat(8,1fr);font-size:.75rem;color:var(--ardoise);font-variant-numeric:tabular-nums;margin-top:3px}
+.legende .graduations span{display:flex;justify-content:flex-end}
+.legende .graduations i{font-style:normal;transform:translateX(50%)}
+
+.bouton{font:inherit;font-weight:600;font-size:.9rem;width:100%;padding:10px 12px;border-radius:8px;border:1.5px solid var(--abysse);background:#fff;color:var(--abysse);cursor:pointer}
+.bouton:hover{background:#eef8fb}
+.bouton[aria-pressed="true"]{background:var(--abysse);color:#fff}
+#suivre{margin-bottom:10px}
+/* Fiche « Vérifier dans OpenStreetMap » (osm-contrib.js) */
+#osm-verifier{margin-bottom:10px}
+.osm-fiche{border:1px solid var(--brume);border-radius:8px;padding:8px 10px;margin-bottom:10px;font-size:.84rem}
+.osm-fiche h3{font-size:.86rem;margin:6px 0 4px}
+.osm-lu{margin:2px 0 6px}
+.osm-recent{margin:2px 0 6px;color:#7B2CBF;font-weight:600}
+.osm-tags{border-collapse:collapse;width:100%;font-size:.78rem;margin:4px 0}
+.osm-tags th{text-align:left;font-weight:600;color:var(--ardoise);padding:1px 8px 1px 0;white-space:nowrap;vertical-align:top}
+.osm-tags td{padding:1px 0;word-break:break-word}
+.osm-indices{margin:4px 0;padding-left:18px}
+.osm-indices li{margin:3px 0}
+.osm-actions{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.osm-actions .lien-action{margin-top:0;text-align:left}
+.credits{font-size:.75rem;color:var(--ardoise);padding-top:10px}
+.credits p{margin:0 0 6px}
+.credits a{color:var(--abysse)}
+.erreur{margin:14px 0;padding:12px;border-radius:8px;background:#fde7e2;color:#7a1f0e;font-size:.9rem}
+.erreur code{font-size:.85em}
+
+button:focus-visible,input:focus-visible,.leaflet-marker-icon:focus-visible{outline:3px solid var(--lagon);outline-offset:2px}
+
+.repere{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;font:700 13px/1 var(--sans);box-shadow:0 2px 6px rgba(0,0,0,.35)}
+.repere-d{background:var(--abysse);color:#fff;border:3px solid #fff}
+.repere-a{background:var(--soleil);color:var(--encre);border:3px solid var(--encre)}
+
+.replier{display:none}
+@media (max-width:720px){
+  .panneau{top:auto;left:0;right:0;bottom:0;width:auto;max-height:52vh;border-radius:14px 14px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .entete{padding:12px 18px 10px}
+  .entete h1{font-size:1.25rem}
+  .entete p{display:none}
+  .defile{padding:0 18px 14px}
+  .duree{font-size:2.2rem}
+  .entete{position:relative}
+  .replier{display:flex;align-items:center;gap:4px;position:absolute;top:6px;right:8px;height:44px;padding:0 10px;border:0;border-radius:8px;background:transparent;color:#fff;font:600 .8rem var(--sans);cursor:pointer}
+  .replier .fleche{font-size:1.4rem;line-height:1;transition:transform .2s}
+  .panneau.replie .defile{display:none}
+  .panneau.replie .replier .fleche{transform:rotate(180deg)}
+}
+/* Propre à la version départementale (tuiles) */
+.chargement[hidden]{display:none}
+.chargement{display:flex;align-items:center;gap:8px;margin:10px 0 0;font-size:.87rem;color:var(--ardoise)}
+.chargement::before{content:"";width:14px;height:14px;border-radius:50%;border:2px solid var(--brume);border-top-color:var(--abysse);animation:tourne .8s linear infinite}
+@keyframes tourne{to{transform:rotate(1turn)}}
+@media (prefers-reduced-motion:reduce){.chargement::before{animation:none;border-top-color:var(--ardoise)}}
+.couverture .ligne{grid-template-columns:4.2em 1fr 5.2em}
+/* Équipements et population à portée (12/10/2026) */
+.acces{width:100%;border-collapse:collapse;font-size:.87rem;font-variant-numeric:tabular-nums}
+.acces th{font-weight:600;color:var(--ardoise);font-size:.78rem;text-align:right;padding:0 0 4px}
+.acces th:first-child{text-align:left}
+.acces td{padding:3px 0 3px 8px;border-top:1px solid var(--brume);text-align:right;white-space:nowrap;min-width:3.4em}
+.acces td:first-child{text-align:left;white-space:normal;padding-left:0;min-width:0}
+.acces tr.sous td:first-child{padding-left:14px;color:var(--ardoise)}
+.acces tr.sous td{border-top:0;padding:1px 0}
+.acces .pastille{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:var(--c)}
+.acces small{display:block;color:var(--ardoise);font-size:.74rem;font-weight:400}
+.acces .gain{color:#7E22CE;font-weight:600;margin-left:3px;font-size:.78rem}
+.acces .total td{font-weight:600}
+.defile-x{overflow-x:auto}
+.acces th{white-space:normal;line-height:1.2;padding-left:8px;vertical-align:bottom}
+/* Fonctions du territoire de la demi-heure (13/10/2026) : trois cas, mêmes couleurs partout */
+:root{--cas-tranquille:#3B6FC4;--cas-route:#D9631E;--cas-loin:#5E6A70;--cas-tranquille-fond:#DCE8F7;--cas-route-fond:#FBE3CC;--cas-loin-fond:#E6E9EA}
+.fonctions-titre{margin:14px 0 0;font-size:.87rem;font-weight:600}
+.cas-resume{list-style:none;margin:6px 0 0;padding:0;display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.cas-resume li{display:flex;flex-direction:column;gap:1px;padding:6px 8px;border-radius:8px;font-size:.76rem;color:var(--ardoise);border-top:3px solid var(--c)}
+.cas-resume strong{font-size:1rem;color:var(--encre);font-variant-numeric:tabular-nums}
+.cas-0{--c:var(--cas-tranquille);--f:var(--cas-tranquille-fond)}
+.cas-1{--c:var(--cas-route);--f:var(--cas-route-fond)}
+.cas-2{--c:var(--cas-loin);--f:var(--cas-loin-fond)}
+.fonctions{display:flex;flex-wrap:wrap;gap:5px;margin:10px 0 0;padding:0;list-style:none}
+.fonctions li{font-size:.8rem;padding:3px 8px;border-radius:12px;background:var(--f);color:var(--encre);border-left:3px solid var(--c)}
+.fonctions li b{font-variant-numeric:tabular-nums}
+.fonctions li small{color:var(--ardoise);font-size:.72rem}
+/* Bloc diagnostic (vue territoire) */
+.diag-resume{font-size:.9rem;margin:0 0 10px;line-height:1.45}
+.diag-resume strong{font-variant-numeric:tabular-nums}
+.diag-table{width:100%;border-collapse:collapse;font-size:.84rem}
+.diag-table td{padding:4px 0;border-top:1px solid var(--brume);vertical-align:middle}
+.diag-table td.lib{padding-right:8px}
+.diag-table td.lib small{color:var(--ardoise);font-size:.74rem;margin-left:4px}
+.diag-table td.pct{text-align:right;font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap;padding-left:8px;width:3.2em}
+.diag-table tr{cursor:pointer}
+.diag-table tr:hover td{background:var(--brume)}
+.diag-table tr[aria-selected="true"] td.lib{font-weight:700;color:var(--abysse)}
+.barre3{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--brume);min-width:80px}
+.barre3 span{display:block;height:100%;background:var(--c)}
+.diag-legende{display:flex;flex-wrap:wrap;gap:10px;font-size:.78rem;color:var(--ardoise);margin:8px 0 0}
+.diag-legende span::before{content:"";display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--c);margin-right:5px;vertical-align:-1px}
+.diag-sous{font-size:.87rem;font-weight:600;margin:14px 0 4px}
+.diag-communes{width:100%;border-collapse:collapse;font-size:.8rem;font-variant-numeric:tabular-nums}
+.diag-communes th{font-weight:600;color:var(--ardoise);font-size:.74rem;text-align:right;padding:0 0 3px 6px}
+.diag-communes th:first-child{text-align:left;padding-left:0}
+.diag-communes td{padding:3px 0 3px 6px;border-top:1px solid var(--brume);text-align:right;white-space:nowrap}
+.diag-communes td:first-child{text-align:left;padding-left:0;white-space:normal}
+.diag-communes td.barre{width:38%}
+.diag-maillons{list-style:none;margin:0;padding:0;counter-reset:m}
+.diag-maillons li{display:grid;grid-template-columns:1.6em 1fr auto;gap:6px;align-items:baseline;padding:5px 0;border-top:1px solid var(--brume);font-size:.84rem;cursor:pointer}
+.diag-maillons li::before{counter-increment:m;content:counter(m);color:var(--ardoise);font-variant-numeric:tabular-nums;font-size:.78rem}
+.diag-maillons li[aria-current="true"]{color:#7B2CBF;font-weight:600}
+.diag-maillons small{display:block;color:var(--ardoise);font-size:.74rem;font-weight:400}
+.diag-maillons .chiffre{font-variant-numeric:tabular-nums;font-weight:600;white-space:nowrap}
+/* Simulation de tronçons (12/10/2026) */
+.sim-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.sim-actions #sim-tracer{grid-column:1/-1}
+.bouton.petit{font-size:.84rem;padding:7px 8px}
+/* Croisements réseau cyclable × routes (13/10/2026) : pastilles colorées par la vitesse de la route croisée */
+.crx-legende{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;align-items:center;font-size:.78rem;color:var(--ardoise)}
+.crx-legende i{display:inline-block;width:12px;height:12px;border-radius:50%;border:1.5px solid #fff;box-shadow:0 0 0 1px #1E2529}
+.crx-legende i.presumee{border:1.5px dashed #1E2529;box-shadow:none}
+.crx-legende i.bande{width:9px;height:9px;margin:0 1.5px}
+#legende-crx{margin-top:10px}
+.crx-resume{font-size:.83rem;margin:8px 0 0;color:var(--encre,#1E2529)}
+.crx-resume b{font-variant-numeric:tabular-nums}
+.bouton:disabled{opacity:.45;cursor:default;background:#fff}
+.sim-liste{list-style:none;margin:10px 0 0;padding:0}
+.sim-replier{margin-top:10px}
+.sim-replier summary{cursor:pointer;font-size:.86rem;font-weight:600;color:var(--ardoise)}
+.sim-liste li{display:flex;align-items:center;gap:8px;padding:5px 0 5px 10px;border-left:4px solid #7B2CBF;margin-bottom:3px;font-size:.86rem}
+.sim-liste li[aria-current="true"]{background:#f3ecfb}
+.sim-liste .nom{flex:1;cursor:pointer}
+.sim-liste .retirer{font:inherit;border:0;background:none;color:var(--ardoise);cursor:pointer;padding:2px 8px;font-size:1rem}
+.bascule.trois{grid-template-columns:1fr 1fr 1fr;margin-top:10px}
+.bascule.reseau{grid-template-columns:1fr 1fr 1fr}
+.sim-gains{margin-top:10px;font-size:.88rem;font-variant-numeric:tabular-nums}
+.sim-gains strong{color:#5A189A}
+.trait-sim{display:inline-block;width:26px;height:6px;border-radius:3px;vertical-align:middle;background:repeating-linear-gradient(90deg,#7B2CBF 0 8px,#fff 8px 12px)}
+.sommet-sim{width:12px;height:12px;border-radius:50%;border:2.5px solid #7B2CBF;background:#fff;box-shadow:0 0 0 1.5px #fff;box-sizing:border-box}
+.sommet-sim.raccorde{background:#7B2CBF}
+.milieu-sim{width:11px;height:11px;border-radius:50%;background:#7B2CBF;opacity:.7;cursor:copy;border:1.5px solid #fff;box-sizing:border-box}
+/* Onglets par question (13/10/2026) : les blocs data-q n'apparaissent que dans leurs onglets */
+.onglets{display:grid;grid-template-columns:repeat(4,1fr);background:var(--abysse);padding:0 10px}
+.onglets button{font:600 .84rem var(--sans);border:0;border-radius:8px 8px 0 0;padding:9px 2px 10px;background:transparent;color:#c9edf5;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
+.onglets button[aria-selected="true"]{background:var(--papier);color:var(--abysse)}
+.question{margin:0;padding:12px 22px 2px;font-family:var(--serif);font-size:1.02rem;line-height:1.3;color:var(--abysse)}
+.panneau[data-q="1"] .bloc[data-q]:not([data-q~="1"]),.panneau[data-q="2"] .bloc[data-q]:not([data-q~="2"]),
+.panneau[data-q="3"] .bloc[data-q]:not([data-q~="3"]),.panneau[data-q="4"] .bloc[data-q]:not([data-q~="4"]){display:none}
+@media (max-width:720px){.question{padding:8px 18px 0;font-size:.92rem}.panneau.replie .question,.panneau.replie .depart{display:none}}
+.legende-carte{position:absolute;z-index:900;right:12px;bottom:26px;width:290px;background:var(--papier);border-radius:10px;box-shadow:0 6px 20px rgba(0,40,52,.2);padding:10px 12px}
+.legende-carte h2{margin-bottom:6px;padding-right:26px}
+.plier-legende{position:absolute;top:5px;right:5px;display:flex;align-items:center;gap:6px;height:28px;min-width:28px;justify-content:center;padding:0 6px;border:0;border-radius:6px;background:transparent;color:var(--ardoise);font:600 .82rem var(--sans);cursor:pointer}
+.plier-legende:hover{background:var(--brume);color:var(--abysse)}
+.plier-legende .txt{display:none}
+.plier-legende .fl{font-size:1.05rem;line-height:1;transition:transform .2s}
+#sim-legende-gain>:first-child{padding-right:26px;margin-top:0}
+.legende-carte.pliee{width:auto;padding:0}
+.legende-carte.pliee #legende-corps{display:none}
+.legende-carte.pliee .plier-legende{position:static;height:36px;padding:0 12px;color:var(--abysse)}
+.legende-carte.pliee .plier-legende .txt{display:inline}
+.legende-carte.pliee .plier-legende .fl{transform:rotate(180deg)}
+.legende-carte .note{font-size:.76rem;margin-top:5px}
+.legende-carte .case-reseau{margin-top:8px}
+@media (max-width:720px){.legende-carte{top:8px;bottom:auto;left:8px;right:56px;width:auto;padding:7px 9px}.legende-carte.pliee{right:auto;padding:0}.plier-legende .fl{transform:rotate(180deg)}.legende-carte.pliee .plier-legende .fl{transform:none}   /* légende en haut : la flèche montre le sens du dépliage */.legende-carte .note{display:none}
+  .legende-carte .lire .note{display:block}.legende-carte .lire[open]{max-height:38vh;overflow-y:auto}}
+.entete p{display:none}   /* la question sous les onglets dit déjà de quoi il s'agit */
+/* Allègement (13/10/2026) : départ fixe sous la question, explications repliées, lien et crédits dans l'en-tête */
+.depart{padding:10px 22px 10px;border-bottom:1px solid var(--brume)}
+.depart .suggestions{max-height:40vh;overflow-y:auto}
+@media (max-width:720px){.depart{padding:8px 18px}}
+.outils{position:absolute;top:14px;right:14px;display:flex;gap:4px}
+.outils button,.outils a{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:8px;background:transparent;color:#c9edf5;cursor:pointer}
+.outils button:hover,.outils a:hover{background:rgba(255,255,255,.12);color:#fff}
+.outils svg{width:19px;height:19px}
+.outils a{text-decoration:none}
+/* Sélecteur de territoire (phase 2, 16/10/2026) : métropole (le 17 pour l'instant) et les 5 DROM */
+.choix-zone{display:block;margin:.5rem 0 0}
+.choix-zone select{font:500 .85rem var(--sans);color:#fff;background:rgba(255,255,255,.1);border:1px solid rgba(201,237,245,.45);border-radius:8px;padding:5px 8px;max-width:100%;cursor:pointer}
+.choix-zone select:hover,.choix-zone select:focus-visible{background:rgba(255,255,255,.18);border-color:#c9edf5}
+.choix-zone option{color:#1E2529;background:#fff}
+@media (max-width:720px){.choix-zone{margin:.35rem 0 0}.choix-zone select{font-size:.8rem;padding:3px 6px}}
+.entete{position:relative}
+.toast{position:absolute;top:52px;right:14px;z-index:2;max-width:250px;margin:0;padding:7px 10px;border-radius:8px;background:var(--encre);color:#fff;font-size:.8rem;box-shadow:0 4px 12px rgba(0,0,0,.25)}
+@media (max-width:720px){.outils{top:11px;right:96px}.toast{top:48px;right:8px}}
+.aide{margin-top:8px}
+.aide>summary,.lire>summary,.reglages>summary{cursor:pointer;font-size:.8rem;font-weight:600;color:var(--ardoise);width:max-content;max-width:100%}
+.aide>summary:hover,.lire>summary:hover,.reglages>summary:hover{color:var(--abysse)}
+.lire{margin-top:8px}
+.reglages>summary{font-size:.85rem}
+.reglages[open]>summary{margin-bottom:10px}
+.reglages .bascule+.bascule{margin-top:10px}
+.panneau.diag-actif[data-q="4"] .bloc-reglages{display:none}
+.panneau[data-q="1"] .reglages>summary,.panneau[data-q="1"] #bascule-symbo{display:none}   /* onglet 1 : réseau seul, toujours visible */
+.acces .deplier{all:unset;cursor:pointer;font-weight:600}
+.acces .deplier:focus-visible{outline:3px solid var(--lagon);outline-offset:2px}
+.acces .deplier .fl{display:inline-block;margin-left:4px;color:var(--ardoise);transition:transform .15s}
+.acces .deplier[aria-expanded="true"] .fl{transform:rotate(90deg)}
+dialog.apropos{max-width:min(560px,calc(100vw - 32px));border:0;border-radius:12px;padding:22px 24px;box-shadow:0 12px 32px rgba(0,40,52,.3);color:var(--encre)}
+dialog.apropos::backdrop{background:rgba(0,40,52,.35)}
+dialog.apropos h2{font:700 1.2rem var(--serif);color:var(--abysse);margin:0 0 12px}
+dialog.apropos .credits{font-size:.85rem;padding:0}
+dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:34px;border:0;border-radius:8px;background:transparent;font-size:1.3rem;color:var(--ardoise);cursor:pointer}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div id="carte" role="application" aria-label="Carte des temps de trajet à vélo"></div>
+
+<!-- Légende détachée du panneau (13/10/2026) : visible quel que soit l'onglet ; montre la légende de la carte affichée -->
+<div class="legende-carte" id="legende-carte" aria-label="Légende de la carte">
+  <!-- Pliable (13/10/2026) : sur mobile, elle cachait le haut de la carte ; pliée par défaut sur petit écran -->
+  <button type="button" class="plier-legende" id="plier-legende" aria-expanded="true" aria-controls="legende-corps" aria-label="Replier la légende" title="Replier la légende"><span class="txt">Légende</span><span class="fl" aria-hidden="true">▾</span></button>
+  <div id="legende-corps">
+  <div id="legendes-temps">
+    <div id="legende-vitesse">
+      <h2>Temps de trajet en minutes</h2>
+      <div class="legende" id="legende"></div>
+      <p class="note">Lignes pleines à 30 et 60 min, pointillées à 15 et 45. Au-delà d'une heure : pas de couleur.</p>
+    </div>
+    <div id="legende-maquette" hidden>
+      <h2>Y aller tranquillement, à quel prix ?</h2>
+      <div id="grille-bivariee"></div>
+    </div>
+    <div id="sim-legende-gain" hidden></div>
+    <!-- Explications sorties du panneau (13/10/2026) : repliées, selon le réseau et la couleur affichés -->
+    <details class="lire" id="lire">
+      <summary>Comment lire</summary>
+      <p class="note" id="note-mode"></p>
+      <div id="lire-confort" hidden>
+        <p class="note">Clarté = temps du trajet le plus rapide. Teinte = prix pour y aller tranquillement : trajet qui préfère pistes, bandes et voies calmes, chaque minute restante sur route exposée comptant pour 4 ; bleu = moins de 20 % (ou 1 min) de plus que le plus rapide, gris = 20 à 50 %, orange = plus de 50 %. Rampe bleu / orange lisible par les daltoniens.</p>
+        <p class="note">Traits noirs : tronçons de route exposée par lesquels passent les trajets les plus rapides vers au moins 10 km² en orange (épaisseur : 10 / 25 / 60 km² desservis).</p>
+      </div>
+    </details>
+  </div>
+  <!-- Vues indépendantes du départ : diagnostic (onglet 4) et maillons cumulés (onglet 2) -->
+  <div id="legende-diag" hidden>
+    <h2>Lieux habités : les fonctions du quotidien</h2>
+    <div class="diag-legende" style="margin:0"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
+    <p class="note">Teinte soutenue = plus d'habitants. Traits noirs : maillons qui débloqueraient le plus d'habitants (violet : choisi).</p>
+  </div>
+  <div id="legende-d4" hidden>
+    <h2>Maillons manquants de l'île</h2>
+    <p class="note" style="margin:0"><span style="display:inline-block;width:26px;height:8px;background:#111;vertical-align:middle;border-radius:2px"></span> ≥ 10 % de l'île
+      <span style="display:inline-block;width:26px;height:5px;background:#111;vertical-align:middle;border-radius:2px;margin-left:6px"></span> ≥ 5 %
+      <span style="display:inline-block;width:26px;height:3px;background:#111;vertical-align:middle;border-radius:2px;margin-left:6px"></span> ≥ 2 %</p>
+    <p class="note">Part des départs de l'île pour lesquels la voie est un trait noir. Violet : voie choisie.</p>
+  </div>
+  <div id="legende-crx" hidden>
+    <h2>Croisements : vitesse de la route</h2>
+    <div class="crx-legende" id="crx-legende"></div>
+    <p class="note">Grande pastille : piste ou voie verte ; petite : bande. Contour pointillé : vitesse présumée. Carte des temps estompée dessous.</p>
+  </div>
+  <label class="case-reseau" for="voir-reseau">
+    <input type="checkbox" id="voir-reseau" checked>
+    <span class="entree"><span class="trait-piste" aria-hidden="true"></span> Pistes</span>
+    <span class="entree"><span class="trait-bande" aria-hidden="true"></span> Bandes</span>
+  </label>
+  <label class="case-reseau" for="voir-rd" title="Routes départementales et nationales : numéro D… ou N… porté par la route dans OpenStreetMap">
+    <input type="checkbox" id="voir-rd">
+    <span class="entree"><span class="trait-rd" aria-hidden="true"></span> Départementales et nationales</span>
+  </label>
+  </div>
+</div>
+
+<aside class="panneau" data-q="1" aria-label="Réglages et résultats">
+  <header class="entete">
+    <button type="button" class="replier" id="replier" aria-expanded="true"><span class="texte">Replier</span> <span class="fleche" aria-hidden="true">▾</span></button>
+    <h1>À portée de vélo</h1>
+    <label class="choix-zone" title="Changer de territoire"><span hidden>Territoire</span>
+      <select id="zone" aria-label="Territoire">
+        <option value="fr">Métropole</option>
+        <option value="971">Guadeloupe</option>
+        <option value="972">Martinique</option>
+        <option value="973">Guyane</option>
+        <option value="974">La Réunion</option>
+        <option value="976">Mayotte</option>
+        <option value="marennes-oleron">Marennes-Oléron (réseau des collectivités)</option>
+      </select>
+    </label>
+    <p>Jusqu'où va-t-on à vélo depuis chaque point du territoire, et dans quel confort, d'après OpenStreetMap</p>
+    <!-- Lien et crédits en icônes (13/10/2026) : ils tenaient le bas de chaque onglet -->
+    <div class="outils">
+      <a href="classement.html" id="vers-classement" title="Classement des départements" aria-label="Classement des départements">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 20V11"/><path d="M12 20V5"/><path d="M19 20v-6"/></svg>
+      </a>
+      <button type="button" id="partager" title="Copier le lien de cette vue" aria-label="Copier le lien de cette vue">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>
+      </button>
+      <button type="button" id="ouvrir-apropos" title="À propos : méthode et sources" aria-label="À propos : méthode et sources" aria-haspopup="dialog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6"/><circle cx="12" cy="7.5" r=".6" fill="currentColor"/></svg>
+      </button>
+    </div>
+    <div class="toast" id="partage-etat" role="status" hidden></div>
+  </header>
+  <!-- Une question par onglet (13/10/2026) : l'onglet règle aussi la carte (allerA). Confort et freins réunis :
+       même carte « Temps et confort », les traits noirs y répondent à « qu'est-ce qui coince ? » -->
+  <nav class="onglets" role="tablist" aria-label="Questions">
+    <button type="button" role="tab" data-onglet="1" aria-selected="true" title="Jusqu'où je vais en 15 ou 30 minutes ?">Portée</button>
+    <button type="button" role="tab" data-onglet="2" aria-selected="false" title="Est-ce que j'y vais tranquillement, et qu'est-ce qui coince ?">Confort</button>
+    <button type="button" role="tab" data-onglet="3" aria-selected="false" title="Et si on aménageait ici ?">Simuler</button>
+    <button type="button" role="tab" data-onglet="4" aria-selected="false" title="Les habitants ont-ils l'essentiel à portée, tranquillement ?">Services</button>
+  </nav>
+  <p class="question" id="question">Jusqu'où je vais en 15 ou 30 minutes ?</p>
+  <!-- Socle commun : l'adresse reste au même endroit dans tous les onglets, hors du défilement -->
+  <div class="depart">
+    <div class="recherche">
+      <input id="recherche" type="search" autocomplete="off" placeholder="Chercher une adresse" aria-label="Chercher une adresse" aria-controls="suggestions">
+      <!-- Géolocalisation (17/10/2026) : place le départ (ou l'arrivée) là où l'on est -->
+      <button type="button" class="geoloc" id="geoloc" title="Me localiser" aria-label="Me localiser" hidden>
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="2.5" fill="currentColor" stroke="none"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></svg>
+      </button>
+      <div class="bascule petite" role="group" aria-label="L'adresse ou le clic sur la carte place le">
+        <button type="button" data-cible="depart" aria-pressed="true">Départ</button>
+        <button type="button" data-cible="arrivee" aria-pressed="false">Arrivée</button>
+      </div>
+    </div>
+    <ul id="suggestions" class="suggestions" hidden></ul>
+  </div>
+  <div class="defile">
+    <div id="erreur" class="erreur" hidden></div>
+
+    <!-- Contenus propres à chaque question (data-q : onglets où le bloc apparaît) -->
+    <!-- Réglages de la carte : ouverts à l'onglet 1 (réseau seul) ; repliés aux onglets 3 et 4, qui gardent la couleur
+         de l'onglet d'où l'on vient (cachés à l'onglet 4 quand la carte montre le diagnostic) -->
+    <div class="bloc bloc-reglages" data-q="1 3 4">
+      <details class="reglages" id="reglages" open>
+        <summary id="reglages-resume">Réglages de la carte</summary>
+        <div class="bascule reseau" role="group" aria-label="Réseau utilisé">
+          <button type="button" data-mode="amenage" aria-pressed="false" title="Pistes, voies vertes et bandes cyclables seulement">Sans les routes</button>
+          <button type="button" data-mode="sansdep" aria-pressed="false" title="Pistes, bandes, rues, voies communales et chemins : routes départementales et nationales interdites, sauf pour les traverser">Sans départementales et nationales</button>
+          <button type="button" data-mode="tout" aria-pressed="true" title="Pistes et bandes, complétées par les routes et chemins">Avec les routes</button>
+        </div>
+        <div class="bascule" id="bascule-symbo" role="group" aria-label="Couleur de la carte">
+          <button type="button" data-symbo="vitesse" aria-pressed="true">Temps</button>
+          <button type="button" data-symbo="confort" aria-pressed="false">Temps et confort</button>
+        </div>
+      </details>
+    </div>
+
+    <div class="bloc" data-q="1">
+      <h2 id="titre-couverture">Surface de terre atteinte depuis ce départ</h2>
+      <div id="couverture" class="couverture"></div>
+      <details class="aide"><summary>Comment lire</summary>
+        <p class="note" id="note-couverture">Barre : part du disque qu'on couvrirait à 20 km/h en ligne droite (5 km de rayon en 15 min). La mer ne compte pas.</p>
+      </details>
+    </div>
+
+    <div class="bloc" data-q="2">
+      <p class="note" style="margin:0">En bleu, on y va tranquillement, presque aussi vite que par la route. En orange, il faut passer par une route exposée. Les traits noirs marquent les tronçons qui coincent depuis ce départ ; pour mesurer ce qu'apporterait leur aménagement : onglet Simuler. Un trait noir sur une voie déjà aménagée ? Elle est peut-être mal décrite dans OpenStreetMap : « Vérifier une voie dans OpenStreetMap », plus bas.</p>
+      <p class="note" id="q3-ailleurs" hidden></p>   <!-- classement des maillons (Oléron) : propre au SIT, absent ici -->
+    </div>
+
+    <div class="bloc" id="bloc-d4" data-q="2" hidden>
+      <h2>Maillons manquants de l'île</h2>
+      <button type="button" class="bouton" id="d4-vue" aria-pressed="false">Vue cumulée</button>
+      <ol class="sim-liste" id="d4-liste" hidden></ol>
+      <button type="button" class="bouton petit" id="d4-amenager" hidden>Aménager et voir le gain</button>
+      <details class="aide"><summary>Comment lire</summary><p class="note" id="d4-note"></p></details>
+    </div>
+
+    <!-- Croisements du réseau cyclable avec les routes (13/10/2026), précalculés par departement17/intersections.py -->
+    <div class="bloc" id="bloc-crx" data-q="2">
+      <h2>Où le réseau cyclable croise les routes</h2>
+      <div class="sim-actions">
+        <button type="button" class="bouton petit" id="crx-rd" data-crx="0" aria-pressed="false">Croisements avec les RD</button>
+        <button type="button" class="bouton petit" id="crx-autres" data-crx="1" aria-pressed="false">Avec les autres routes</button>
+      </div>
+      <p class="crx-resume" id="crx-resume" hidden></p>
+      <details class="aide"><summary>Comment lire</summary><p class="note" id="crx-note">Chaque pastille marque un point où une piste, une voie verte (grande pastille) ou une bande cyclable (petite pastille) rencontre une route : traversée ou retour sur la chaussée. Couleur : limitation de vitesse de la route croisée. Contour plein : vitesse renseignée dans OpenStreetMap ; contour pointillé : vitesse présumée (50 km/h en agglomération, 80 km/h hors agglomération, l'agglomération étant devinée à la densité de rues). « Autres routes » : nationales, voies communales, rues et chemins. Cliquez une pastille pour le détail.</p></details>
+    </div>
+
+    <div class="bloc" id="bloc-sim" data-q="3">
+      <div class="sim-actions">
+        <button type="button" class="bouton" id="sim-tracer" aria-pressed="false">Tracer un tronçon</button>
+        <button type="button" class="bouton" id="sim-voie" aria-pressed="false">Aménager une voie</button>
+        <button type="button" class="bouton petit" id="sim-importer">Importer (GeoJSON)</button>
+        <button type="button" class="bouton petit" id="sim-exporter" disabled>Exporter</button>
+        <input type="file" id="sim-fichier" accept=".geojson,.json,application/geo+json,application/json" hidden>
+      </div>
+      <p class="note" id="sim-consigne" hidden>Cliquez pour poser les sommets (point plein = raccordé à une voie à moins de 25 m). La piste est aussi raccordée à chaque voie qu'elle croise (petit point). Double-clic ou Entrée pour terminer, Retour arrière pour retirer le dernier sommet, Échap pour annuler. <button type="button" class="lien-action" id="sim-terminer">Terminer</button></p>
+      <p class="note" id="sim-consigne-voie" hidden>Cliquez sur une route : elle devient piste jusqu'aux deux carrefours les plus proches. Cliquez la suite pour la prolonger. Échap ou le bouton pour arrêter.</p>
+      <p class="note">La piste que vous simulez existe déjà sur le terrain ? Elle manque dans OpenStreetMap, ou y est mal décrite : « Vérifier une voie dans OpenStreetMap », plus bas, pour l'ajouter ou la signaler.</p>
+      <!-- Liste repliable (12/10/2026) : avec une dizaine de tronçons, elle repoussait tout le reste du panneau ; repliée
+           par défaut et à chaque tracé (13/10/2026), pour garder Avant / Après / Gain en vue -->
+      <details class="sim-replier" id="sim-details" hidden>
+        <summary id="sim-resume"></summary>
+        <ul class="sim-liste" id="sim-liste"></ul>
+      </details>
+      <div class="bascule trois" id="sim-vue" role="group" aria-label="Comparer avant et après les tronçons" hidden>
+        <button type="button" data-vue="avant" aria-pressed="false">Avant</button>
+        <button type="button" data-vue="apres" aria-pressed="true">Après</button>
+        <button type="button" data-vue="gain" aria-pressed="false">Gain</button>
+      </div>
+      <div id="sim-gains" class="sim-gains" hidden></div>
+      <p class="note" id="sim-gain-vide" hidden></p>
+      <p class="note" id="sim-info" hidden></p>
+      <button type="button" class="lien-action" id="sim-effacer" hidden>Tout effacer</button>
+      <p class="note"><span class="trait-sim" aria-hidden="true"></span> Piste simulée (20 km/h, double sens). Cliquez sur un tronçon pour modifier ses sommets, puis sur son trait pour en ajouter un.</p>
+    </div>
+
+    <!-- Onglet 4 : diagnostic du territoire (sur la carte), puis le tableau du départ, puis le renvoi aux territoires -->
+    <div class="bloc" id="bloc-diag" data-q="4" hidden>
+      <h2 id="diag-titre">Territoire de la demi-heure</h2>
+      <p class="note" id="diag-epci" hidden style="margin:-4px 0 8px">Intercommunalité du départ D : déplacez-le pour en voir une autre.</p>
+      <p class="diag-resume" id="diag-resume"></p>
+      <table class="diag-table" id="diag-table"></table>
+      <div class="diag-legende"><span class="cas-0">Tranquille</span><span class="cas-1">Route seulement</span><span class="cas-2">Trop loin</span></div>
+      <button type="button" class="bouton" id="diag-vue" aria-pressed="false" style="margin-top:10px">Voir sur la carte</button>
+      <p class="diag-sous" id="diag-sous-communes"></p>
+      <div class="defile-x"><table class="diag-communes" id="diag-communes"></table></div>
+      <p class="diag-sous" id="diag-sous-maillons"></p>
+      <ol class="diag-maillons" id="diag-maillons"></ol>
+      <button type="button" class="bouton petit" id="diag-amenager" hidden style="margin-top:8px">Aménager et voir le gain</button>
+      <details class="aide"><summary>Comment lire</summary><p class="note" id="diag-note"></p></details>
+    </div>
+
+    <div class="bloc" id="bloc-acces" data-q="4" hidden>
+      <h2 id="titre-acces">À portée depuis ce départ</h2>
+      <div class="bascule petite" id="acces-seuil" role="group" aria-label="Seuil de temps" style="margin-bottom:10px">
+        <button type="button" data-seuil-acces="15" aria-pressed="true">15 min</button>
+        <button type="button" data-seuil-acces="30" aria-pressed="false">30 min</button>
+      </div>
+      <div class="defile-x"><table class="acces" id="acces"></table></div>
+      <div id="fonctions-bloc" hidden>
+        <p class="fonctions-titre">Fonctions du quotidien depuis ce départ</p>
+        <ul class="cas-resume" id="fonctions-resume"></ul>
+        <ul class="fonctions" id="fonctions"></ul>
+      </div>
+      <label class="case-reseau" for="voir-equip" style="margin-top:10px">
+        <input type="checkbox" id="voir-equip">
+        <span class="entree">Montrer les équipements sur la carte</span>
+      </label>
+      <details class="aide"><summary>Comment c'est compté</summary><p class="note" id="note-acces"></p></details>
+    </div>
+
+    <div class="bloc" data-q="4" id="q5-ailleurs">
+      <p class="note" style="margin:0" id="q5-texte">Le bilan pour tous les habitants, par intercommunalité, n'est pas encore calculé ici.</p>
+    </div>
+
+    <!-- Socle commun : suivi, consigne et trajet, après le contenu de la question -->
+    <div class="bloc socle" aria-live="polite">
+      <button type="button" class="bouton" id="suivre" aria-pressed="false" hidden>Suivre la souris</button>
+      <!-- Boucle de contribution OSM (17/10/2026, osm-contrib.js) : fiche de la voie cliquée, liens vers iD et les notes -->
+      <button type="button" class="bouton petit" id="osm-verifier" aria-pressed="false" title="Voir comment OpenStreetMap décrit une voie, et la corriger">Vérifier une voie dans OpenStreetMap</button>
+      <div id="osm-fiche" class="osm-fiche" hidden></div>
+      <p id="consigne" class="consigne">Cliquez sur la carte pour déplacer le départ. Pour un itinéraire, choisissez « Arrivée » en haut puis cliquez sur la carte.</p>
+      <div id="resultat" hidden>
+        <div class="duree" id="duree"></div>
+        <p class="detail" id="detail"></p>
+        <ol class="etapes" id="etapes"></ol>
+        <button type="button" class="lien-action" id="effacer">Retirer l'arrivée</button>
+      </div>
+      <p id="chargement" class="chargement" hidden>Chargement du réseau autour de ce point…</p>
+      <p id="message" class="message" hidden></p>
+    </div>
+  </div>
+</aside>
+
+<dialog class="apropos" id="apropos" aria-labelledby="apropos-titre">
+  <button type="button" class="fermer" id="fermer-apropos" aria-label="Fermer">×</button>
+  <h2 id="apropos-titre">À propos</h2>
+  <div class="credits">
+    <p>Temps réels : 20 km/h sur revêtement lisse, 13 à 17 km/h sur stabilisé ou grave, 8 km/h sur sable, sur piste comme sur route (+5 % sur route pour préférer une piste qui la longe). Sens uniques à contre-sens : vélo poussé, à 5 km/h. Accès au réseau à vol d'oiseau, majoré de 30 %, à 16 km/h. Ni vent, ni relief.</p>
+    <p><strong>Réseaux.</strong> Avec les routes : tout le réseau, trajet le plus rapide. Sans départementales et nationales : routes numérotées D… ou N… dans OpenStreetMap (et routes principales) interdites sauf pour les traverser, giratoire compris. Autoroutes et voies express : jamais empruntées, sauf voie express ouverte au vélo dans OpenStreetMap. Sans les routes : pistes, voies vertes et bandes, reliées par de courtes liaisons.</p>
+    <p><strong>Sources.</strong> Réseau cyclable, routes (départementales et nationales : numéro D… ou N… porté par la route), contours et trait de côte : OpenStreetMap (© contributeurs, ODbL), données figées à une date. Fond Plan IGN. Adresses Géoplateforme. <span id="meta"></span></p>
+    <p><strong>Inspiration.</strong> <a href="https://tram.camilleroux.com/" target="_blank" rel="noopener">À portée de tram</a> de Camille Roux, lui-même issu du <a href="https://castrio.me/nyc/" target="_blank" rel="noopener">NYC Transit Time Cartogram</a> d'Anthony Castrio et de sa <a href="https://github.com/JulesGrandin/paris-temps-transport" target="_blank" rel="noopener">déclinaison parisienne</a> par Jules Grandin. Réalisation : SIT du Pôle Marennes-Oléron, <a href="https://github.com/sit-pmo/portee-velo" target="_blank" rel="noopener">code source</a> (MIT).</p>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="coeur.js"></script>
+<script src="osm-contrib.js"></script>
+<script>
+// Légende pliable ; choix retenu d'une visite à l'autre, sinon pliée sur petit écran
+(() => {
+  const carteLeg = document.getElementById("legende-carte"), bouton = document.getElementById("plier-legende"), CLE = "portee-velo.legende";
+  const plier = pliee => {
+    carteLeg.classList.toggle("pliee", pliee);
+    bouton.setAttribute("aria-expanded", String(!pliee));
+    const lib = pliee ? "Déplier la légende" : "Replier la légende";
+    bouton.setAttribute("aria-label", lib); bouton.title = lib;
+  };
+  let choix = null;
+  try { choix = localStorage.getItem(CLE); } catch { /* stockage bloqué : réglage par défaut */ }
+  plier(choix ? choix === "pliee" : matchMedia("(max-width:720px)").matches);
+  bouton.addEventListener("click", () => {
+    const pliee = !carteLeg.classList.contains("pliee");
+    plier(pliee);
+    try { localStorage.setItem(CLE, pliee ? "pliee" : "ouverte"); } catch { /* sans mémoire */ }
+  });
+})();
+// Mobile : replier / déplier le volet du bas
+document.getElementById("replier").addEventListener("click", e => {
+  const replie = document.querySelector(".panneau").classList.toggle("replie");
+  e.currentTarget.setAttribute("aria-expanded", String(!replie));
+  e.currentTarget.querySelector(".texte").textContent = replie ? "Déplier" : "Replier";
+});
+
+(async function application() {
+  const $ = s => document.querySelector(s);
+  const SEUILS = [5, 10, 15, 20, 30, 45, 60];
+  const ISO = [15, 30, 45, 60];
+  const LIMITE_S = 3600;                       // calcul borné à 60 min (dernier palier) : invariant de marge des tuiles
+  const COULEURS = ["#FFDE12", "#C5D93E", "#8FCB5E", "#5BB86E", "#2E9A5C", "#0485A1", "#005267", "#1E2529"];
+  const RGB = COULEURS.map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const CLASSES = [
+    { nom: "Piste ou voie verte", couleur: "#005267" },
+    { nom: "Bande cyclable", couleur: "#08B8DC" },
+    { nom: "Route ou chemin partagé", couleur: "#E08A1E" },
+    { nom: "Route secondaire", couleur: "#C2410C" },
+    { nom: "Route principale", couleur: "#7F1D1D" },
+    { nom: "Petite route (voie communale)", couleur: "#E08A1E" },
+    { nom: "Chemin", couleur: "#B7791F" },
+    { nom: "Route départementale (tertiaire)", couleur: "#D9631E" },
+  ];
+  // ---------- Symbologies « Temps » et « Temps et confort » (11/10/2026) : temps réels dans les deux ----------
+  // Modèle (temps réels, classes de confort, trajet tranquille, teinte) : CFG, minutesTranquilles et teinteConfort
+  // dans coeur.js. Interdire la route dans le trajet tranquille coupait le réseau
+  // (193 m de départementale à Saint-Georges = 19 km de détour) : d'où la pénalité ×4 plutôt qu'une interdiction.
+  const MAQ_MIN = 60;                          // zone colorée : jusqu'à 60 min
+  // Palette bivariée : teinte = confort (bleu / gris / orange, sûre pour les daltoniens), clarté = temps (7 paliers).
+  // Construite en HCL pour que la clarté perçue soit la même d'une teinte à l'autre à temps égal.
+  const MAQ_PALIERS = [5, 10, 15, 20, 30, 45, 60];
+  const MAQ_TEINTES = [[250, 40], [75, 6], [50, 75]];     // [teinte, saturation] : confortable, mitigé, exposé
+  const MAQ_PAL = MAQ_TEINTES.map(([h, c]) => MAQ_PALIERS.map((_, i) => d3.rgb(d3.hcl(h, c, 90 - i * 10)).clamp()));
+  const NOTES = {
+    amenage: `Pistes, voies vertes et bandes cyclables d'OpenStreetMap, reliées entre elles par de courtes liaisons : jusqu'à ${CFG.liaisonMaxM} m sur rue calme ou chemin, ${CFG.liaisonMaxM / 2} m sur route, plus les traversées de chaussée. En gris, les secteurs à plus de ${CFG.accesMaxM.amenage} m de ce réseau.`,
+    tout: "Pistes et bandes, complétées par les routes et chemins, au temps réel (+5 % sur route pour préférer une piste qui la longe).",
+    sansdep: `Pistes et bandes, rues, voies communales et chemins, sans jamais emprunter une départementale ni une nationale (numéro D… ou N… dans OpenStreetMap, ou route principale) : on peut seulement la traverser, giratoire compris (au plus ${CFG.traverseeDepMaxM} m). Une piste le long d'une départementale reste permise. En gris, les secteurs à plus de ${CFG.accesMaxM.sansdep} m de ce réseau.`,
+  };
+  const LIBELLES_MODE = { amenage: "sans les routes", sansdep: "sans départementales et nationales", tout: "avec les routes" };
+
+  // ---------- Données : index des tuiles et contour du département ----------
+  // fetch ne fonctionne pas en ouvrant le fichier directement (file://) : il faut un serveur (GitHub Pages,
+  // ou « python -m http.server » dans ce dossier)
+  // Territoire de la grille (16/10/2026) : ?zone=974 etc. (DROM), métropole par défaut ; une grille et un dossier
+  // de tuiles par territoire (tuiles/<zone>/), la grille est lue dans tuiles.json
+  const ZONE = /^(fr|97[1-46])$/.test(new URLSearchParams(location.search).get("zone")) ? new URLSearchParams(location.search).get("zone") : "fr";
+  const BASE_DONNEES = (document.querySelector('meta[name="donnees"]')?.content || "").replace(/([^/])$/, "$1/");
+  const DOSSIER = `${BASE_DONNEES}tuiles/${ZONE}/`;
+  // Sélecteur de territoire : recharge la page sur l'autre grille (sans le lien de la vue : départ, tronçons…
+  // n'ont pas de sens ailleurs). Branché avant le chargement, pour rester utilisable si les données manquent.
+  $("#zone").value = ZONE;
+  $("#zone").addEventListener("change", ev => {
+    if (ev.target.value === "marennes-oleron") { location.href = "marennes-oleron/"; return; }   // copie SIT seulement
+    location.href = location.pathname + (ev.target.value === "fr" ? "" : `?zone=${ev.target.value}`);
+  });
+  let index, contourDep;
+  try {
+    [index, contourDep] = await Promise.all([DOSSIER + "tuiles.json", DOSSIER + "contour.json"].map(u => fetch(u).then(r => {
+      if (!r.ok) throw new Error(`${u} : ${r.status}`);
+      return r.json();
+    })));
+  } catch (e) {
+    const el = $("#erreur");
+    el.hidden = false;
+    el.textContent = location.protocol === "file:"
+      ? "Ouvrez cette page par un serveur web (par exemple « python -m http.server » dans ce dossier) : le navigateur bloque le chargement des tuiles depuis un fichier local."
+      : `Données indisponibles (${e.message}).`;
+    return;
+  }
+  definirGrille(index.grille);
+  // Nom du territoire tuilé et ses formes (contour.json, chaine/lieux.py) : plus aucun texte propre au 17
+  const LIEU = { nom: contourDep.nom || "", en: contourDep.en || `en ${contourDep.nom}`, de: contourDep.de || `de ${contourDep.nom}`,
+    sur: contourDep.sur || `sur ${contourDep.nom}` };
+  LIEU.le = LIEU.sur.replace(/^sur /, "");
+  $("#zone").selectedOptions[0].textContent = LIEU.nom;    // « fr » : Charente-Maritime, puis France métropolitaine               // « la Charente-Maritime », « La Réunion », « Mayotte »
+  document.title = `À portée de vélo – ${LIEU.nom}`;
+  $("#carte").setAttribute("aria-label", `Carte des temps de trajet à vélo ${LIEU.en}`);
+  $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${LIEU.de}, et dans quel confort, d'après OpenStreetMap`;
+  // ---------- Vue d'un territoire (comme l'ancienne carte Marennes-Oléron) : ?territoire=oleron (l'île),
+  // ?territoire=pmo (les 14 communes). Seul le territoire est coloré, l'emprise est bloquée dessus et la
+  // couverture est en % de ses cellules de 100 m (centre dans le contour). Sans paramètre : tout le département.
+  const TERRITOIRE = new URLSearchParams(location.search).get("territoire");
+  let terr = null;
+  if (["oleron", "pmo"].includes(TERRITOIRE)) {
+    try { terr = (await fetch(DOSSIER + "territoires.json").then(r => r.json()))[TERRITOIRE]; } catch { terr = null; }
+  }
+  const zone = terr ? terr.geometrie : contourDep.geometrie;
+  // Masque du territoire sur la grille des tuiles (tuiler.py : centre dans le contour et sur la terre), en plages
+  // alternées 0 / 1 ; total = dénominateur des % (tout le territoire, pas seulement la fenêtre chargée)
+  let masqueZone = null;
+  if (terr) {
+    // Fenêtre fixe centrée sur le territoire (masqueZone.centre) : les 5 × 5 tuiles le couvrent en entier
+    // (Marennes-Oléron tient dans 5 × 5 tuiles), donc aucun changement de fenêtre au survol, comme l'ancienne
+    // carte d'un seul bloc (chaque changement gelait la page 0,5 à 1,2 s)
+    masqueZone = decoderMasque(terr.masque, index.grille);
+    document.title = `À portée de vélo – ${terr.nom.replace(/^l'/, "L'")}`;
+    $(".entete p").textContent = `Jusqu'où va-t-on à vélo depuis chaque point ${terr.chapeau}, et dans quel confort, d'après les réseaux des collectivités et OpenStreetMap`;
+    $("#titre-couverture").textContent = `Surface ${TERRITOIRE === "oleron" ? "de l'île" : "du territoire"} atteinte depuis ce départ`;
+    $("#note-couverture").textContent = `Part des cellules de 100 m ${TERRITOIRE === "oleron" ? "de l'île" : "des 14 communes"} atteintes.`;
+  }
+
+  // Taille de la fenêtre : 7 × 7 tuiles (~35 km autour du départ) depuis le 16/10/2026 (essai d'Aurélien sur
+  // téléphone à Paris : plus fluide, la zone d'une heure n'est plus coupée pendant le survol) ; ?fenetre=5 pour
+  // l'ancienne fenêtre de 5 × 5. Cache : la fenêtre et sa couronne de préchargement, plus une marge pour revenir
+  // en arrière sans relire
+  const FENETRE = new URLSearchParams(location.search).get("fenetre") === "5" ? 5 : 7;
+  const RAYON = (FENETRE - 1) / 2;
+  const OPTIONS_CHARGEUR = { index, rayon: RAYON, capacite: Math.max(60, (2 * RAYON + 3) ** 2 + 20),
+    lire: (tx, ty) => fetch(`${DOSSIER}${tx}_${ty}.bin`).then(r => {
+      if (!r.ok) throw new Error(`tuile ${tx}_${ty} : ${r.status}`);
+      return r.arrayBuffer();
+    }) };
+  // Chargeur dans un Worker (tuiles-worker.js, 19/10/2026) : lecture, décodage, recollage, graphe « tout », sa
+  // contraction et le graphe « sans les routes » hors du fil principal (à Paris, ~2,5 s de gel par changement de
+  // fenêtre). Même interface que ChargeurTuiles ; la fenêtre arrive avec son graphe « tout » (f.G). En cas de panne
+  // du Worker (ou sans Worker), repli sur ChargeurTuiles dans la page, comme avant.
+  class ChargeurWorker {
+    constructor(o) {
+      this.existe = new Set(o.index.tuiles.map(([tx, ty]) => `${tx}_${ty}`));
+      this.rayon = o.rayon; this.options = o; this.distant = true;
+      this.attente = new Map(); this.n = 0; this.dernier = null; this.amenage = null; this.secours = null;
+      this.fenetres = new Map();               // dernières fenêtres reçues avec graphe, par signature (pour leurs suites)
+      this.w = new Worker("tuiles-worker.js");
+      this.w.onmessage = e => {
+        const m = e.data;
+        if (m.type === "amenage") { this.amenage = m; if (this.surAmenage) this.surAmenage(m); return; }
+        if (m.type === "suite") {                // posée sur la fenêtre reçue de même signature, puis signalée à la page
+          const f = this.fenetres.get(m.signature);
+          if (f) {
+            if (m.reseau) f.reseau = m.reseau;
+            if (m.rapide && f.G && !f.G.rapide) f.G.rapide = m.rapide;
+          }
+          if (this.surSuite) this.surSuite(m);
+          return;
+        }
+        const r = this.attente.get(m.id);
+        if (!r) return;
+        this.attente.delete(m.id);
+        if (m.erreur) { r.rejet(new Error(m.erreur)); return; }
+        if (m.meme) { m.P = this.dernier && this.dernier.P; m.G = this.dernier && this.dernier.G; m.reseau = this.dernier && this.dernier.reseau; }
+        else {
+          if (m.G) m.G.rapideAttendu = true;     // contraction en route : la page ne la refait pas (preparerContractions)
+          this.dernier = { signature: m.signature, P: m.P, G: m.G || null, reseau: m.reseau || null };
+          if (m.G) {
+            // Le Worker abandonne les suites de la fenêtre précédente : ce qui n'en est pas arrivé, la page le fera
+            const prec = this.derniereFenetre;
+            if (prec && prec.G && !prec.G.rapide) prec.G.rapideAttendu = false;
+            if (prec && !prec.reseau && this.surAbandon) this.surAbandon(prec);
+            this.derniereFenetre = this.dernier;
+            this.fenetres.set(m.signature, this.dernier);
+            while (this.fenetres.size > 3) this.fenetres.delete(this.fenetres.keys().next().value);
+          }
+        }
+        r.ok(m);
+      };
+      this.w.onerror = e => {                  // script introuvable, erreur au chargement… : repli dans la page
+        e.preventDefault && e.preventDefault();
+        this.panne();
+      };
+      this.w.postMessage({ type: "init", index: o.index, grille: o.index.grille, rayon: o.rayon, capacite: o.capacite,
+        dossier: new URL(DOSSIER, location.href).href });
+    }
+    panne() {
+      if (!this.secours) { this.secours = new ChargeurTuiles(this.options); try { this.w.terminate(); } catch {} }
+      for (const [, r] of this.attente) r.rejet(new Error("Worker indisponible"));
+      this.attente.clear();
+    }
+    tuileDe(lon, lat) { return ChargeurTuiles.prototype.tuileDe.call(this, lon, lat); }
+    voisines(tx, ty, r) { return ChargeurTuiles.prototype.voisines.call(this, tx, ty, r); }
+    demander(msg) {
+      return new Promise((ok, rejet) => { const id = ++this.n; this.attente.set(id, { ok, rejet }); this.w.postMessage({ ...msg, id }); });
+    }
+    async fenetre(lon, lat) {
+      if (this.secours) return this.secours.fenetre(lon, lat);
+      try { return await this.demander({ type: "fenetre", lon, lat }); }
+      catch { this.panne(); return this.secours.fenetre(lon, lat); }
+    }
+    async couloir(lon1, lat1, lon2, lat2, demiLargeurKm) {
+      if (this.secours) return this.secours.couloir(lon1, lat1, lon2, lat2, demiLargeurKm);
+      try { return await this.demander({ type: "couloir", lon1, lat1, lon2, lat2, demiLargeurKm }); }
+      catch { this.panne(); return this.secours.couloir(lon1, lat1, lon2, lat2, demiLargeurKm); }
+    }
+    precharger(lon, lat) {
+      if (this.secours) this.secours.precharger(lon, lat);
+      else this.w.postMessage({ type: "precharger", lon, lat });
+    }
+  }
+  let chargeur;
+  try {
+    if (typeof Worker !== "function" || new URLSearchParams(location.search).has("sansworker")) throw new Error("sans Worker");
+    chargeur = new ChargeurWorker(OPTIONS_CHARGEUR);
+  } catch { chargeur = new ChargeurTuiles(OPTIONS_CHARGEUR); }
+
+  // Point dans la zone (département, ou territoire demandé ; Polygon ou MultiPolygon, règle pair-impair)
+  const anneaux = (zone.type === "Polygon" ? [zone.coordinates] : zone.coordinates).flat();
+  function dansZone(ll) {
+    let dedans = false;
+    for (const a of anneaux) for (let i = 0, j = a.length - 1; i < a.length; j = i++) {
+      const [xi, yi] = a[i], [xj, yj] = a[j];
+      if ((yi > ll.lat) !== (yj > ll.lat) && ll.lng < (xj - xi) * (ll.lat - yi) / (yj - yi) + xi) dedans = !dedans;
+    }
+    return dedans;
+  }
+
+  // Fenêtre courante (7 × 7 tuiles recollées, 5 × 5 avec ?fenetre=5) et tout ce qui en dépend
+  const vue = { P: null, G: null, g: null, centre: null, partielle: false };
+  const etat = { mode: "tout", symbo: "vitesse", cible: "depart", depart: null, arrivee: null, acc: null, res: null, minutes: null };
+
+  // ---------- Simulation de tronçons : scénario, fenêtre augmentée (P′) et graphes ----------
+  // vue.sim = { P: P′, G } pour la fenêtre courante (null sans tronçon) ; aff() = ce que la carte montre
+  const sim = { troncons: [], vue: "apres", selection: -1, nonRaccordes: [], isoles: [], tropLong: false };
+  vue.sim = null;
+  const aff = () => (vue.sim && sim.vue !== "avant" ? vue.sim : vue);
+  // Graphes d'une fenêtre : « tout » tout de suite, « pistes » (~400 ms avec les liaisons entre pistes) et
+  // « confort » à la première demande : en mode « Pistes + routes », un changement de tuile ne paie que « tout »
+  // Gt : graphe « tout » déjà construit (Worker), avec sa contraction ; sinon construit ici
+  const graphes = (P, Gt) => ({ tout: Gt || construireGraphe(P, "tout"),
+    get amenage() { return this._amenage || (this._amenage = construireGraphe(P, "amenage")); },
+    get confort() { return this._confort || (this._confort = construireGraphe(P, "confort")); },
+    get sansdep() { return this._sansdep || (this._sansdep = construireGraphe(P, "sansdep")); } });   // ~30 à 150 ms, grille comprise
+  function preparerSimulation() {
+    if (!vue.P || !sim.troncons.length) { vue.sim = null; sim.nonRaccordes = []; sim.isoles = []; sim.horsZone = []; return; }
+    const r = ajouterTroncons(vue.P, sim.troncons);   // vue.P porte déjà le masque territoire et l'alias confort
+    vue.sim = { P: r.P, G: graphes(r.P) };
+    sim.nonRaccordes = r.nonRaccordes; sim.isoles = r.isoles; sim.horsZone = r.horsZone;
+  }
+
+  // ---------- Carte ----------
+  const carte = L.map("carte", { zoomControl: false, minZoom: 8, zoomSnap: 0.25 });
+  L.control.zoom({ position: "topright" }).addTo(carte);
+  L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+    { maxZoom: 19, attribution: "Fond © IGN | Réseau © contributeurs OpenStreetMap" }).addTo(carte);
+  for (const [nom, z] of [["chaleur", 350], ["rd", 352], ["reseau", 355], ["iso", 360], ["d4", 440], ["crx", 445], ["trace", 450]]) {
+    const p = carte.createPane(nom); p.style.zIndex = z; if (nom !== "trace" && nom !== "d4" && nom !== "crx") p.style.pointerEvents = "none";
+  }
+  const contour = L.geoJSON(zone, { interactive: false, style: { color: "#005267", weight: 1.3, opacity: .7, fill: false } }).addTo(carte);
+  // DROM (17/10/2026) : le Plan IGN n'y couvre qu'un rectangle, blanc au-delà ; les îles semblaient flotter dans le
+  // vide. Mer peinte autour du territoire dans le gris qu'a la mer du Plan IGN sous le filtre du fond
+  // (.leaflet-tile-pane : 211, 211, 211), juste au-dessus des tuiles : la carte paraît continue.
+  if (ZONE.startsWith("97")) {
+    carte.createPane("mer").style.zIndex = 250;
+    carte.getPane("mer").style.pointerEvents = "none";
+    const polys = zone.type === "Polygon" ? [zone.coordinates] : zone.type === "MultiPolygon" ? zone.coordinates : [];
+    const exterieur = [[-180, -85], [180, -85], [180, 85], [-180, 85], [-180, -85]];
+    L.geoJSON({ type: "Polygon", coordinates: [exterieur, ...polys.map(p => p[0])] },
+      { pane: "mer", interactive: false, style: { stroke: false, fillColor: "#d3d3d3", fillOpacity: 1 } }).addTo(carte);
+  }
+  const etroit = () => window.matchMedia("(max-width:720px)").matches;
+  // Centre ll dans la partie de la carte que le panneau ne cache pas (en bas sur téléphone, à gauche sinon), d'après sa
+  // place réelle : replié, il ne cache presque rien
+  // Partie visible de la carte, en pixels du conteneur : [x0, y0, x1, y1]
+  function zoneVisible() {
+    const t = carte.getSize(), r = document.querySelector(".panneau").getBoundingClientRect(), c = carte.getContainer().getBoundingClientRect();
+    return etroit() ? [0, 0, t.x, Math.max(40, Math.min(t.y, r.top - c.top))] : [Math.max(0, Math.min(t.x - 40, r.right - c.left)), 0, t.x, t.y];
+  }
+  function centrerVisible(ll, zoom) {
+    const t = carte.getSize(), [x0, y0, x1, y1] = zoneVisible();
+    carte.setView(ll, zoom, { animate: false });
+    carte.panBy([t.x / 2 - (x0 + x1) / 2, t.y / 2 - (y0 + y1) / 2], { animate: false });
+  }
+  // ll déjà dans la partie visible (à 30 px du bord près) ?
+  function estVisible(ll) {
+    const p = carte.latLngToContainerPoint(ll), [x0, y0, x1, y1] = zoneVisible();
+    return p.x >= x0 + 30 && p.x <= x1 - 30 && p.y >= y0 + 30 && p.y <= y1 - 30;
+  }
+  const marges = () => etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 20] };
+
+  carte.fitBounds(contour.getBounds(), marges());
+  // Borne élargie du côté du panneau (ouest, ou sud sur mobile) et de la légende (est, ou nord sur mobile) :
+  // sinon les bords du territoire restent cachés dessous
+  const bc = contour.getBounds(), pb = terr ? 0.15 : 0.3, dLat = bc.getNorth() - bc.getSouth(), dLon = bc.getEast() - bc.getWest();
+  const m = etroit() ? { s: 0.8, n: 0.4, o: 0, e: 0 } : { s: 0, n: 0, o: 0.8, e: 0.6 };
+  carte.setMaxBounds([[bc.getSouth() - dLat * (pb + m.s), bc.getWest() - dLon * (pb + m.o)],
+    [bc.getNorth() + dLat * (pb + m.n), bc.getEast() + dLon * (pb + m.e)]]);
+  carte.options.maxBoundsViscosity = 1;
+  if (terr) carte.setMinZoom(carte.getZoom() - 0.5);  // pas de dézoom au-delà de la vue d'ensemble du territoire
+  // Départ par défaut : mairie de la commune la plus peuplée (contour.json, chaine/lieux.py), à défaut le centre
+  // du contour ; sur Marennes-Oléron, celle de Saint-Pierre-d'Oléron
+  // Métropole (contour.json → departs, phase 4) : mairie du chef-lieu d'un département tiré au sort à chaque visite
+  const tirage = !terr && contourDep.departs?.length ? contourDep.departs[Math.floor(Math.random() * contourDep.departs.length)] : null;
+  const DEPART_DEFAUT = terr ? L.latLng(45.9443, -1.3063)
+    : tirage ? L.latLng(tirage.lat, tirage.lon)
+    : contourDep.depart ? L.latLng(contourDep.depart.lat, contourDep.depart.lon) : contour.getBounds().getCenter();
+
+  let toile = null, ctx = null, image = null, chaleur = null;
+  // Calque Leaflet qui affiche directement un <canvas> (au lieu d'une image PNG) : à chaque image du survol,
+  // on écrit les pixels et c'est affiché, sans encodage toDataURL ni décodage par le navigateur (le goulot
+  // d'étranglement mesuré : le calcul ne prend que ~8 ms). Leaflet le place et le met à l'échelle comme une image.
+  const CalqueCanvas = L.ImageOverlay.extend({
+    _initImage() {
+      const el = this._image = this._url;
+      L.DomUtil.addClass(el, "leaflet-image-layer");
+      if (this._zoomAnimated) L.DomUtil.addClass(el, "leaflet-zoom-animated");
+      el.onselectstart = L.Util.falseFn;
+      el.onmousemove = L.Util.falseFn;
+      this._updateOpacity();
+    },
+  });
+  const iso = L.layerGroup().addTo(carte);
+  const maillons = L.layerGroup().addTo(carte);
+  const reseau = L.layerGroup();
+  // Un seul moteur de rendu pour le réseau : en recréer un à chaque fenêtre empilait des canvas jamais retirés
+  // de la carte, chacun redessiné à chaque déplacement (ralentissement progressif au fil du survol)
+  const rendu = L.canvas({ pane: "reseau", padding: 0.3 });
+  const trace = L.layerGroup().addTo(carte);
+  // Routes départementales et nationales (P.rd, P.nat : ref D… / N… d'OSM) sous le réseau cyclable, à la demande
+  const departementales = L.layerGroup(), renduRd = L.canvas({ pane: "rd", padding: 0.3 });
+  // Tracé construit seulement case cochée (17/10/2026 : depuis le bit RD posé au tuilage, des dizaines de milliers de
+  // segments refaits à chaque fenêtre, même masqués), et refait à la fenêtre suivante si elle reste cochée
+  let rdDe = null;
+  function dessinerRd() {
+    if (!$("#voir-rd").checked || !vue.P) { departementales.remove(); return; }
+    if (rdDe !== vue.P) {
+      const P = vue.P;
+      departementales.clearLayers(); rdDe = P;
+      L.polyline(lignesReseau(P, e => P.rd[e] || (P.nat && P.nat[e])), { renderer: renduRd, interactive: false, color: "#9C2A5E", weight: 3, opacity: .75, lineCap: "round", lineJoin: "round" }).addTo(departementales);
+    }
+    departementales.addTo(carte);
+  }
+  $("#voir-rd").addEventListener("change", dessinerRd);
+  $("#voir-reseau").addEventListener("change", ev => { if (ev.target.checked) reseau.addTo(carte); else reseau.remove(); });
+
+  const icone = (lettre, cls) => L.divIcon({ className: "", html: `<span class="repere ${cls}">${lettre}</span>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+  const marqueurDepart = L.marker([0, 0], { draggable: true, icon: icone("D", "repere-d"), title: "Départ, à faire glisser", zIndexOffset: 1000 });
+  const marqueurArrivee = L.marker([0, 0], { draggable: true, icon: icone("A", "repere-a"), title: "Arrivée, à faire glisser" });
+
+  // Graphe « sans les routes » envoyé par le Worker après la fenêtre : posé s'il s'agit toujours de la même fenêtre
+  // et que la page ne l'a pas déjà construit elle-même (mode choisi avant son arrivée)
+  function recevoirAmenage(m) {
+    if (!vue.G || vue.signature !== m.signature || vue.G._amenage) return;
+    vue.G._amenage = m.G;
+  }
+  if (chargeur.distant) chargeur.surAmenage = recevoirAmenage;
+  function enregistrerContraction(P, G) {
+    const C = P._contractions || (P._contractions = []);
+    if (!C.some(x => x.G === G)) C.push({ G, pro: P.grille.pro.tout });
+  }
+  // Suites du Worker pour la fenêtre affichée : lignes du réseau à dessiner, contraction (posée sur le graphe par le
+  // chargeur ; « confort » peut alors la reprendre)
+  // Suites abandonnées par le Worker (une autre fenêtre est partie entre-temps) alors que la page affiche toujours
+  // celle-ci : lignes du réseau calculées ici ; la contraction, preparerContractions la fera sur un temps libre
+  if (chargeur.distant) chargeur.surAbandon = f => {
+    if (vue.signature !== f.signature) return;
+    dessinerReseau([lignesReseau(vue.P, 0), lignesReseau(vue.P, 1)]);
+    preparerContractions();
+  };
+  if (chargeur.distant) chargeur.surSuite = m => {
+    if (vue.signature !== m.signature) return;
+    if (m.reseau) dessinerReseau(m.reseau.map(deballerLignes));
+    if (m.rapide) { enregistrerContraction(vue.P, vue.G.tout); preparerContractions(); }
+  };
+
+  // Nouvelle fenêtre de tuiles : graphes des deux modes, image de chaleur et réseau dessiné à refaire
+  function installerFenetre(f) {
+    vue.partielle = f.partielle;
+    if (f.P === vue.P) return;
+    vue.P = f.P; vue.g = f.P.grille; vue.centre = f.centre;
+    majCrxFenetre(); majAccesFenetre();
+    vue.G = graphes(f.P, f.G);
+    // Contraction faite par le Worker : enregistrée pour que « confort » la reprenne (graphRapide, coeur.js)
+    if (f.G && f.G.rapide) enregistrerContraction(f.P, f.G);
+    vue.signature = f.signature;
+    if (chargeur.amenage && chargeur.amenage.signature === f.signature) recevoirAmenage(chargeur.amenage);
+    vue.g.pro.confort = vue.g.pro.tout; vue.g.dist.confort = vue.g.dist.tout;   // même réseau que « tout », poids différents
+    if (masqueZone) appliquerMasque(vue.g, masqueZone, index.grille);   // vue territoire : cellules hors du territoire ni colorées ni comptées
+    preparerSimulation();                      // après le masque : P′ en hérite
+    indexerAcces();
+    const g = vue.g, bornes = L.latLngBounds([g.n - g.ny * g.dlat, g.w], [g.n, g.w + g.nx * g.dlon]);
+    if (!toile || toile.width !== g.nx || toile.height !== g.ny) {
+      // Nouvelle taille de fenêtre (bord de la zone tuilée) : nouveau canvas, donc nouveau calque
+      toile = document.createElement("canvas");
+      toile.width = g.nx; toile.height = g.ny;
+      ctx = toile.getContext("2d");
+      image = ctx.createImageData(g.nx, g.ny);
+      if (chaleur) chaleur.remove();
+      chaleur = new CalqueCanvas(toile, bornes, { pane: "chaleur", opacity: .78, interactive: false }).addTo(carte);
+    } else chaleur.setBounds(bornes);
+    // Réseau cyclable : lignes faites par le Worker (déjà là, ou à venir dans une suite), sinon calculées ici
+    reseau.clearLayers();
+    if (f.reseau) dessinerReseau(f.reseau.map(deballerLignes));
+    else if (!chargeur.distant || chargeur.secours) dessinerReseau([lignesReseau(vue.P, 0), lignesReseau(vue.P, 1)]);
+    dessinerRd();
+  }
+  // Réseau cyclable de la fenêtre par-dessus la chaleur : trait blanc fin (pistes), tirets (bandes)
+  function dessinerReseau(segments) {
+    reseau.clearLayers();
+    const style = { renderer: rendu, interactive: false, lineCap: "round", lineJoin: "round" };
+    // Bleu canard sous halo blanc : distinct des routes du fond IGN (blanches à liseré gris, qui masquaient un trait
+    // blanc hors zone colorée), lisible sur les teintes, distinct des maillons manquants (noirs, épais)
+    L.polyline(segments[0], { ...style, color: "#fff", weight: 4, opacity: .9 }).addTo(reseau);
+    L.polyline(segments[0], { ...style, color: "#00657A", weight: 2, opacity: 1 }).addTo(reseau);
+    L.polyline(segments[1], { ...style, color: "#fff", weight: 3.4, opacity: .85 }).addTo(reseau);
+    L.polyline(segments[1], { ...style, color: "#00657A", weight: 1.6, opacity: 1, dashArray: "3 3" }).addTo(reseau);
+    if ($("#voir-reseau").checked) reseau.addTo(carte);
+  }
+
+  // ---------- Dessin ----------
+  // Maquette : teinte = surcoût du trajet tranquille (minConf) sur le plus rapide (min) ; maillons manquants =
+  // arcs exposés de l'arbre des plus courts chemins, pondérés par la surface sans alternative tranquille (orange)
+  // Symbologie effective : le confort n'a de sens qu'en mode « Pistes + routes »
+  const confortActif = () => etat.symbo === "confort" && etat.mode === "tout";
+  function dessinerConfort(min, minConf, complet) {
+    const { P, G: Gs } = aff(), G = Gs.tout, res = etat.res;
+    // Couleur des cellules : teinte = surcoût du trajet tranquille (bleu / gris / orange), clarté = temps
+    const px = image.data;
+    for (let k = 0; k < min.length; k++) {
+      const m = min[k], o = k * 4;
+      if (!(m <= MAQ_MIN)) { px[o + 3] = 0; continue; }
+      const q = teinteConfort(m, minConf[k]);
+      let i = 0; while (m > MAQ_PALIERS[i]) i++;
+      const c = MAQ_PAL[q][i];
+      px[o] = c.r; px[o + 1] = c.g; px[o + 2] = c.b; px[o + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+    maillons.clearLayers();
+    if (!complet) return;                      // pendant le survol : pas de maillons (tri et calcul de charge évités)
+    // Traits noirs (règle partagée avec maillons.js) répartis en paliers d'épaisseur par surface orange desservie
+    const paliers = [[60, 8], [25, 5], [10, 3]], traits = paliers.map(() => []);
+    for (const { arc, charge } of traitsNoirs(P, G, res, min, minConf, MAQ_MIN)) {
+      const i = paliers.findIndex(([seuil]) => charge >= seuil);
+      traits[i].push([[P.lat[G.source[arc]], P.lon[G.source[arc]]], [P.lat[G.cible[arc]], P.lon[G.cible[arc]]]]);
+    }
+    const rendu = L.canvas({ pane: "iso" });
+    paliers.forEach(([, w], i) => {
+      L.polyline(traits[i], { renderer: rendu, color: "#fff", weight: w + 3, opacity: .9, interactive: false, lineCap: "round" }).addTo(maillons);
+      L.polyline(traits[i], { renderer: rendu, color: "#111", weight: w, opacity: .95, interactive: false, lineCap: "round" }).addTo(maillons);
+    });
+  }
+
+  function dessinerChaleur(min) {
+    const px = image.data;
+    for (let k = 0; k < min.length; k++) {
+      const m = min[k], o = k * 4;
+      if (Number.isNaN(m)) { px[o + 3] = 0; continue; }
+      // Au-delà de 60 min (borne du calcul) ou hors réseau : non coloré, pour ne pas peindre en gris tout le pays
+      if (!isFinite(m)) { px[o + 3] = 0; continue; }
+      let c = 0; while (c < SEUILS.length && m > SEUILS[c]) c++;
+      const [r, v, b] = RGB[c];
+      px[o] = r; px[o + 1] = v; px[o + 2] = b; px[o + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);                 // affiché tel quel par CalqueCanvas
+  }
+
+  // Isolignes en canvas (19/10/2026) : en SVG, 25 000 à 45 000 sommets par fenêtre en ville ; un seul moteur, réutilisé
+  const renduIso = L.canvas({ pane: "iso", padding: 0.3 });
+  function dessinerIsolignes(min) {
+    iso.clearLayers();
+    const P = aff().P, g = P.grille, f = champIsolignes(P, min);
+    if (!f) return;
+    const contours = d3.contours().size([g.nx, g.ny]).thresholds(ISO)(f.champ);
+    for (const c of contours) {
+      const lignes = [];
+      for (const poly of c.coordinates) for (const anneau of poly) {
+        let cour = [];
+        for (const [x, y] of anneau) {
+          const i = Math.min(g.nx - 1, Math.max(0, Math.floor(x))), j = Math.min(g.ny - 1, Math.max(0, Math.floor(y)));
+          if (f.masque[j * g.nx + i]) cour.push([g.n - y * g.dlat, g.w + x * g.dlon]);
+          else { if (cour.length > 1) lignes.push(cour); cour = []; }
+        }
+        if (cour.length > 1) lignes.push(cour);
+      }
+      if (!lignes.length) continue;
+      const plein = c.value % 30 === 0;
+      L.polyline(lignes, { renderer: renduIso, pane: "iso", interactive: false, color: "#0B2E38", opacity: .8, weight: plein ? 1.8 : 1.1, dashArray: plein ? null : "4 4" }).addTo(iso);
+    }
+  }
+
+  const fmtKm = m => m >= 1000 ? `${(m / 1000).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km` : `${Math.round(m / 10) * 10} m`;
+  const fmtMin = s => {
+    const m = Math.round(s / 60);
+    if (m < 1) return "moins d'1 min";
+    if (m < 60) return `${m} min`;
+    return `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}`;
+  };
+  const echapper = t => t.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+  function afficherMessage(texte) {
+    const el = $("#message");
+    const partiel = vue.partielle ? "Une partie des données n'a pas pu être chargée autour d'ici : le résultat peut être incomplet." : "";
+    const tout = [texte, partiel].filter(Boolean).join(" ");
+    el.hidden = !tout; el.textContent = tout;
+  }
+
+  // km² de terre atteints, avec une barre rapportée au disque parcouru à 20 km/h en ligne droite
+  function afficherCouverture(min) {
+    const seuils = [15, 30, 45];
+    if (masqueZone) {   // vue territoire : % des cellules du territoire, comme l'ancienne carte
+      const n = seuils.map(() => 0), g = vue.g;
+      if (min) for (let k = 0; k < min.length; k++) if (g.ile[k]) for (let i = 0; i < seuils.length; i++) if (min[k] <= seuils[i]) n[i]++;
+      $("#couverture").innerHTML = seuils.map((s, i) => {
+        const p = Math.round(n[i] / masqueZone.total * 100);
+        return `<div class="ligne"><span>${s} min</span><span class="jauge"><span style="width:${p}%"></span></span><span class="valeur">${p} %</span></div>`;
+      }).join("");
+      return;
+    }
+    const km2 = min ? surfaceKm2(vue.P, min, seuils) : seuils.map(() => 0);
+    $("#couverture").innerHTML = seuils.map((s, i) => {
+      const disque = Math.PI * (20 * s / 60) ** 2, p = Math.min(100, Math.round(km2[i] / disque * 100));
+      const valeur = km2[i].toLocaleString("fr-FR", { maximumFractionDigits: km2[i] < 10 ? 1 : 0 });
+      return `<div class="ligne"><span>${s} min</span><span class="jauge"><span style="width:${p}%"></span></span><span class="valeur">${valeur} km²</span></div>`;
+    }).join("");
+  }
+
+  // Arrivée : dans la portée du calcul de survol, l'itinéraire est lu directement ; au-delà, et si `loin` est
+  // demandé (clic, fin de glisser), il est calculé à part sur un couloir de tuiles (itineraireLoin)
+  let demandeLoin = 0;
+  function majArrivee(loin = false) {
+    demandeLoin++;                             // périme un calcul lointain en cours
+    trace.clearLayers();
+    if (!etat.arrivee) { $("#resultat").hidden = true; $("#consigne").hidden = false; return; }
+    $("#consigne").hidden = true; $("#resultat").hidden = false;
+    const s = aff(), Gm = s.G && s.G[etat.mode], { lat, lng } = etat.arrivee;
+    const acc = etat.res && meilleure(etat.res, departs(s.P, Gm, lng, lat));
+    if (acc) { dessinerTrajet(s.P, Gm, etat.res, etat.acc, acc); return; }
+    $("#etapes").innerHTML = "";
+    // Tuiles présentes sous l'arrivée (territoire et sa marge) : l'itinéraire peut se calculer
+    const tuilee = chargeur.existe.has(chargeur.tuileDe(lng, lat).join("_"));
+    if (etat.acc && tuilee) {
+      $("#duree").textContent = loin ? "Calcul…" : "Plus loin";
+      $("#detail").textContent = loin ? "Chargement du réseau entre le départ et l'arrivée." : "Relâchez le repère A pour calculer l'itinéraire.";
+      if (loin) itineraireLoin(demandeLoin);
+      return;
+    }
+    $("#duree").textContent = "Hors d'atteinte";
+    $("#detail").textContent = !etat.acc ? "Le départ n'est relié à aucune voie."
+      : `Cette arrivée est hors de la zone calculée (${LIEU.nom}${contourDep.margeKm ? ` et ${contourDep.margeKm} km autour` : ""}).`;
+  }
+
+  // Itinéraire au-delà de la fenêtre : couloir de 10 km de part et d'autre de la ligne droite, élargi à 25 km
+  // si rien n'est trouvé (estuaire, pont unique), puis Dijkstra arrêté à l'arrivée. Le survol et la chaleur n'y touchent pas.
+  async function itineraireLoin(id) {
+    const d = etat.depart, a = etat.arrivee, mode = etat.mode;
+    for (const demi of [10, 25]) {
+      const f = await chargeur.couloir(d.lng, d.lat, a.lng, a.lat, demi);
+      if (id !== demandeLoin) return;          // départ, arrivée ou mode changé entre-temps
+      if (!f.P) continue;
+      // Couloir : mêmes tronçons simulés que la carte (sauf en vue « Avant »)
+      const Pc = sim.troncons.length && sim.vue !== "avant" ? ajouterTroncons(f.P, sim.troncons).P : f.P;
+      const G = construireGraphe(Pc, mode);
+      const accsD = departs(Pc, G, d.lng, d.lat), accsA = departs(Pc, G, a.lng, a.lat);
+      if (!accsD.length || !accsA.length) break;
+      // Arrêt à l'arrivée quand elle n'a qu'un nœud possible ; avec deux (piste simulée), calcul complet du couloir
+      const res = dijkstra(G, sourcesDijkstra(accsD), 0, Infinity, accsA.length === 1 ? accsA[0].noeud : -1);
+      const accA = meilleure(res, accsA);
+      if (accA) {
+        dessinerTrajet(Pc, G, res, accsD, accA);
+        if (f.partielle) $("#detail").textContent += ". Une partie du réseau n'a pas pu être chargée : itinéraire peut-être plus long que nécessaire.";
+        return;
+      }
+    }
+    $("#duree").textContent = "Pas d'itinéraire";
+    $("#detail").textContent = mode === "amenage"
+      ? "Aucun itinéraire par les pistes et bandes entre ces deux points. Essayez le réseau « Avec les routes »."
+      : mode === "sansdep"
+      ? "Aucun itinéraire sans départementale ni nationale entre ces deux points. Essayez le réseau « Avec les routes »."
+      : "Aucun itinéraire trouvé entre ces deux points, ou l'arrivée est trop loin d'une voie praticable.";
+  }
+
+  // Nœud d'arrivée possible (voir departs) au meilleur temps total, accès compris ; null si aucun n'est atteint
+  function meilleure(res, accs) {
+    let m = null, tm = Infinity;
+    for (const a of accs) { const t = res.dist[a.noeud] + accesSecondes(a.distM); if (t < tm) { tm = t; m = a; } }
+    return m;
+  }
+
+  // accsD : départs possibles (voir departs) ; celui d'où part réellement l'itinéraire sert aux tirets et à la distance
+  function dessinerTrajet(P, Gm, res, accsD, acc) {
+    trace.clearLayers();
+    const arcs = itineraire(Gm, res, acc.noeud);
+    const racine = arcs.length ? Gm.source[arcs[0]] : acc.noeud, accD = accsD.find(x => x.noeud === racine) || accsD[0];
+    const total = res.dist[acc.noeud] + accesSecondes(acc.distM);
+    let long = 0, amenage = 0;
+    for (const k of arcs) { const e = Gm.arete[k]; long += P.lm[e]; if (P.cls[e] <= 1) amenage += P.lm[e]; }
+    const distance = long + (accD.distM + acc.distM) * CFG.detourAcces;
+    const pt = v => [P.lat[v], P.lon[v]];
+    const tout = arcs.length ? [pt(Gm.source[arcs[0]]), ...arcs.map(k => pt(Gm.cible[k]))] : [pt(acc.noeud)];
+    L.polyline(tout, { pane: "trace", color: "#fff", weight: 8, opacity: .95, interactive: false }).addTo(trace);
+    let cls = -1, morceau = [];
+    const fermer = () => { if (morceau.length > 1) L.polyline(morceau, { pane: "trace", color: CLASSES[cls].couleur, weight: 4.5, interactive: false }).addTo(trace); };
+    for (const k of arcs) {
+      const c = P.cls[Gm.arete[k]];
+      if (c !== cls) { fermer(); cls = c; morceau = [pt(Gm.source[k])]; }
+      morceau.push(pt(Gm.cible[k]));
+    }
+    fermer();
+    const tirets = { pane: "trace", color: "#13252B", weight: 2, dashArray: "3 5", interactive: false };
+    L.polyline([etat.depart, pt(accD.noeud)], tirets).addTo(trace);
+    L.polyline([pt(acc.noeud), etat.arrivee], tirets).addTo(trace);
+    $("#duree").textContent = fmtMin(total);
+    $("#detail").textContent = `${fmtKm(distance)}, dont ${fmtKm(amenage)} sur piste ou bande cyclable (${Math.round(distance ? amenage / distance * 100 : 0)} %)`;
+    // Les tuiles ne portent pas les noms de rue : étapes par type de voie
+    $("#etapes").innerHTML = etapes(P, Gm, arcs).map(et =>
+      `<li style="--c:${CLASSES[et.cls].couleur}"><span class="nom">${echapper(P.noms[et.nom] || CLASSES[et.cls].nom)}</span><span class="chiffre">${fmtKm(et.m)}</span><span class="chiffre">${fmtMin(et.s)}</span></li>`).join("");
+  }
+
+  // Calcul sur une fenêtre s = { P, G } : temps le plus rapide et, en confort, temps tranquille
+  function calculerSur(s) {
+    const Gm = s.G[etat.mode], { lng, lat } = etat.depart;
+    // Départ : nœud accroché et, avec des tronçons simulés, aussi celui d'avant (une piste ne rallonge jamais un trajet)
+    const acc = departs(s.P, Gm, lng, lat);
+    if (!acc.length) return null;
+    const res = dijkstraRapide(Gm, s.P, sourcesDijkstra(acc), 0, LIMITE_S);   // graphe contracté, résultat redéplié
+    // Trajet tranquille borné à 1,5 × 60 min (surcoût jusqu'à +50 %)
+    const minConf = confortActif() ? minutesTranquilles(s.P, s.G.confort, lng, lat, LIMITE_S * CFG.confort.surcout[1]) : null;
+    return { acc, res, minutes: tempsGrille(s.P, Gm, res), minConf };
+  }
+
+  // Graphes contractés (coeur.js, dijkstraRapide) des graphes du calcul en cours, construits sur un temps libre :
+  // 50 à 320 ms selon la ville, qu'on ne veut pas ajouter au gel d'un changement de fenêtre. D'ici là, calcul
+  // complet comme avant ; ensuite, survol 2 fois plus rapide, mêmes temps.
+  CFG.contractionImmediate = false;
+  let contractionPrevue = false;
+  function preparerContractions() {
+    if (contractionPrevue) return;
+    const s = [vue, vue.sim].filter(x => x && x.G), aFaire = [];
+    for (const x of s) {
+      // Contraction de « tout » attendue du Worker : rien à faire ici (« confort » la reprendra à son arrivée)
+      if (x.G.tout.rapideAttendu && !x.G.tout.rapide && !chargeur.secours) continue;
+      aFaire.push([x.G[etat.mode], x.P]);
+      if (confortActif()) aFaire.push([x.G.confort, x.P]);
+      if ($(".panneau").dataset.q === "4") aFaire.push([x.G.tout, x.P], [x.G.amenage, x.P], [x.G.confort, x.P]);   // Services : les trois mesures
+    }
+    if (aFaire.every(([G]) => G.rapide)) return;
+    contractionPrevue = true;
+    const faire = () => {
+      contractionPrevue = false;
+      const suivant = aFaire.find(([G]) => !G.rapide);          // un graphe par temps libre
+      if (!suivant || !vue.G) return;
+      graphRapide(suivant[0], suivant[1]);
+      preparerContractions();
+    };
+    if (typeof requestIdleCallback === "function") requestIdleCallback(faire, { timeout: 1500 });
+    else setTimeout(faire, 300);                                 // Safari : pas de requestIdleCallback
+  }
+
+  function calculer(complet) {
+    preparerContractions();
+    const g = vue.g;
+    // Sans tronçon : un seul calcul. Avec : avant (P) et après (P′) à chaque image, pour le bandeau et la vue Gain
+    // (mesuré sur Oléron : 23 ms sans tronçon, ~45 ms avec, temps et confort compris)
+    etat.apres = vue.sim ? calculerSur(vue.sim) : null;
+    etat.avant = calculerSur(vue);
+    const r = vue.sim && sim.vue !== "avant" ? etat.apres : etat.avant;
+    if (!r) {
+      etat.res = null; etat.acc = null;
+      dessinerChaleur(new Float32Array(g.nx * g.ny).map((_, k) => (g.dedans[k] ? Infinity : NaN)));
+      iso.clearLayers(); maillons.clearLayers(); afficherCouverture(null); afficherGains(); afficherAcces(complet); dessinerEquipements();
+      afficherMessage(`Ce départ est à plus de ${CFG.accesMaxM[etat.mode]} m du réseau. Rapprochez le repère D d'une voie${etat.mode !== "tout" ? " ou passez au réseau « Avec les routes »" : ""}.`);
+      majArrivee(complet); if (complet) majLien();
+      return;
+    }
+    afficherMessage("");
+    etat.acc = r.acc; etat.res = r.res; etat.minutes = r.minutes;
+    afficherCouverture(etat.minutes);
+    afficherGains();
+    afficherAcces(complet);
+    if (vue.sim && sim.vue === "gain") { dessinerGain(etat.avant, etat.apres); maillons.clearLayers(); }
+    else if (!confortActif()) { dessinerChaleur(etat.minutes); maillons.clearLayers(); }
+    else dessinerConfort(etat.minutes, r.minConf, complet);
+    if (complet) { dessinerIsolignes(etat.minutes); dessinerEquipements(); majLien(); }
+    else iso.clearLayers();
+    majArrivee(complet);
+  }
+
+  // ---------- Simulation : bandeau de gains, tronçons dessinés et listés, import / export ----------
+  // Vue « Gain » : seules les cellules améliorées sont colorées, le reste transparent.
+  // Temps : minutes gagnées (1–2, 2–5, 5–10, > 10), magenta = atteinte en moins d'1 h alors qu'elle ne l'était pas.
+  // Confort : bleu = passée au bleu, gris = passée d'orange à gris. Gain < 1 min ignoré (bruit des arrondis d'accès).
+  const GAIN_PALIERS = [2, 5, 10, Infinity];
+  const GAIN_COUL = ["#E9D5FF", "#C084FC", "#9333EA", "#581C87"].map(h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16)));
+  const GAIN_NOUV = [194, 24, 91];
+  function dessinerGain(avant, apres) {
+    const px = image.data, N = px.length / 4;
+    if (!avant || !apres) { for (let k = 0; k < N; k++) px[k * 4 + 3] = 0; ctx.putImageData(image, 0, 0); return; }
+    const conf = confortActif() && avant.minConf && apres.minConf;
+    const bleu = MAQ_PAL[0][3], gris = MAQ_PAL[1][3];
+    let colorees = 0;
+    for (let k = 0; k < N; k++) {
+      const o = k * 4, a = avant.minutes[k], b = apres.minutes[k];
+      let c = null;
+      if (b <= MAQ_MIN) {
+        if (conf) {
+          const x = a <= MAQ_MIN ? teinteConfort(a, avant.minConf[k]) : -1, y = teinteConfort(b, apres.minConf[k]);
+          if (y === 0 && x !== 0) c = [bleu.r, bleu.g, bleu.b];
+          else if (y === 1 && x === 2) c = [gris.r, gris.g, gris.b];
+        } else if (!(a <= MAQ_MIN)) c = GAIN_NOUV;
+        else if (a - b >= 1) c = GAIN_COUL[GAIN_PALIERS.findIndex(s => a - b <= s)];
+      }
+      if (!c) { px[o + 3] = 0; continue; }
+      px[o] = c[0]; px[o + 1] = c[1]; px[o + 2] = c[2]; px[o + 3] = 255; colorees++;
+    }
+    ctx.putImageData(image, 0, 0);
+    // Carte vide : le dire (ex. piste le long d'une route aussi rapide : rien à gagner en temps, voir « Temps et confort »)
+    const vide = $("#sim-gain-vide");
+    vide.hidden = colorees > 0;
+    vide.textContent = conf ? "Depuis ce départ, aucun secteur ne devient plus tranquille."
+      : "Depuis ce départ, aucun secteur ne gagne 1 min ou plus. Une piste le long d'une route change surtout le confort : essayez « Temps et confort ».";
+  }
+  // Légende de la vue Gain (selon temps / confort), à la place des légendes habituelles
+  function majLegendeGain() {
+    const el = $("#sim-legende-gain");
+    el.hidden = !(vue.sim && sim.vue === "gain");
+    $("#legende-vitesse").hidden = !el.hidden || confortActif();
+    $("#legende-maquette").hidden = !el.hidden || !confortActif();
+    $("#lire-confort").hidden = !confortActif();
+    if (el.hidden) { $("#sim-gain-vide").hidden = true; return; }
+    const pastille = (rgb, texte) => `<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;white-space:nowrap"><span style="width:14px;height:12px;border-radius:2px;background:rgb(${rgb.join(",")})"></span>${texte}</span>`;
+    const b = MAQ_PAL[0][3], g = MAQ_PAL[1][3];
+    el.innerHTML = `<p class="note">${confortActif()
+      ? pastille([b.r, b.g, b.b], "passée au bleu") + pastille([g.r, g.g, g.b], "orange → gris")
+      : ["1–2", "2–5", "5–10", "> 10"].map((t, i) => pastille(GAIN_COUL[i], `${t} min`)).join("") + pastille(GAIN_NOUV, "nouvellement à moins d'1 h")}</p>`;
+  }
+
+  // Bandeau : km² gagnés à 15 / 30 / 45 min (vue territoire : points de %), et en confort km² passés au bleu
+  function afficherGains() {
+    const el = $("#sim-gains");
+    el.hidden = !vue.sim;
+    if (!vue.sim) return;
+    const a = etat.avant, b = etat.apres, seuils = [15, 30, 45];
+    if (!a || !b) { el.textContent = "Gains : départ hors du réseau."; return; }
+    const signe = (x, d = 1) => x.toLocaleString("fr-FR", { maximumFractionDigits: d, signDisplay: "always" });
+    let morceaux;
+    if (masqueZone) {
+      const g = vue.g, n = (min, s) => { let c = 0; for (let k = 0; k < min.length; k++) if (g.ile[k] && min[k] <= s) c++; return c; };
+      morceaux = seuils.map(s => `${signe((n(b.minutes, s) - n(a.minutes, s)) / masqueZone.total * 100)} pt à ${s} min`);
+    } else {
+      const gs = gainSurface(vue.P, a.minutes, b.minutes, seuils);
+      morceaux = gs.map((x, i) => `${signe(x)} km² à ${seuils[i]} min`);
+    }
+    let html = `<strong>Gains</strong> : ${morceaux.join(" · ")}`;
+    if (confortActif() && a.minConf && b.minConf) {
+      const gc = gainConfort(vue.P, { min: a.minutes, minConf: a.minConf }, { min: b.minutes, minConf: b.minConf });
+      const km = x => x.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+      html += `<br>${km(gc.bleu)} km² passés au bleu, ${km(gc.gris)} km² d'orange à gris (moins d'1 h)`;
+    }
+    el.innerHTML = html;
+  }
+
+  // Calque des tronçons simulés : violet épais tireté (convention « projet ») sous halo blanc, cliquables
+  const coucheTroncons = L.layerGroup().addTo(carte);
+  function dessinerTroncons() {
+    coucheTroncons.clearLayers();
+    sim.troncons.forEach((t, i) => {
+      const ll = t.map(([lon, lat]) => [lat, lon]), choisi = i === sim.selection;
+      L.polyline(ll, { pane: "trace", color: "#fff", weight: choisi ? 10 : 8, opacity: .9, interactive: false }).addTo(coucheTroncons);
+      L.polyline(ll, { pane: "trace", color: "#7B2CBF", weight: choisi ? 6 : 5, dashArray: "10 6", lineCap: "butt" })
+        .on("click", ev => {
+          if (outil.actif || voie.actif) return;   // en tracé : le clic pose un sommet ; en aménagement : prend la voie
+          L.DomEvent.stop(ev);
+          if (choisi) insererSommet(t, ev.latlng); // tronçon déjà sélectionné : le clic ajoute un sommet sur le trait
+          else selectionner(i);
+        }).addTo(coucheTroncons);
+    });
+    for (const [lon, lat] of sim.nonRaccordes)
+      L.circleMarker([lat, lon], { pane: "trace", radius: 6, color: "#7B2CBF", weight: 2.5, fillColor: "#fff", fillOpacity: 1, interactive: false }).addTo(coucheTroncons);
+    // Liste du panneau
+    $("#sim-liste").innerHTML = sim.troncons.map((t, i) =>
+      `<li aria-current="${i === sim.selection}"><span class="nom" data-i="${i}">Tronçon ${i + 1} · ${fmtKm(longueurTroncon(t))}</span><button type="button" class="retirer" data-i="${i}" aria-label="Supprimer le tronçon ${i + 1}">✕</button></li>`).join("");
+    const n = sim.troncons.length;
+    $("#sim-vue").hidden = $("#sim-effacer").hidden = !n;
+    $("#sim-details").hidden = !n;
+    $("#sim-resume").textContent = `${n} tronçon${n > 1 ? "s" : ""} simulé${n > 1 ? "s" : ""} · ${fmtKm(sim.troncons.reduce((s, t) => s + longueurTroncon(t), 0))}`;
+    $("#sim-exporter").disabled = !n;
+    // Tronçon sans aucun raccord : sans effet (injoignable) ; extrémité libre d'un tronçon raccordé : rejointe à vol d'oiseau
+    // Hors de la fenêtre calculée autour du départ : on ne peut pas juger leur raccord (voir ajouterTroncons)
+    const isoles = (sim.isoles || []).map(i => i + 1), libres = sim.nonRaccordes.length - 2 * isoles.length;
+    const dehors = (sim.horsZone || []).map(i => i + 1);
+    montrerInfo([
+      isoles.length ? `Tronçon${isoles.length > 1 ? "s" : ""} ${isoles.join(", ")} sans effet : il ne croise aucune voie et aucun de ses sommets n'est à moins de ${CFG.raccordMaxM} m d'une voie. Posez au moins un sommet sur une voie (point plein).` : "",
+      libres > 0 ? `${libres} extrémité${libres > 1 ? "s" : ""} à plus de ${CFG.raccordMaxM} m de toute voie (cercle creux) : la piste n'y est rejointe qu'à vol d'oiseau.` : "",
+      dehors.length ? `Tronçon${dehors.length > 1 ? "s" : ""} ${dehors.length > 8 ? `(${dehors.length})` : dehors.join(", ")} hors de la zone calculée autour du départ : déplacez le départ vers ${dehors.length > 1 ? "eux" : "lui"} pour voir ${dehors.length > 1 ? "leur" : "son"} effet.` : "",
+    ].filter(Boolean).join(" "));
+  }
+  function montrerInfo(texte, html = false) { const el = $("#sim-info"); el.hidden = !texte; if (html) el.innerHTML = texte; else el.textContent = texte; }
+  // Sélection d'un tronçon (i = -1 : aucune) : poignées sur ses sommets (glisser = déplacer, clic droit / appui long =
+  // supprimer) et au milieu de chaque segment (glisser = insérer un sommet). Recalcul au lâcher seulement : P′ et ses
+  // graphes coûtent ~50 à 100 ms ; pendant le glisser, seuls le trait et l'indicateur de raccord suivent.
+  const couchePoignees = L.layerGroup().addTo(carte);
+  function selectionner(i) {
+    sim.selection = i;
+    if (i >= 0 && etat.suivre) suivre(false);  // le départ ne suit plus la souris pendant qu'on va chercher les poignées
+    dessinerTroncons();
+    couchePoignees.clearLayers();
+    if (i < 0 || !sim.troncons[i]) return;
+    const t = sim.troncons[i];
+    const trait = L.polyline(t.map(([lon, lat]) => [lat, lon]), { pane: "trace", color: "#7B2CBF", weight: 3, interactive: false }).addTo(couchePoignees);
+    const retracer = () => trait.setLatLngs(t.map(([x, y]) => [y, x]));
+    dessinerCroisements(t, couchePoignees);
+    t.forEach(([lon, lat], j) => {
+      const m = L.marker([lat, lon], { pane: "trace", draggable: true, icon: iconeSommet(estRaccorde(lon, lat)), title: "Glisser pour déplacer, clic droit pour supprimer" });
+      let dernier = 0;
+      m.on("drag", ev => {
+        t[j] = [ev.latlng.lng, ev.latlng.lat]; retracer();
+        // Indicateur de raccord au plus toutes les 100 ms (parcours des nœuds). Classe basculée sur la pastille, surtout
+        // pas setIcon : il réécrit l'icône et Leaflet arrête le glisser au premier mouvement (sommet qui ne bougeait
+        // que de quelques pixels, signalé par Aurélien le 12/10/2026)
+        const now = performance.now(), pastille = m.getElement() && m.getElement().firstElementChild;
+        if (pastille && now - dernier > 100) { dernier = now; pastille.classList.toggle("raccorde", estRaccorde(ev.latlng.lng, ev.latlng.lat)); }
+      });
+      m.on("dragend", majSimulation);
+      m.on("contextmenu", ev => {
+        L.DomEvent.stop(ev);
+        t.splice(j, 1);
+        if (t.length < 2) { sim.troncons.splice(i, 1); sim.selection = -1; }
+        majSimulation();
+      });
+      m.on("click", L.DomEvent.stop);
+      m.addTo(couchePoignees);
+    });
+    for (let j = 1; j < t.length; j++) {
+      const mil = [(t[j - 1][1] + t[j][1]) / 2, (t[j - 1][0] + t[j][0]) / 2];
+      const m = L.marker(mil, { pane: "trace", draggable: true, title: "Cliquer ou glisser pour ajouter un sommet",
+        icon: L.divIcon({ className: "", html: '<div class="milieu-sim"></div>', iconSize: [11, 11], iconAnchor: [5.5, 5.5] }) });
+      m.on("dragstart", () => { t.splice(j, 0, [mil[1], mil[0]]); });
+      m.on("drag", ev => { t[j] = [ev.latlng.lng, ev.latlng.lat]; retracer(); });
+      m.on("dragend", majSimulation);
+      m.on("click", ev => { L.DomEvent.stop(ev); t.splice(j, 0, [mil[1], mil[0]]); majSimulation(); });
+      m.addTo(couchePoignees);
+    }
+  }
+  // Ajoute un sommet au point cliqué, projeté sur le segment le plus proche à l'écran (le clic tombe rarement pile sur le trait)
+  function insererSommet(t, latlng) {
+    const p = carte.latLngToLayerPoint(latlng);
+    let meilleur = Infinity, jMeilleur = 1, proj = p;
+    for (let j = 1; j < t.length; j++) {
+      const a = carte.latLngToLayerPoint([t[j - 1][1], t[j - 1][0]]), b = carte.latLngToLayerPoint([t[j][1], t[j][0]]);
+      const q = L.LineUtil.closestPointOnSegment(p, a, b), d = p.distanceTo(q);
+      if (d < meilleur) { meilleur = d; jMeilleur = j; proj = q; }
+    }
+    const ll = carte.layerPointToLatLng(proj);
+    t.splice(jMeilleur, 0, [ll.lng, ll.lat]);
+    majSimulation();
+  }
+
+  // Toute modification du scénario passe par ici : P′ refaite, carte redessinée, recalcul complet
+  function majSimulation() {
+    if (sim.selection >= sim.troncons.length) sim.selection = -1;
+    preparerSimulation();
+    selectionner(sim.selection);               // redessine les tronçons et, s'il y en a un de sélectionné, ses poignées
+    majLegendeGain();
+    sauver();
+    if (etat.depart && vue.P) calculer(true);  // calculer(true) met aussi le lien à jour
+    else if (etat.depart) majLien();
+  }
+
+  $("#sim-liste").addEventListener("click", ev => {
+    const i = Number(ev.target.dataset.i);
+    if (!Number.isInteger(i) || ev.target.dataset.i === undefined) return;
+    if (ev.target.classList.contains("retirer")) { sim.troncons.splice(i, 1); sim.selection = -1; majSimulation(); }
+    else { selectionner(i); carte.fitBounds(L.latLngBounds(sim.troncons[i].map(([lon, lat]) => [lat, lon])).pad(0.3)); }
+  });
+  $("#sim-effacer").addEventListener("click", () => { sim.troncons = []; sim.selection = -1; majSimulation(); });
+  document.querySelectorAll("[data-vue]").forEach(b => b.addEventListener("click", () => {
+    sim.vue = b.dataset.vue;
+    document.querySelectorAll("[data-vue]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    majLegendeGain();
+    if (etat.depart && vue.P) calculer(true);
+  }));
+
+  // Import : fichier choisi ou glissé sur la carte ; Lambert 93 reconnu par lireGeoJSON
+  async function importer(fichier) {
+    let r;
+    try { r = lireGeoJSON(JSON.parse(await fichier.text())); }
+    catch (e) { montrerInfo(`« ${fichier.name} » : ${/projection/.test(e.message) ? e.message : "ce n'est pas un GeoJSON lisible"}.`); return; }
+    if (!r.troncons.length) { montrerInfo(`Aucune ligne dans « ${fichier.name} »${r.ignores ? ` (${r.ignores} géométrie(s) ignorée(s))` : ""}.`); return; }
+    sim.troncons.push(...r.troncons); sim.selection = -1;
+    majSimulation();
+    carte.fitBounds(L.latLngBounds(r.troncons.flat().map(([lon, lat]) => [lat, lon])).pad(0.2));
+    if (r.ignores) montrerInfo(`${r.troncons.length} tronçon(s) importé(s), ${r.ignores} géométrie(s) ignorée(s) (seules les lignes comptent).`);
+  }
+  $("#sim-importer").addEventListener("click", () => $("#sim-fichier").click());
+  $("#sim-fichier").addEventListener("change", ev => { if (ev.target.files[0]) importer(ev.target.files[0]); ev.target.value = ""; });
+  const zoneDepot = carte.getContainer();
+  zoneDepot.addEventListener("dragover", ev => { ev.preventDefault(); });
+  zoneDepot.addEventListener("drop", ev => { ev.preventDefault(); const f = ev.dataTransfer.files[0]; if (f) importer(f); });
+  $("#sim-exporter").addEventListener("click", () => {
+    const blob = new Blob([JSON.stringify(versGeoJSON(sim.troncons), null, 1)], { type: "application/geo+json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); a.download = "troncons-simules.geojson"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+
+  // ---------- Tracé d'un tronçon ----------
+  // Survol suspendu pendant le tracé ; double-clic de la carte (zoom) désactivé ; les deux clics d'un double-clic
+  // posent deux sommets au même endroit : dédoublonnés en fin de tracé (moins d'1 m)
+  const outil = { actif: false, sommets: [], raccords: [], suiviAvant: false };
+  const coucheTrace = L.layerGroup().addTo(carte);
+  const apercu = L.polyline([], { pane: "trace", color: "#7B2CBF", weight: 4, dashArray: "4 6", interactive: false });
+  // Même règle que ajouterTroncons : nœud à raccordMaxM, sinon voie à raccordMaxM
+  const estRaccorde = (lon, lat) => !!vue.P && (noeudsProches(vue.P, [[lon, lat]], CFG.raccordMaxM)[0] >= 0 || areteProche(vue.P, lon, lat, CFG.raccordMaxM) >= 0);
+  // Croisements du tracé avec une voie (raccordés eux aussi) : petits points pleins
+  function dessinerCroisements(t, couche) {
+    if (!vue.P || t.length < 2) return;
+    for (const l of croisements(vue.P, [t])[0]) for (const c of l || [])
+      L.circleMarker([c.lat, c.lon], { pane: "trace", radius: 3.5, color: "#fff", weight: 1.5, fillColor: "#7B2CBF", fillOpacity: 1, interactive: false }).addTo(couche);
+  }
+  const iconeSommet = raccorde => L.divIcon({ className: "", html: `<div class="sommet-sim${raccorde ? " raccorde" : ""}"></div>`, iconSize: [12, 12], iconAnchor: [6, 6] });
+  // Trait d'aperçu jusqu'à la souris (à chaque mouvement : rien d'autre) ; sommets redessinés au clic seulement,
+  // l'indicateur de raccord parcourant les nœuds de la fenêtre
+  function dessinerTraceEnCours(souris) {
+    const ll = outil.sommets.map(([lon, lat]) => [lat, lon]);
+    apercu.setLatLngs(souris && ll.length ? [...ll, souris] : ll).addTo(coucheTrace);
+    if (souris) return;
+    coucheTrace.clearLayers(); apercu.addTo(coucheTrace);
+    dessinerCroisements(outil.sommets, coucheTrace);
+    outil.raccords.length = outil.sommets.length;
+    outil.sommets.forEach(([lon, lat], i) => {
+      if (outil.raccords[i] === undefined) outil.raccords[i] = estRaccorde(lon, lat);
+      L.marker([lat, lon], { pane: "trace", icon: iconeSommet(outil.raccords[i]), interactive: false, keyboard: false }).addTo(coucheTrace);
+    });
+  }
+  function commencerTrace() {
+    if (outil.actif) return;
+    finirVoie(); contrib.arreter();
+    outil.actif = true; outil.sommets = []; outil.raccords = []; outil.suiviAvant = etat.suivre;
+    $("#sim-details").open = false;
+    suivre(false); carte.doubleClickZoom.disable();
+    selectionner(-1);
+    $("#sim-tracer").setAttribute("aria-pressed", "true"); $("#sim-tracer").textContent = "Terminer le tronçon";
+    $("#sim-consigne").hidden = false;
+    carte.getContainer().style.cursor = "crosshair";
+  }
+  function finirTrace(garder) {
+    if (!outil.actif) return;
+    const t = outil.sommets.filter((s, i, l) => i === 0 || distanceM(l[i - 1][0], l[i - 1][1], s[0], s[1]) >= 1);
+    outil.actif = false; outil.sommets = [];
+    coucheTrace.clearLayers(); carte.doubleClickZoom.enable();
+    $("#sim-tracer").setAttribute("aria-pressed", "false"); $("#sim-tracer").textContent = "Tracer un tronçon";
+    $("#sim-consigne").hidden = true;
+    carte.getContainer().style.cursor = "";
+    if (garder && t.length >= 2) { sim.troncons.push(t); majSimulation(); }
+    // Départ laissé fixe après un tracé : rétablir le suivi ferait sauter D au premier mouvement et brouillerait les gains
+    if (!garder || t.length < 2) suivre(outil.suiviAvant);
+  }
+  $("#sim-tracer").addEventListener("click", () => (outil.actif ? finirTrace(true) : commencerTrace()));
+  $("#sim-terminer").addEventListener("click", () => finirTrace(true));
+  carte.on("dblclick", () => { if (outil.actif) finirTrace(true); });
+  document.addEventListener("keydown", ev => {
+    if (!outil.actif || /INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    if (ev.key === "Enter") { ev.preventDefault(); finirTrace(true); }
+    else if (ev.key === "Escape") finirTrace(false);
+    else if (ev.key === "Backspace") { ev.preventDefault(); outil.sommets.pop(); dessinerTraceEnCours(); }
+  });
+
+  // ---------- Aménager une voie en un clic ----------
+  // Chaque clic transforme la route sous le curseur (entre deux carrefours) en tronçon simulé ordinaire ; sommets
+  // simplifiés (~2 m) pour ménager le lien t=. Mode laissé actif pour enchaîner les clics.
+  const voie = { actif: false, suiviAvant: false, ajoute: false };
+  function commencerVoie() {
+    if (voie.actif) return;
+    finirTrace(false); contrib.arreter();
+    voie.actif = true; voie.ajoute = false; voie.suiviAvant = etat.suivre;
+    $("#sim-details").open = false;
+    suivre(false); selectionner(-1);
+    $("#sim-voie").setAttribute("aria-pressed", "true");
+    $("#sim-consigne-voie").hidden = false;
+    carte.getContainer().style.cursor = "pointer";
+  }
+  function finirVoie() {
+    if (!voie.actif) return;
+    voie.actif = false;
+    $("#sim-voie").setAttribute("aria-pressed", "false");
+    $("#sim-consigne-voie").hidden = true;
+    carte.getContainer().style.cursor = "";
+    if (!voie.ajoute) suivre(voie.suiviAvant);   // rien d'aménagé : on rend le suivi ; sinon départ fixe (comme après un tracé)
+  }
+  function amenagerVoie(ll) {
+    if (!vue.P) return;
+    // Tolérance de 12 px à l'écran, ramenée en mètres au zoom courant
+    const tolM = carte.distance(ll, carte.containerPointToLatLng(carte.latLngToContainerPoint(ll).add([12, 0])));
+    const t = voieAuClic(vue.P, ll.lng, ll.lat, Math.max(5, tolM));
+    if (!t) { montrerInfo("Aucune route sous le clic : zoomez ou cliquez plus près du trait."); return; }
+    const pts = t.map(([lon, lat]) => carte.project([lat, lon], 18));       // ~0,6 m par pixel au zoom 18
+    const simple = L.LineUtil.simplify(pts, 3).map(p => { const q = carte.unproject(p, 18); return [q.lng, q.lat]; });
+    sim.troncons.push(simple); voie.ajoute = true; majSimulation();
+  }
+  $("#sim-voie").addEventListener("click", () => (voie.actif ? finirVoie() : commencerVoie()));
+
+  // ---------- Vérifier une voie dans OpenStreetMap (osm-contrib.js) : exclusif des outils de simulation ----------
+  const contrib = installerContribOsm({ carte, $, vue: () => vue.P, CLASSES, genere: index.genere, etat, suivre, areteProche,
+    avantDebut: () => { finirTrace(false); finirVoie(); selectionner(-1); } });
+  document.addEventListener("keydown", ev => { if (voie.actif && ev.key === "Escape") finirVoie(); });
+
+  // ---------- Maillons manquants de l'île (D4, ?territoire=oleron) : classement précalculé par maillons.js ----------
+  // Vue cumulée : voies classées en noir (épaisseur par part de l'île), coloration du départ masquée ; liste des 10
+  // premières ; « Aménager et voir le gain » = tronçon simulé ordinaire + départ au point représentatif + vue Gain.
+  const d4 = { voies: [], actif: false, choisi: -1 };
+  const coucheD4 = L.layerGroup().addTo(carte);
+  // % de l'île → épaisseur ; paliers tirés du classement du 12/10/2026 (maximum 18 %, une trentaine de voies ≥ 5 %)
+  const PALIERS_D4 = [[10, 8], [5, 5], [2, 3]];
+  function installerD4(D) {
+    // Fichier absent, vide ou incomplet : bloc caché ; voies sans géométrie, classe ou départ lisibles écartées
+    const comptes = D && D.departs - D.ignores;
+    if (!D || !Array.isArray(D.voies) || !(comptes > 0)) return;
+    d4.voies = D.voies.filter(v => typeof v.g === "string" && CLASSES[v.cls] && Array.isArray(v.d) && v.d.length === 2 && v.d.every(isFinite))
+      .map(v => ({ ...v, coords: decoderTroncons(v.g)[0], pct: Math.round(v.score / comptes * 100) }))
+      .filter(v => v.coords && v.coords.length >= 2);
+    if (!d4.voies.length) return;
+    $("#d4-note").textContent = `Score : part des départs, sur une grille de ${D.pasM} m couvrant l'île, depuis lesquels cette voie est un maillon manquant (trait noir).`
+      + (D.osm !== index.genere ? ` Classement calculé sur les données du ${D.osm}.` : "");
+    $("#bloc-d4").hidden = false; $("#q3-ailleurs").hidden = true;
+  }
+  function dessinerD4() {
+    coucheD4.clearLayers();
+    $("#d4-liste").innerHTML = d4.voies.slice(0, 10).map((v, i) =>
+      `<li aria-current="${i === d4.choisi}"><span class="nom" data-i="${i}">${echapper(v.nom || CLASSES[v.cls].nom)} · ${fmtKm(v.l)} · ${v.pct} %</span></li>`).join("");
+    if (!d4.actif) return;
+    d4.voies.forEach((v, i) => {
+      const p = PALIERS_D4.find(([s]) => v.pct >= s), w = p ? p[1] : 2, ll = v.coords.map(([lon, lat]) => [lat, lon]);
+      L.polyline(ll, { pane: "d4", color: "#fff", weight: w + 3, opacity: .9, interactive: false }).addTo(coucheD4);
+      L.polyline(ll, { pane: "d4", color: i === d4.choisi ? "#7B2CBF" : "#111", weight: w, opacity: .95 })
+        .on("click", ev => {
+          if (outil.actif || voie.actif) return;   // en tracé ou aménagement, le clic passe à la carte (sommet, voie)
+          L.DomEvent.stop(ev); choisirD4(i, false);
+        }).addTo(coucheD4);
+    });
+  }
+  function basculerD4(actif) {
+    if (actif && diag.actif) basculerDiag(false);   // une seule vue indépendante du départ à la fois
+    d4.actif = actif;
+    $("#d4-vue").setAttribute("aria-pressed", String(actif));
+    $("#d4-liste").hidden = !actif;
+    $("#d4-amenager").hidden = !actif || d4.choisi < 0;
+    for (const nom of ["chaleur", "iso"]) carte.getPane(nom).style.display = actif ? "none" : "";   // vue indépendante du départ
+    // Vue indépendante du départ : pas de suivi de la souris (bouton caché), rendu en quittant s'il était actif
+    if (actif) { d4.suiviAvant = etat.suivre; suivre(false); }
+    else if (d4.suiviAvant) { d4.suiviAvant = false; suivre(true); }
+    $("#suivre").hidden = actif || !survolPossible;
+    $("#legendes-temps").hidden = actif; $("#legende-d4").hidden = !actif;
+    dessinerD4();
+  }
+  function choisirD4(i, zoomer) {
+    d4.choisi = i; $("#d4-amenager").hidden = false; dessinerD4();
+    if (zoomer) carte.fitBounds(L.latLngBounds(d4.voies[i].coords.map(([lon, lat]) => [lat, lon])).pad(0.5));
+  }
+  $("#d4-vue").addEventListener("click", () => basculerD4(!d4.actif));
+  $("#d4-liste").addEventListener("click", ev => {
+    if (ev.target.dataset.i === undefined) return;
+    choisirD4(Number(ev.target.dataset.i), true);
+  });
+  $("#d4-amenager").addEventListener("click", () => {
+    const v = d4.voies[d4.choisi];
+    if (!v) return;
+    basculerD4(false);
+    if (etat.mode !== "tout") choisirMode("tout");            // le confort n'existe qu'en « Pistes + routes »
+    if (etat.symbo !== "confort") choisirSymbo("confort");
+    // Voie déjà simulée (second clic) : pas de doublon. Autres tronçons présents : le gain les inclut, on le dit
+    const deja = sim.troncons.some(t => encoderTroncons([t]) === v.g);
+    if (!deja) sim.troncons.push(v.coords.map(p => p.slice()));
+    majSimulation();
+    $('[data-vue="gain"]').click();
+    suivre(false);
+    placerDepart(L.latLng(v.d[1], v.d[0]), true);
+    const autres = sim.troncons.length - 1;
+    if (autres > 0) montrerInfo(`Le gain affiché inclut aussi ${autres > 1 ? `les ${autres} autres tronçons simulés` : "l'autre tronçon simulé"}. « Tout effacer » puis « Aménager » pour isoler cette voie.`);
+  });
+
+  // ---------- Croisements réseau cyclable × routes (intersections.json, departement17/intersections.py) ----------
+  // Deux couches indépendantes (RD, autres routes), affichables ensemble par-dessus la carte des temps. Vue territoire :
+  // territoire seul, comptes à l'appui. Fichier chargé au premier clic ; absent : boutons désactivés, sans erreur.
+  const CRX_PALIERS = [[30, "#2E9A5C", "30 km/h ou moins"], [50, "#E3B505", "50 km/h"], [70, "#EE7F2D", "70 km/h"],
+    [80, "#C62828", "80 km/h"], [Infinity, "#5B1A45", "90 km/h et plus"]];
+  const CRX_CHEMIN = "#9AA5A8";
+  const crx = { D: null, charge: null, actifs: [false, false], couches: [L.layerGroup(), L.layerGroup()] };
+  const renduCrx = L.canvas({ pane: "crx", padding: 0.3 });
+  const couleurVitesse = v => (v > 0 ? CRX_PALIERS.find(([s]) => v <= s)[1] : CRX_CHEMIN);
+  $("#crx-legende").innerHTML = CRX_PALIERS.map(([, c, nom]) => `<i style="background:${c}"></i><span>${nom}</span>`).join("")
+    + `<i style="background:${CRX_CHEMIN}"></i><span>Chemin (sans objet)</span>`
+    + `<i class="presumee" style="background:#fff"></i><span>Vitesse présumée</span>`;
+  // Croisements par blocs de tuiles (croisements.py, phase 5) : crx/index.json et crx/<bx>_<by>.json ; seuls les
+  // blocs qui couvrent la fenêtre sont lus (cache), et relus quand la fenêtre change. À défaut, l'ancien fichier
+  // unique intersections.json (intersections.py, un département).
+  const versPoints = D => D.lon.map((lo, i) => ({ lon: lo / 1e5, lat: D.lat[i] / 1e5, c: D.c[i], t: D.t[i], v: D.v[i], s: D.s[i], k: D.k[i], nom: D.noms[D.n[i]] || "" }))
+    .filter(p => !terr || d3.geoContains(terr.geometrie, [p.lon, p.lat]));
+  async function chargerCrx() {
+    if (crx.mode === undefined) {
+      const I = await fetch(DOSSIER + "crx/index.json").then(r => (r.ok ? r.json() : null)).catch(() => null);
+      if (I && I.bloc) Object.assign(crx, { mode: "blocs", index: I, blocs: new Map(), existe: new Set(I.blocs.map(([x, y]) => `${x}_${y}`)) });
+      else crx.mode = "fichier";
+      if (I && !I.tags) $("#crx-note").textContent += " Fichier d'essai : vitesses toutes présumées.";
+    }
+    if (crx.mode === "fichier") {
+      if (!crx.charge) crx.charge = fetch(DOSSIER + "intersections.json").then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => {
+        if (!D || !Array.isArray(D.lon)) return null;
+        crx.D = { ...D, pts: versPoints(D) };
+        if (!D.tags) $("#crx-note").textContent += " Fichier d'essai : vitesses toutes présumées, RD devinées par la classe de la route.";
+        return crx.D;
+      });
+      return crx.charge;
+    }
+    if (!vue.centre) return null;
+    const [cx, cy] = vue.centre, B = crx.index.bloc, cles = [];
+    for (let by = Math.floor((cy - RAYON) / B); by <= Math.floor((cy + RAYON) / B); by++)
+      for (let bx = Math.floor((cx - RAYON) / B); bx <= Math.floor((cx + RAYON) / B); bx++)
+        if (crx.existe.has(`${bx}_${by}`)) cles.push(`${bx}_${by}`);
+    await Promise.all(cles.filter(k => !crx.blocs.has(k)).map(k => fetch(`${DOSSIER}crx/${k}.json`)
+      .then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => crx.blocs.set(k, D && Array.isArray(D.lon) ? versPoints(D) : []))));
+    crx.D = { tags: crx.index.tags, pts: cles.flatMap(k => crx.blocs.get(k)) };
+    return crx.D;
+  }
+  // Fenêtre déplacée : blocs de croisements de la nouvelle fenêtre (installerFenetre)
+  function majCrxFenetre() {
+    if (crx.mode !== "blocs" || !crx.actifs.some(Boolean)) return;
+    chargerCrx().then(() => { [0, 1].forEach(dessinerCrx); resumeCrx(); });
+  }
+  function bulleCrx(p) {
+    const route = p.c === 0 ? (p.nom || "Route départementale") : (p.nom || CLASSES[p.k].nom);
+    const vit = p.s === 2 ? "chemin, sans limitation pertinente" : `${p.v} km/h` + (p.s === 0 ? " (OpenStreetMap)"
+      : ` présumés (${p.v === 20 ? "zone de rencontre" : p.v === 50 ? "en agglomération" : "hors agglomération"})`);
+    return `<b>${echapper(route)}</b><br>${p.t === 0 ? "Piste ou voie verte" : "Bande cyclable"} · ${vit}`;
+  }
+  function dessinerCrx(cat) {
+    const couche = crx.couches[cat];
+    couche.clearLayers();
+    if (!crx.actifs[cat] || !crx.D) { couche.remove(); return; }
+    // Les plus rapides dessinés en dernier (au-dessus)
+    const pts = crx.D.pts.filter(p => p.c === cat).sort((x, y) => (x.s === 2 ? -1 : x.v) - (y.s === 2 ? -1 : y.v));
+    for (const p of pts) {
+      L.circleMarker([p.lat, p.lon], { renderer: renduCrx, pane: "crx", radius: p.s === 2 ? 3.5 : p.t === 0 ? 6 : 4.5,
+        color: p.s === 1 ? "#1E2529" : "#fff", weight: 1.6, dashArray: p.s === 1 ? "2 2" : null,
+        fillColor: couleurVitesse(p.s === 2 ? 0 : p.v), fillOpacity: 1, bubblingMouseEvents: false })
+        .bindPopup(() => bulleCrx(p), { closeButton: false, offset: [0, -4] })
+        .on("click", ev => { if (outil.actif || voie.actif) { ev.target.closePopup(); carte.fire("click", ev); } })
+        .addTo(couche);
+    }
+    couche.addTo(carte);
+  }
+  function resumeCrx() {
+    const el = $("#crx-resume");
+    if (!crx.D || !crx.actifs.some(Boolean)) { el.hidden = true; return; }
+    const lieu = crx.mode === "blocs" && !terr ? "dans la zone chargée autour du départ" : terr ? terr.nom : LIEU.le;
+    el.innerHTML = [0, 1].filter(c => crx.actifs[c]).map(c => {
+      const pts = crx.D.pts.filter(p => p.c === c), vite = pts.filter(p => p.s !== 2 && p.v >= 70).length;
+      return `<b>${pts.length.toLocaleString("fr-FR")}</b> croisements avec ${c === 0 ? "une RD" : "d'autres routes"}, dont <b>${vite.toLocaleString("fr-FR")}</b> à 70 km/h ou plus`;
+    }).join("<br>") + ` (${lieu}).`;
+    el.hidden = false;
+  }
+  async function basculerCrx(cat, actif) {
+    if (actif && !(await chargerCrx())) {
+      document.querySelectorAll("[data-crx]").forEach(b => { b.disabled = true; b.title = "Croisements non disponibles (intersections.json absent)"; });
+      return;
+    }
+    crx.actifs[cat] = actif;
+    $(`[data-crx="${cat}"]`).setAttribute("aria-pressed", String(actif));
+    $("#legende-crx").hidden = !crx.actifs.some(Boolean);
+    // Carte des temps estompée sous les pastilles : sinon le rouge et l'orange des vitesses se perdent dans l'orange du confort
+    carte.getPane("chaleur").style.opacity = crx.actifs.some(Boolean) ? 0.45 : "";
+    dessinerCrx(cat); resumeCrx(); majLien();
+  }
+  document.querySelectorAll("[data-crx]").forEach(b => b.addEventListener("click", () => {
+    const cat = Number(b.dataset.crx);
+    basculerCrx(cat, !crx.actifs[cat]);
+  }));
+
+  // ---------- Équipements et population à portée (accessibilite.json, comptages.py ; facultatif) ----------
+  // Pour le départ affiché : ce qui tombe dans les cellules atteintes à 15 et 30 min (équipements BPE par domaine,
+  // habitants et ménages Filosofi, couches de points pondérés comme les emplacements de camping), le temps vers le
+  // plus proche élément du panier du quotidien, et les équipements sur la carte. Vue territoire : territoire seul.
+  // Trois mesures (minutesAcces dans coeur.js) : pistes seules, tranquille (cellule en bleu), tous trajets ; seuil 15
+  // ou 30 min au choix. Indépendant du réseau choisi en haut : la comparaison des trois est le propos du bloc.
+  const MESURES = [["pistes", "Pistes seules"], ["tranquille", "Tranquille"], ["tous", "Tous trajets"]];   // libellés courts : trois colonnes dans 340 px
+  let seuilAcces = 15, accesDetail = false;   // catégories d'équipements repliées par défaut
+  const COUL_DOMAINES = { A: "#6D4FA3", B: "#D9631E", C: "#2477B3", D: "#C0392B", E: "#6B7B80", F: "#2E9A5C", G: "#B08900" };
+  let acces = null;
+  const equip = L.layerGroup();
+  carte.createPane("equip").style.zIndex = 430;
+  const renduEquip = L.canvas({ pane: "equip", padding: 0.3 });
+  const nomTerr = TERRITOIRE === "oleron" ? "l'île" : "les 14 communes";
+  function indexerAcces() {
+    if (!acces || !vue.g) return;
+    vue.ixAcces = indexerComptages(acces, vue.g);
+    vue.totAcces = masqueZone ? compterAtteints(acces, vue.ixAcces, null, [1], vue.g.ile) : null;
+    // Graphe « pistes » (~400 ms, 1,5 s à Paris) préparé hors du survol ; avec le Worker, il arrive tout fait
+    if (!chargeur.distant || chargeur.secours) setTimeout(() => { if (vue.G) vue.G.amenage; }, 0);
+  }
+  // Mesures d'un état (vue ou vue.sim) pour le départ courant ; deux emplacements de cache (avant / après)
+  const cacheAcces = [];
+  const enCache = s => cacheAcces.find(x => x.P === s.P && x.lng === etat.depart.lng && x.lat === etat.depart.lat);
+  function mesuresAcces(s) {
+    const { lng, lat } = etat.depart;
+    let c = enCache(s);
+    if (!c) {
+      c = { P: s.P, lng, lat, M: minutesAcces(s.P, s.G, lng, lat, LIMITE_S) };
+      cacheAcces.unshift(c); cacheAcces.length = Math.min(cacheAcces.length, 2);
+    }
+    return c.M;
+  }
+  // Libellés BPE en capitales (« BOULANGERIE-PÂTISSERIE ») → « Boulangerie-pâtisserie »
+  const phrase = t => (t === t.toUpperCase() ? t.charAt(0) + t.slice(1).toLowerCase() : t);
+  const fmtNb = v => (v >= 1000 ? Math.round(v / 10) * 10 : Math.round(v)).toLocaleString("fr-FR");
+  const CAS_LIB = ["Tranquille", "Route seulement", "Trop loin"];
+  const fmtMinPanier = m => (m <= 60 ? `${Math.max(1, Math.round(m))} min` : "> 1 h");
+  // complet = départ fixé (clic, fin de glisser) : on calcule aussi l'« avant » des tronçons simulés pour le gain
+  // Comptages (trois Dijkstra de plus, ~0,8 s à Paris en fenêtre 7 × 7) : seulement dans l'onglet Services, et au
+  // survol après une pause de la souris (17/10/2026 : faits à chaque image dans tous les onglets, la page ramait)
+  let minuteurAcces = null;
+  let question = 1;                            // onglet affiché (allerA, plus bas)
+  function afficherAcces(complet = true) {
+    clearTimeout(minuteurAcces);
+    if (question !== 4 || !acces || !vue.ixAcces || !etat.depart || !vue.P) return;
+    if (!complet && !enCache(vue.sim && sim.vue !== "avant" ? vue.sim : vue)) {
+      minuteurAcces = setTimeout(() => { afficherAcces(false); dessinerEquipements(); }, 250);
+      return;
+    }
+    const voirApres = vue.sim && sim.vue !== "avant", ile = vue.g.ile, S = [seuilAcces];
+    const M = mesuresAcces(voirApres ? vue.sim : vue);
+    const Mav = voirApres && (complet || enCache(vue)) ? mesuresAcces(vue) : null;   // au survol, l'avant n'est pas recalculé
+    const c = Object.fromEntries(MESURES.map(([k]) => [k, compterAtteints(acces, vue.ixAcces, M[k], S, ile)]));
+    const av = Mav && Object.fromEntries(MESURES.map(([k]) => [k, compterAtteints(acces, vue.ixAcces, Mav[k], S, ile)]));
+    const T = vue.totAcces;
+    const cel = (v, avant, total) => {
+      const gain = av && v - avant >= 0.5 ? `<span class="gain">+${fmtNb(v - avant)}</span>` : "";
+      const part = total ? `<small>${Math.round(v / total * 100)} %</small>` : "";
+      return `<td>${fmtNb(v)}${gain}${part}</td>`;
+    };
+    const ligne = (lib, cls, val, tot) => `<tr${cls ? ` class="${cls}"` : ""}${cls === "sous" && !accesDetail ? " hidden" : ""}><td>${lib}</td>${MESURES.map(([k]) => cel(val(c[k]), av ? val(av[k]) : 0, tot)).join("")}</tr>`;
+    const lignes = [`<tr><th></th>${MESURES.map(([, l]) => `<th>${l}</th>`).join("")}</tr>`];
+    acces.couches.forEach((cou, k) => lignes.push(ligne(echapper(cou.libelle), "", r => r.couches[0][k], T && T.couches[0][k])));
+    if (acces.eq) {
+      // Les catégories ne s'affichent qu'au dépliage (13/10/2026) : le total suffit pour une première lecture
+      const lib = `<button type="button" class="deplier" aria-expanded="${accesDetail}">Équipements, services, commerces<span class="fl" aria-hidden="true">▸</span></button>`;
+      lignes.push(ligne(lib, "total", r => r.total[0], T && T.total[0]));
+      acces.domaines.forEach((d, k) => {
+        if (T && !T.domaines[0][k]) return;
+        lignes.push(ligne(`<span class="pastille" style="--c:${COUL_DOMAINES[d.code] || "#888"}"></span>${echapper(d.libelle)}`, "sous", r => r.domaines[0][k], null));
+      });
+    }
+    $("#acces").innerHTML = lignes.join("");
+    // Fonctions (cadre « territoire de la demi-heure ») : chacune à son seuil (15 ou 30 min), trois cas : tranquille,
+    // route seulement (investissement cyclable), trop loin (question de service)
+    const fns = acces.fonctions;
+    $("#fonctions-bloc").hidden = !fns.length;
+    if (!fns.length) return;
+    const K = casFonctions(acces, vue.ixAcces, M, ile), n = [0, 0, 0];
+    K.forEach(k => n[k.cas]++);
+    $("#fonctions-resume").innerHTML = CAS_LIB.map((l, c) => `<li class="cas-${c}"><span>${l}</span><strong>${n[c]} sur ${fns.length}</strong></li>`).join("");
+    $("#fonctions").innerHTML = fns.map((f, b) => {
+      const k = K[b], t = k.cas === 0 ? k.tranquille : k.tous;
+      return `<li class="cas-${k.cas}" title="${CAS_LIB[k.cas]} (seuil ${f.seuil} min)">${echapper(f.libelle)} <b>${fmtMinPanier(t)}</b> <small>/ ${f.seuil}</small></li>`;
+    }).join("");
+  }
+  function dessinerEquipements() {
+    equip.clearLayers();
+    if (question !== 4 || !acces || !vue.ixAcces || !etat.depart || !vue.P || !$("#voir-equip").checked) return;
+    const M = mesuresAcces(vue.sim && sim.vue !== "avant" ? vue.sim : vue);
+    const pts = equipementsFenetre(acces, vue.ixAcces, vue.g, M.tous, vue.g.ile);
+    // Plein = atteint par les pistes ou tranquillement ; pâle = par la route seulement ; creux = au-delà du seuil
+    for (const p of pts) {
+      const i = p.cellule, d = acces.domaines[p.d], coul = COUL_DOMAINES[d ? d.code : ""] || "#888";
+      const bon = M.pistes[i] <= seuilAcces || M.tranquille[i] <= seuilAcces, route = !bon && M.tous[i] <= seuilAcces;
+      const type = acces.types[p.t] ? phrase(acces.types[p.t][1]) : "";
+      const statut = bon ? (M.pistes[i] <= seuilAcces ? "par les pistes" : "tranquillement") : route ? "par la route seulement" : `au-delà de ${seuilAcces} min`;
+      L.circleMarker([p.lat, p.lon], { renderer: renduEquip, pane: "equip", radius: bon ? 4.5 : 3.5, weight: bon ? 1.2 : 1.5,
+        color: bon ? "#fff" : coul, fillColor: bon || route ? coul : "#fff", fillOpacity: bon ? .95 : route ? .4 : .85, opacity: .95 })
+        .bindTooltip(`${echapper(type)} · ${fmtMinPanier(p.min)}, ${statut}`, { direction: "top", offset: [0, -4] })
+        .addTo(equip);
+    }
+    equip.addTo(carte);
+  }
+  document.querySelectorAll("[data-seuil-acces]").forEach(b => b.addEventListener("click", () => {
+    seuilAcces = Number(b.dataset.seuilAcces);
+    document.querySelectorAll("[data-seuil-acces]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    afficherAcces(); dessinerEquipements();
+  }));
+  $("#voir-equip").addEventListener("change", dessinerEquipements);
+  $("#acces").addEventListener("click", ev => {
+    if (!ev.target.closest(".deplier")) return;
+    accesDetail = !accesDetail;
+    $("#acces .deplier").setAttribute("aria-expanded", String(accesDetail));
+    $("#acces").querySelectorAll("tr.sous").forEach(tr => { tr.hidden = !accesDetail; });
+  });
+  // Données par blocs de tuiles (comptages_blocs.py, phase 6) : acces/index.json (libellés, sources) et
+  // acces/<bx>_<by>.json ; seuls les blocs de la fenêtre sont lus, fusionnés puis repris à chaque fenêtre. À défaut,
+  // l'ancien fichier unique accessibilite.json (comptages.py, un département).
+  let accesBlocs = null;
+  const absolus = d => { const t = new Array(d.length); let s = 0; for (let x = 0; x < d.length; x++) { s += d[x]; t[x] = s; } return t; };
+  const enDeltas = k => k.map((v, x) => (x ? v - k[x - 1] : v));
+  async function chargerAccesBlocs() {
+    if (!accesBlocs || !vue.centre) return;
+    const [cx, cy] = vue.centre, I = accesBlocs.I, B = I.bloc, cles = [];
+    for (let by = Math.floor((cy - RAYON) / B); by <= Math.floor((cy + RAYON) / B); by++)
+      for (let bx = Math.floor((cx - RAYON) / B); bx <= Math.floor((cx + RAYON) / B); bx++)
+        if (accesBlocs.existe.has(`${bx}_${by}`)) cles.push(`${bx}_${by}`);
+    const cle = cles.join();
+    if (cle === accesBlocs.cle) return;
+    await Promise.all(cles.filter(k => !accesBlocs.cache.has(k)).map(k => fetch(`${DOSSIER}acces/${k}.json`)
+      .then(r => (r.ok ? r.json() : null)).catch(() => null).then(D => accesBlocs.cache.set(k, D))));
+    const blocs = cles.map(k => accesBlocs.cache.get(k)).filter(Boolean);
+    const eqs = blocs.map(D => D.equipements).filter(Boolean);
+    const eq = eqs.length ? { k: enDeltas(eqs.flatMap(e => absolus(e.k))), t: eqs.flatMap(e => e.t), d: eqs.flatMap(e => e.d),
+      f: eqs.flatMap(e => e.f), p: eqs.flatMap(e => e.p) } : null;
+    const couches = I.couches.map(c => {
+      const parts = blocs.map(D => (D.couches || []).find(x => x.id === c.id)).filter(Boolean);
+      return { ...c, k: enDeltas(parts.flatMap(x => absolus(x.k))), v: parts.flatMap(x => x.v) };
+    });
+    accesBlocs.cle = cle;
+    const A = { ...I, equipements: eq, couches };
+    if (!acces) installerAcces(A);
+    else { acces = preparerComptages(A); indexerAcces(); afficherAcces(); }
+  }
+  const majAccesFenetre = () => { if (accesBlocs && question === 4) chargerAccesBlocs(); };
+  fetch(DOSSIER + "acces/index.json").then(r => (r.ok ? r.json() : null)).catch(() => null).then(I => {
+    if (I && I.bloc) {
+      accesBlocs = { I, cache: new Map(), existe: new Set(I.blocs.map(([x, y]) => `${x}_${y}`)), cle: null };
+      return majAccesFenetre();                  // blocs lus à la première ouverture de l'onglet Services
+    }
+    return fetch(DOSSIER + "accessibilite.json").then(r => (r.ok ? r.json() : null)).then(A => { if (A) installerAcces(A); });
+  }).catch(() => {});
+  function installerAcces(A) {
+    acces = preparerComptages(A);
+    $("#bloc-acces").hidden = false;
+    if (masqueZone) $("#titre-acces").textContent = `À portée depuis ce départ, dans ${nomTerr}`;
+    $("#note-acces").textContent = [
+      "Comptés si leur cellule de 100 m est atteinte. Pistes seules : réseau aménagé et courtes liaisons. Tranquille : par les pistes, ou routes comprises là où éviter la route exposée coûte moins de 20 % de temps en plus (bleu en « Temps et confort »). Tous trajets : routes comprises.",
+      masqueZone ? `Seulement dans ${nomTerr} ; % = part du total de ${nomTerr}.` : "",
+      acces.eq ? "Équipements au point géolocalisé par l'Insee ; carte : plein = par les pistes ou tranquillement, pâle = par la route seulement, creux = au-delà du seuil." : "",
+      acces.couches.some(c => c.id === "population") ? "Habitants : population fiscale, répartie dans chaque carreau de 200 m." : "",
+      `Sources : ${[...acces.sources, ...acces.couches.filter(c => !/Filosofi/.test(c.source)).map(c => `${c.libelle} : ${c.source}`)].join(" ; ")}.`,
+      acces.couches.some(c => c.id === "population") ? "" : "Pas de données d'habitants pour ce territoire (carroyage Filosofi indisponible).",
+    ].filter(Boolean).join(" ");
+    indexerAcces(); afficherAcces();
+  }
+
+  // ---------- Territoire de la demi-heure (diagnostic_<territoire>.json, diagnostic.js ; vue territoire) ----------
+  // Pour chaque habitant et chaque fonction : tranquille, route seulement (investissement cyclable), trop loin
+  // (question de service). Constat par fonction et par commune, carte des lieux habités, maillons classés par
+  // habitants débloqués. Ligne « Toutes » : le pire cas des fonctions de chaque habitant.
+  const diag = { D: null, f: -1, actif: false, choisi: -1 };   // f = -1 : toutes les fonctions
+  carte.createPane("diag").style.zIndex = 352;
+  const renduDiag = L.canvas({ pane: "diag", padding: 0.2 }), coucheDiag = L.layerGroup();
+  const COUL_CAS = ["#3B6FC4", "#D9631E", "#5E6A70"];
+  const pctDe = (t, h) => (h ? Math.round(t / h * 100) : 0);
+  const barre3 = (t, h) => `<div class="barre3">${t.map((x, c) => `<span class="cas-${c}" style="width:${h ? x / h * 100 : 0}%"></span>`).join("")}</div>`;
+  const casDiag = (code, f) => (f < 0 ? Math.max(...code.split("").map(Number)) : Number(code[f]));
+  function installerDiag(D) {
+    if (!D || !Array.isArray(D.fonctions) || !D.fonctions.length || !D.habitants) return;
+    const premier = !diag.D;
+    if (!D.pts) {
+    // Cellules : indice global → centre ; maillons : géométrie décodée
+    let k = 0;
+    D.pts = D.cellules.k.map((dk, q) => {
+      k += dk;
+      const gj = Math.floor(k / acces_W(D)), gi = k - gj * acces_W(D), G0 = index.grille;
+      return { gi, gj, lat: G0.lat0 - (gj + .5) * G0.dlat, lon: G0.lon0 + (gi + .5) * G0.dlon, h: D.cellules.h[q] / 10, cas: D.cellules.cas[q] };
+    });
+    D.maillons = (D.maillons || []).map(m => { try { return { ...m, coords: decoderTroncons(m.g) }; } catch { return null; } }).filter(Boolean);
+    }
+    diag.D = D; diag.choisi = -1;
+    $("#bloc-diag").hidden = false; $("#q5-ailleurs").hidden = true;
+    $("#diag-titre").textContent = D.epci ? `${D.territoire} : territoire de la demi-heure` : `${TERRITOIRE === "oleron" ? "L'île" : "Le territoire"} de la demi-heure`;
+    $("#diag-epci").hidden = !D.epci;
+    $("#diag-note").textContent = `Pour chaque habitant (${fmtNb(D.habitants)}, Filosofi carroyé) et chaque fonction, à son seuil : tranquille = par les pistes ou des voies calmes ; route seulement = en passant par une route exposée, un aménagement cyclable peut y répondre ; trop loin = même par la route, question de service plutôt que de piste. Maillons : routes exposées des trajets les plus rapides des habitants « route seulement », classées par habitants concernés. Calcul du ${D.genere.slice(0, 10)}.`;
+    afficherDiag();
+    if (premier && $(".panneau").dataset.q === "4") basculerDiag(true);   // lien #q=4 ouvert avant l'arrivée du fichier
+  }
+  // Vue département (13/10/2026) : bilan de l'EPCI où se trouve le départ (tuiles/epci.json pour les contours,
+  // diagnostic_epci.js pour les bilans). Chargé seulement dans l'onglet Services ; gardé en mémoire une fois lu.
+  const epciDiag = { liste: null, code: undefined, lus: new Map() };
+  function dansAnneau(x, y, a) {
+    let dedans = false;
+    for (let i = 0, j = a.length - 1; i < a.length; j = i++)
+      if ((a[i][1] > y) !== (a[j][1] > y) && x < (a[j][0] - a[i][0]) * (y - a[i][1]) / (a[j][1] - a[i][1]) + a[i][0]) dedans = !dedans;
+    return dedans;
+  }
+  function epciDe(ll) {
+    for (const e of epciDiag.liste) {
+      const [w, s, o, n] = e.bornes;
+      if (ll.lng < w || ll.lng > o || ll.lat < s || ll.lat > n) continue;
+      if (e.polygones.some(p => dansAnneau(ll.lng, ll.lat, p[0]) && !p.slice(1).some(t => dansAnneau(ll.lng, ll.lat, t)))) return e;
+    }
+    return null;
+  }
+  function majEpci() {
+    if (!epciDiag.liste || !etat.depart || question !== 4) return;
+    const e = epciDe(etat.depart), code = e ? e.code : null;
+    if (code === epciDiag.code) return;
+    epciDiag.code = code;
+    if (!e) {                                    // départ hors des EPCI calculés : pas de bilan
+      if (diag.actif) basculerDiag(false);
+      diag.D = null; $("#bloc-diag").hidden = true; $("#q5-ailleurs").hidden = false;
+      return;
+    }
+    const installer = D => { if (epciDiag.code === code && D) { epciDiag.lus.set(code, D); installerDiag(D); } };
+    if (epciDiag.lus.has(code)) { installer(epciDiag.lus.get(code)); return; }
+    fetch(`${DOSSIER}diagnostic_epci_${code}.json`).then(r => (r.ok ? r.json() : null)).then(installer).catch(() => {});
+  }
+  // Contours des EPCI (communes_epci.py) lus à la première ouverture de l'onglet Services (quelques Mo en métropole)
+  let epciCharge = null;
+  const chargerEpci = () => epciCharge || (epciCharge = masqueZone ? Promise.resolve() :
+    fetch(DOSSIER + "epci.json").then(r => (r.ok ? r.json() : null)).then(E => {
+      if (!E || !Array.isArray(E.epci)) return;
+      epciDiag.liste = E.epci.map(e => {
+        const polygones = e.geometrie.type === "Polygon" ? [e.geometrie.coordinates] : e.geometrie.coordinates, pts = polygones.flat(2);
+        return { ...e, polygones, bornes: [Math.min(...pts.map(p => p[0])), Math.min(...pts.map(p => p[1])), Math.max(...pts.map(p => p[0])), Math.max(...pts.map(p => p[1]))] };
+      });
+      majEpci();
+    }).catch(() => {}));
+  function acces_W(D) { return Math.round(360 / index.grille.dlon); }   // largeur de la grille France (comptages.py)
+  function afficherDiag() {
+    const D = diag.D, F = D.fonctions, f = diag.f, h = D.habitants;
+    const tot = f < 0 ? D.global.toutes : D.global.f[f];
+    $("#diag-resume").innerHTML = f < 0
+      ? `<strong>${pctDe(D.global.toutes[0], h)} %</strong> des habitants ont toutes ces fonctions tranquillement à vélo ; <strong>${pctDe(D.global.toutes[1], h)} %</strong> les ont en passant par la route ; <strong>${pctDe(D.global.toutes[2], h)} %</strong> en ont au moins une trop loin.`
+      : `${echapper(F[f].libelle)} à ${F[f].seuil} min : <strong>${pctDe(tot[0], h)} %</strong> des habitants tranquillement, <strong>${pctDe(tot[1], h)} %</strong> par la route seulement, <strong>${pctDe(tot[2], h)} %</strong> trop loin.`;
+    $("#diag-table").innerHTML = [[-1, "Toutes les fonctions", "", D.global.toutes], ...F.map((fn, b) => [b, fn.libelle, `${fn.seuil} min`, D.global.f[b]])]
+      .map(([b, lib, seuil, t]) => `<tr data-f="${b}" aria-selected="${b === f}"><td class="lib">${echapper(lib)}<small>${seuil}</small></td><td>${barre3(t, h)}</td><td class="pct">${pctDe(t[0], h)} %</td></tr>`).join("");
+    // Communes
+    const lib = f < 0 ? "toutes les fonctions" : F[f].libelle.toLowerCase();
+    if (D.communes && D.communes.length > 1) {
+      $("#diag-sous-communes").textContent = `Par commune · ${lib}`;
+      $("#diag-communes").innerHTML = `<tr><th>Commune</th><th>Hab.</th><th></th><th>Tranq.</th></tr>` + D.communes.map(c => {
+        const t = f < 0 ? c.toutes : c.f[f];
+        return `<tr><td>${echapper(c.nom)}</td><td>${fmtNb(c.h)}</td><td class="barre">${barre3(t, c.h)}</td><td><strong>${pctDe(t[0], c.h)} %</strong></td></tr>`;
+      }).join("");
+    } else { $("#diag-sous-communes").textContent = ""; $("#diag-communes").innerHTML = ""; }
+    // Maillons, classés pour la fonction choisie (ou toutes)
+    const ms = D.maillons.map((m, i) => ({ m, i, v: f < 0 ? m.hab : m.f[f] })).filter(x => x.v > 0).sort((a, b) => b.v - a.v).slice(0, 10);
+    diag.liste = ms;
+    $("#diag-sous-maillons").textContent = ms.length ? `Maillons à aménager · ${lib}` : "";
+    $("#diag-maillons").innerHTML = ms.map(({ m, i, v }) =>
+      `<li data-i="${i}" aria-current="${i === diag.choisi}"><span>${nomMaillon(m)}<small>${m.l < 80 ? "" : `${fmtKm(m.l)} · `}${echapper(m.commune || "")}</small></span><span class="chiffre">${fmtNb(v)} hab.</span></li>`).join("");
+    $("#diag-amenager").hidden = diag.choisi < 0;
+    dessinerDiag();
+  }
+  // Moins de 80 m entre deux carrefours de routes exposées : c'est une traversée (giratoire, carrefour) à sécuriser
+  const nomMaillon = m => (m.l < 80 ? "Traversée ou carrefour" : echapper(CLASSES[m.cls] ? CLASSES[m.cls].nom : "Route"));
+  function dessinerDiag() {
+    coucheDiag.clearLayers();
+    if (!diag.actif || !diag.D) { coucheDiag.remove(); return; }
+    const D = diag.D, f = diag.f, G0 = index.grille;
+    // Cellules de 100 m regroupées en blocs d'au moins 4 pixels à l'échelle affichée (13/10/2026) : à l'échelle d'un
+    // grand EPCI, une cellule fait un pixel et ne se voit plus. Couleur du bloc : le cas qui concerne le plus
+    // d'habitants ; opacité : habitants du bloc, comme pour une cellule.
+    const a = carte.latLngToContainerPoint([D.pts[0].lat, D.pts[0].lon]), b = carte.latLngToContainerPoint([D.pts[0].lat, D.pts[0].lon + G0.dlon]);
+    const pas = Math.max(1, Math.ceil(4 / Math.max(.01, Math.abs(b.x - a.x))));
+    const blocs = new Map();
+    for (const p of D.pts) {
+      const cle = Math.floor(p.gj / pas) * 1e6 + Math.floor(p.gi / pas);
+      const bl = blocs.get(cle) || blocs.set(cle, { gi: Math.floor(p.gi / pas) * pas, gj: Math.floor(p.gj / pas) * pas, h: [0, 0, 0] }).get(cle);
+      bl.h[casDiag(p.cas, f)] += p.h;
+    }
+    for (const bl of blocs.values()) {
+      const c = bl.h.indexOf(Math.max(...bl.h)), h = bl.h[0] + bl.h[1] + bl.h[2];
+      const n = G0.lat0 - bl.gj * G0.dlat, w = G0.lon0 + bl.gi * G0.dlon;
+      L.rectangle([[n - pas * G0.dlat, w], [n, w + pas * G0.dlon]], { renderer: renduDiag, pane: "diag", stroke: false,
+        fillColor: COUL_CAS[c], fillOpacity: Math.min(.9, .35 + h / pas / pas / 20 * Math.min(pas, 4)), interactive: false }).addTo(coucheDiag);
+    }
+    const sel = D.maillons[diag.choisi];
+    for (const { m, i } of diag.liste) {
+      const choisi = m === sel, w = choisi ? 7 : 4.5;
+      for (const t of m.coords) {
+        const ll = t.map(([lon, lat]) => [lat, lon]);
+        L.polyline(ll, { pane: "d4", color: "#fff", weight: w + 3, opacity: .9, interactive: false }).addTo(coucheDiag);
+        L.polyline(ll, { pane: "d4", color: choisi ? "#7B2CBF" : "#111", weight: w, opacity: .95 })
+          .on("click", ev => { L.DomEvent.stop(ev); choisirDiag(i, false); }).addTo(coucheDiag);
+      }
+    }
+    coucheDiag.addTo(carte);
+  }
+  function basculerDiag(actif) {
+    if (actif && d4.actif) basculerD4(false);
+    diag.actif = actif;
+    $(".panneau").classList.toggle("diag-actif", actif);
+    $("#diag-vue").setAttribute("aria-pressed", String(actif));
+    $("#diag-vue").textContent = actif ? "Revenir aux temps de trajet" : "Voir sur la carte";
+    for (const nom of ["chaleur", "iso"]) carte.getPane(nom).style.display = actif ? "none" : "";
+    if (actif) { diag.suiviAvant = etat.suivre; suivre(false); }
+    else if (diag.suiviAvant) { diag.suiviAvant = false; suivre(true); }
+    $("#suivre").hidden = actif || !survolPossible;
+    $("#legendes-temps").hidden = actif; $("#legende-diag").hidden = !actif;
+    // Vue département : on cadre l'EPCI du bilan (les cellules de 100 m ne se voient pas à l'échelle du département)
+    const e = actif && diag.D && diag.D.epci && epciDiag.liste && epciDiag.liste.find(x => x.code === diag.D.epci);
+    if (e) carte.fitBounds([[e.bornes[1], e.bornes[0]], [e.bornes[3], e.bornes[2]]], marges());
+    dessinerDiag();
+  }
+  function choisirDiag(i, zoomer) {
+    diag.choisi = i;
+    if (!diag.actif) basculerDiag(true);
+    afficherDiag();
+    if (zoomer) carte.fitBounds(L.latLngBounds(diag.D.maillons[i].coords.flat().map(([lon, lat]) => [lat, lon])).pad(0.4));
+  }
+  $("#diag-table").addEventListener("click", ev => {
+    const tr = ev.target.closest("tr[data-f]");
+    if (!tr) return;
+    diag.f = Number(tr.dataset.f); diag.choisi = -1;
+    afficherDiag();
+  });
+  $("#diag-vue").addEventListener("click", () => basculerDiag(!diag.actif));
+  carte.on("zoomend", () => { if (diag.actif) dessinerDiag(); });   // taille des blocs selon l'échelle
+  $("#diag-maillons").addEventListener("click", ev => {
+    const li = ev.target.closest("li[data-i]");
+    if (li) choisirDiag(Number(li.dataset.i), true);
+  });
+  $("#diag-amenager").addEventListener("click", () => {
+    const m = diag.D && diag.D.maillons[diag.choisi];
+    if (!m) return;
+    basculerDiag(false);
+    if (etat.mode !== "tout") choisirMode("tout");
+    const deja = sim.troncons.some(t => m.coords.some(c => encoderTroncons([c]) === encoderTroncons([t])));
+    if (!deja) for (const c of m.coords) sim.troncons.push(c.map(p => p.slice()));
+    majSimulation();
+    suivre(false);
+    placerDepart(L.latLng(m.d[1], m.d[0]), true);
+    montrerInfo("Voie aménagée en piste. Le bloc « À portée » montre en violet ce que gagne ce départ, le plus peuplé parmi ceux que la voie concerne ; déplacez le repère D pour voir ailleurs.");
+  });
+  if (masqueZone)
+    fetch(`${DOSSIER}diagnostic_${TERRITOIRE}.json`).then(r => (r.ok ? r.json() : null)).then(installerDiag).catch(() => {});
+  if (TERRITOIRE === "oleron")
+    fetch(DOSSIER + "maillons_oleron.json").then(r => (r.ok ? r.json() : null)).then(installerD4).catch(() => {});
+
+  // ---------- Placement du départ : charge la fenêtre si on change de tuile centrale ----------
+  let demande = 0;
+  // Fenêtre à recentrer pour ce départ ? (vue territoire : jamais, la fenêtre est fixe)
+  const tuileFenetre = ll => chargeur.tuileDe(...(masqueZone ? masqueZone.centre : [ll.lng, ll.lat]));
+  const decentree = ll => { const [tx, ty] = tuileFenetre(ll); return !vue.centre || vue.centre[0] !== tx || vue.centre[1] !== ty; };
+
+  // recentrer : force le recentrage même pendant le survol (appel à l'arrêt de la souris)
+  async function placerDepart(ll, complet, recentrer = false) {
+    if (!dansZone(ll)) { afficherMessage(`Le départ doit être ${terr ? "sur " + terr.nom : LIEU.en}.`); return; }
+    const id = ++demande;
+    etat.depart = ll;
+    marqueurDepart.setLatLng(ll).addTo(carte);
+    if (!masqueZone) majEpci();
+    const [lonF, latF] = masqueZone ? masqueZone.centre : [ll.lng, ll.lat];   // vue territoire : fenêtre fixe
+    const [tx, ty] = tuileFenetre(ll);
+    // Survol (calcul léger) : tant que le départ reste dans les 3 × 3 tuiles centrales de la fenêtre chargée, on
+    // calcule dessus sans recentrer (exact jusqu'à ~30 min, la marge restante ; au-delà, approché vers le bord) ;
+    // recentrage à l'arrêt de la souris ou au clic. Chaque recentrage gèle la page 0,5 à 1 s.
+    const tolere = !complet && !recentrer && vue.centre && Math.abs(vue.centre[0] - tx) <= 1 && Math.abs(vue.centre[1] - ty) <= 1;
+    if (decentree(ll) && !tolere) {
+      const lent = setTimeout(() => { $("#chargement").hidden = false; }, 150);   // pas de clignotement si c'est en cache
+      const f = await chargeur.fenetre(lonF, latF);
+      clearTimeout(lent);
+      if (id !== demande) return;              // la souris est déjà ailleurs : résultat périmé
+      $("#chargement").hidden = true;
+      if (!f.P) { afficherMessage("Les données de ce secteur n'ont pas pu être chargées. Réessayez dans un instant."); return; }
+      installerFenetre(f);
+      if (!masqueZone) chargeur.precharger(ll.lng, ll.lat);     // couronne suivante, en tâche de fond
+    }
+    calculer(complet);
+  }
+
+  // Calcul « léger » (chaleur + surface) au plus une fois par image affichée pendant le survol et le glisser
+  let enAttente = null, image_prevue = false, minuteurPause = null;
+  function planifierDepart(ll) {
+    enAttente = ll;
+    if (image_prevue) return;
+    image_prevue = true;
+    requestAnimationFrame(() => { image_prevue = false; placerDepart(enAttente, false); });
+  }
+  function definirArrivee(ll) { etat.arrivee = L.latLng(ll); marqueurArrivee.setLatLng(etat.arrivee).addTo(carte); majArrivee(true); majLien(); }
+  marqueurDepart.on("drag", ev => planifierDepart(ev.latlng));
+  marqueurDepart.on("dragend", () => placerDepart(marqueurDepart.getLatLng(), true));
+  marqueurArrivee.on("drag", ev => { etat.arrivee = ev.latlng; majArrivee(); });
+  marqueurArrivee.on("dragend", () => { etat.arrivee = marqueurArrivee.getLatLng(); majArrivee(true); majLien(); });
+
+  // ---------- Survol : le départ suit la souris (écrans à pointeur fin uniquement) ----------
+  const survolPossible = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
+  const CONSIGNES = {
+    suivi: `Déplacez la souris ${terr ? "sur " + terr.nom : LIEU.sur} : les temps suivent. Cliquez pour fixer le départ.`,
+    // Le clic place ce que dit la bascule Départ / Arrivée de la recherche (14/10/2026 : un clic posait une arrivée
+    // sans qu'on l'ait demandé, par exemple en cliquant sur un croisement)
+    fixe: () => etat.cible === "arrivee"
+      ? "Cliquez sur la carte pour choisir l'arrivée. Faites glisser le repère D pour changer de départ."
+      : "Cliquez sur la carte pour déplacer le départ. Pour un itinéraire, choisissez « Arrivée » en haut puis cliquez sur la carte.",
+  };
+  function suivre(actif) {
+    etat.suivre = actif && survolPossible;
+    $("#suivre").setAttribute("aria-pressed", String(etat.suivre));
+    $("#consigne").textContent = etat.suivre ? CONSIGNES.suivi : CONSIGNES.fixe();
+    const el = marqueurDepart.getElement();
+    if (el) el.style.pointerEvents = etat.suivre ? "none" : "";
+  }
+  carte.on("mousemove", ev => {
+    if (outil.actif) { dessinerTraceEnCours(ev.latlng); return; }
+    // Survol en direct : seulement dans le territoire et au zoom détaillé (ailleurs, rien ne bouge)
+    if (!etat.suivre || !dansZone(ev.latlng)) return;
+    planifierDepart(ev.latlng);
+    clearTimeout(minuteurPause);
+    minuteurPause = setTimeout(async () => {
+      if (!etat.suivre || !etat.minutes || !vue.P) return;
+      if (decentree(etat.depart)) await placerDepart(etat.depart, false, true);   // souris arrêtée : calcul exact
+      if (etat.suivre && etat.minutes) { dessinerIsolignes(etat.minutes); majLien(); }
+    }, 300);
+  });
+  carte.on("click", ev => {
+    if (contrib.actif) { contrib.clic(ev.latlng); return; }
+    if (outil.actif) { outil.sommets.push([ev.latlng.lng, ev.latlng.lat]); dessinerTraceEnCours(); return; }
+    if (voie.actif) { amenagerVoie(ev.latlng); return; }
+    if (d4.actif) return;                                        // vue cumulée : ni départ ni arrivée (carte cachée)
+    if (sim.selection >= 0) { selectionner(-1); return; }      // clic hors du tronçon sélectionné : désélection
+    if (etat.suivre || !etat.depart || etat.cible !== "arrivee") { suivre(false); placerDepart(ev.latlng, true); }
+    else definirArrivee(ev.latlng);
+  });
+  $("#suivre").hidden = !survolPossible;
+  $("#suivre").addEventListener("click", () => suivre(!etat.suivre));
+  $("#effacer").addEventListener("click", () => { etat.arrivee = null; marqueurArrivee.remove(); majArrivee(); majLien(); });
+
+  function choisirMode(mode) {
+    etat.mode = mode;
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    $("#note-mode").textContent = NOTES[mode];
+    majSymbo();
+    if (etat.depart && vue.P) calculer(true);
+  }
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => {
+    if (question === 1) modePortee = b.dataset.mode;          // retrouvé en revenant sur Portée (Confort impose les routes)
+    choisirMode(b.dataset.mode);
+  }));
+  // Bascule Temps / Temps et confort ; en mode pistes seules, seul « Temps » reste (pas de route à comparer)
+  function majSymbo() {
+    document.querySelectorAll("[data-symbo]").forEach(b => {
+      b.setAttribute("aria-pressed", String(b.dataset.symbo === (confortActif() ? "confort" : "vitesse")));   // symbologie réellement dessinée
+    });
+    const seul = etat.mode !== "tout";                      // pistes seules ou sans départementales : bouton confort retiré, « Temps » sur toute la largeur
+    $("[data-symbo=confort]").hidden = seul;
+    $("#bascule-symbo").style.gridTemplateColumns = seul ? "1fr" : "";
+    $("#legende-maquette").hidden = !confortActif();
+    $("#legende-vitesse").hidden = confortActif();
+    $("#reglages-resume").textContent = `Carte : ${LIBELLES_MODE[etat.mode]}, ${confortActif() ? "temps et confort" : "temps"}`;
+    majLegendeGain();                          // vue Gain : sa légende remplace les deux autres
+  }
+  function choisirSymbo(symbo) {
+    etat.symbo = symbo; majSymbo();
+    if (etat.depart && vue.P) calculer(true);
+  }
+  document.querySelectorAll("[data-symbo]").forEach(b => b.addEventListener("click", () => choisirSymbo(b.dataset.symbo)));
+  // ---------- Onglets : une question = un contenu de panneau + un réglage de la carte ----------
+  // 1 temps, 2 temps et confort (réseau complet : le confort n'existe qu'« Avec les routes »), 3 et 4 sans changer
+  // la couleur (réglages repliés à l'onglet 3). En quittant un onglet, on referme ce qu'il avait ouvert (vue
+  // cumulée, diagnostic, tracé, Gain).
+  const QUESTIONS = { 1: "Jusqu'où je vais en 15 ou 30 minutes ?", 2: "Est-ce que j'y vais tranquillement, et qu'est-ce qui coince ?",
+    3: "Et si on aménageait ici ?", 4: "Les habitants ont-ils l'essentiel à portée, tranquillement ?" };
+  let modePortee = null;   // réseau choisi dans Portée (null : celui du lien) ; question : plus haut (Services)
+  function allerA(q) {
+    const avant = question;
+    question = q;
+    $(".panneau").dataset.q = q;
+    $("#question").textContent = QUESTIONS[q];
+    document.querySelectorAll("[data-onglet]").forEach(b => b.setAttribute("aria-selected", String(Number(b.dataset.onglet) === q)));
+    if (q === 1) $("#reglages").open = true;
+    else if (q !== avant) $("#reglages").open = false;
+    if (q !== 2 && d4.actif) basculerD4(false);
+    if (q !== 2) [0, 1].forEach(c => { if (crx.actifs[c]) basculerCrx(c, false); });
+    if (q !== 4 && diag.actif) basculerDiag(false);
+    if (q === 4 && !masqueZone) chargerEpci().then(majEpci);
+    if (q === 4 && diag.D && !diag.actif) basculerDiag(true);
+    if (q === 4 && q !== avant) {                // comptages et équipements, mis en attente hors de cet onglet
+      if (accesBlocs) chargerAccesBlocs().then(() => { afficherAcces(); dessinerEquipements(); });
+      else { afficherAcces(); dessinerEquipements(); }
+    }
+    if (q !== 4) { clearTimeout(minuteurAcces); equip.clearLayers(); }
+    if (q !== 3) {
+      if (outil.actif) $("#sim-tracer").click();       // termine le tracé en cours (le tronçon est gardé)
+      if (voie.actif) $("#sim-voie").click();
+      if (sim.vue === "gain") $('[data-vue="apres"]').click();
+    }
+    const mode = q === 2 ? "tout" : q === 1 && modePortee ? modePortee : etat.mode, symbo = q === 1 ? "vitesse" : q === 2 ? "confort" : etat.symbo;
+    if (mode !== etat.mode || symbo !== etat.symbo) { etat.symbo = symbo; choisirMode(mode); }   // un seul recalcul
+    majLien();
+  }
+  document.querySelectorAll("[data-onglet]").forEach(b => b.addEventListener("click", () => allerA(Number(b.dataset.onglet))));
+  $("#d4-amenager").addEventListener("click", () => allerA(3));   // après son propre gestionnaire : vue Gain dans l'onglet Simuler
+
+  // À propos : méthode, sources et crédits, dans une fenêtre
+  $("#ouvrir-apropos").addEventListener("click", () => $("#apropos").showModal());
+  $("#fermer-apropos").addEventListener("click", () => $("#apropos").close());
+  $("#apropos").addEventListener("click", ev => { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });   // clic hors du cadre
+
+  document.querySelectorAll("[data-cible]").forEach(b => b.addEventListener("click", () => {
+    etat.cible = b.dataset.cible;
+    document.querySelectorAll("[data-cible]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+    suivre(etat.suivre && etat.cible === "depart");             // « Arrivée » : le départ cesse de suivre la souris
+  }));
+
+  // ---------- Recherche d'adresse (Géoplateforme, repli api-adresse), limitée au département ----------
+  const champ = $("#recherche"), liste = $("#suggestions");
+  let minuteur = null, controleur = null;
+  const fermerListe = () => { liste.hidden = true; liste.innerHTML = ""; };
+  champ.addEventListener("input", () => {
+    clearTimeout(minuteur);
+    const q = champ.value.trim();
+    if (q.length < 3) { fermerListe(); return; }
+    minuteur = setTimeout(() => chercher(q), 250);
+  });
+  champ.addEventListener("keydown", ev => {
+    if (ev.key === "ArrowDown") { const b = liste.querySelector("button"); if (b) { ev.preventDefault(); b.focus(); } }
+    if (ev.key === "Escape") fermerListe();
+  });
+  liste.addEventListener("keydown", ev => {
+    const boutons = [...liste.querySelectorAll("button")], i = boutons.indexOf(document.activeElement);
+    if (ev.key === "ArrowDown" && i < boutons.length - 1) { ev.preventDefault(); boutons[i + 1].focus(); }
+    if (ev.key === "ArrowUp") { ev.preventDefault(); (i > 0 ? boutons[i - 1] : champ).focus(); }
+    if (ev.key === "Escape") { fermerListe(); champ.focus(); }
+  });
+  async function chercher(q) {
+    if (controleur) controleur.abort();
+    controleur = new AbortController();
+    const centre = carte.getCenter();            // résultats proches de la vue courante
+    const params = `q=${encodeURIComponent(q)}&limit=10&lat=${centre.lat.toFixed(4)}&lon=${centre.lng.toFixed(4)}`;
+    let fc = null;
+    for (const url of [`https://data.geopf.fr/geocodage/search?index=address&${params}`, `https://api-adresse.data.gouv.fr/search/?${params}`]) {
+      try {
+        const r = await fetch(url, { signal: controleur.signal });
+        if (r.ok) { fc = await r.json(); break; }
+      } catch (e) { if (e.name === "AbortError") return; }
+    }
+    if (!fc) { liste.innerHTML = `<li class="vide">Le service d'adresses ne répond pas. Placez le repère directement sur la carte.</li>`; liste.hidden = false; return; }
+    // Recherche sur toute la France (20/10/2026, demande d'Aurélien) : une adresse d'un autre territoire recharge la
+    // page sur sa grille, départ posé (lien #d=). Territoire d'après le code Insee ; COM (975, 977, 978, 98x) écartées.
+    const zoneDe = f => { const c = String(f.properties.citycode || ""); return /^97[1-46]/.test(c) ? c.slice(0, 3) : /^9[78]/.test(c) ? null : "fr"; };
+    const res = (fc.features || []).filter(zoneDe).slice(0, 6);
+    liste.innerHTML = res.length
+      ? res.map((f, i) => `<li><button type="button" data-i="${i}">${echapper(f.properties.name || f.properties.label)}<small>${echapper([f.properties.postcode, f.properties.city].filter(Boolean).join(" "))}</small></button></li>`).join("")
+      : `<li class="vide">Aucune adresse trouvée pour « ${echapper(q)} ».</li>`;
+    liste.hidden = false;
+    liste.querySelectorAll("button").forEach(b => b.addEventListener("click", () => {
+      const f = res[+b.dataset.i], ll = L.latLng(f.geometry.coordinates[1], f.geometry.coordinates[0]), z = zoneDe(f);
+      if (z !== ZONE || (terr && !dansZone(ll))) {   // autre territoire (ou hors de la vue Oléron / PMO) : on y va
+        location.href = location.pathname + (z === "fr" ? "" : `?zone=${z}`) + `#d=${ll.lat.toFixed(5)},${ll.lng.toFixed(5)}`;
+        return;
+      }
+      champ.value = f.properties.label;
+      fermerListe();
+      if (etat.cible === "depart") { suivre(false); placerDepart(ll, true); } else definirArrivee(ll);
+      if (!estVisible(ll)) centrerVisible(ll, carte.getZoom());   // pas sous le panneau (comme la géolocalisation)
+    }));
+  }
+
+  // ---------- Géolocalisation (17/10/2026) ----------
+  // Place le départ ou l'arrivée (selon la bascule) sur la position du navigateur ; avec « Vérifier une voie dans
+  // OpenStreetMap » actif, centre seulement la carte (pour corriger ce qu'on a sous les yeux). Rien n'est envoyé
+  // ailleurs : la position reste dans la page. Point bleu et cercle de précision jusqu'au prochain clic sur le bouton.
+  const geoloc = $("#geoloc"), couchePosition = L.layerGroup().addTo(carte);
+  geoloc.hidden = !("geolocation" in navigator);
+  geoloc.addEventListener("click", () => {
+    if (geoloc.getAttribute("aria-busy") === "true") return;
+    geoloc.setAttribute("aria-busy", "true");
+    navigator.geolocation.getCurrentPosition(pos => {
+      geoloc.removeAttribute("aria-busy");
+      const ll = L.latLng(pos.coords.latitude, pos.coords.longitude), prec = pos.coords.accuracy;
+      couchePosition.clearLayers();
+      if (!dansZone(ll)) { afficherMessage(`Votre position est hors ${terr ? "de " + terr.nom : "du territoire de la carte"} : choisissez un autre territoire ou placez le départ sur la carte.`); return; }
+      afficherMessage("");
+      L.circle(ll, { radius: prec, pane: "trace", color: "#1A73E8", weight: 1, fillOpacity: .1, interactive: false }).addTo(couchePosition);
+      L.circleMarker(ll, { pane: "trace", radius: 6, color: "#fff", weight: 2, fillColor: "#1A73E8", fillOpacity: 1, interactive: false }).addTo(couchePosition);
+      centrerVisible(ll, Math.max(carte.getZoom(), prec > 500 ? 14 : 16));
+      if (contrib.actif) return;
+      if (etat.cible === "depart") { suivre(false); placerDepart(ll, true); } else definirArrivee(ll);
+    }, err => {
+      geoloc.removeAttribute("aria-busy");
+      afficherMessage(err.code === err.PERMISSION_DENIED
+        ? "Localisation refusée : autorisez-la pour ce site dans le navigateur, ou cherchez une adresse."
+        : "Position introuvable pour l'instant. Réessayez, ou cherchez une adresse.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000 });
+  });
+
+  // ---------- Lien de partage ----------
+  const fmtLL = ll => `${ll.lat.toFixed(5)},${ll.lng.toFixed(5)}`;
+  // Tronçons simulés : dans le lien (t=, polyline encodée) jusqu'à LIEN_MAX caractères (~300 sommets), au-delà on
+  // passe par l'export GeoJSON ; et dans le navigateur, en filet contre un rechargement
+  const CLE_SAUVEGARDE = "portee-velo.troncons", LIEN_MAX = 2000;
+  function sauver() {
+    try { if (sim.troncons.length) localStorage.setItem(CLE_SAUVEGARDE, JSON.stringify(sim.troncons)); else localStorage.removeItem(CLE_SAUVEGARDE); }
+    catch { /* navigation privée ou stockage bloqué : pas de reprise, sans erreur */ }
+  }
+  function majLien() {
+    if (!etat.depart) return;
+    const p = [`q=${question}`, `m=${etat.mode}`, `d=${fmtLL(etat.depart)}`];
+    if (etat.symbo === "confort") p.push("v=confort");
+    if (etat.arrivee) p.push(`a=${fmtLL(etat.arrivee)}`);
+    if (etat.suivre) p.push("s=1");
+    const x = [0, 1].filter(c => crx.actifs[c]).map(c => ["rd", "autres"][c]);
+    if (x.length) p.push(`x=${x.join(",")}`);
+    const t = encoderTroncons(sim.troncons);
+    sim.tropLong = t.length > LIEN_MAX;
+    if (t && !sim.tropLong) p.push(`t=${t}`);
+    history.replaceState(null, "", `#${p.join("&")}`);
+  }
+  function lireLien() {
+    const h = new URLSearchParams(location.hash.slice(1));
+    const ll = s => { const [la, lo] = (s || "").split(",").map(Number); return isFinite(la) && isFinite(lo) && s ? L.latLng(la, lo) : null; };
+    // ?maquette (ancien lien de la maquette) ouvre aussi en « Temps et confort »
+    const symbo = h.get("v") === "confort" || new URLSearchParams(location.search).has("maquette") ? "confort" : "vitesse";
+    // Tronçons : null si absents du lien ; lien illisible (copié à moitié) : signalé, la page démarre sans
+    let troncons = null, tronconsIllisibles = false;
+    if (h.has("t")) { try { troncons = decoderTroncons(h.get("t")); } catch { tronconsIllisibles = true; } }
+    // Onglet : q= ; lien en « Temps et confort » sans q= : onglet 2
+    const q = Number(h.get("q")) || (symbo === "confort" ? 2 : 1);
+    const crxLien = (h.get("x") || "").split(",").map(s => ["rd", "autres"].indexOf(s)).filter(c => c >= 0);
+    return { crx: crxLien, q: q >= 1 && q <= 4 ? q : 1, mode: ["amenage", "sansdep"].includes(h.get("m")) ? h.get("m") : "tout", symbo, depart: ll(h.get("d")), arrivee: ll(h.get("a")), suivi: h.get("s") === "1",
+      troncons, tronconsIllisibles };
+  }
+  let minuteurPartage = null;
+  $("#partager").addEventListener("click", async () => {
+    const bulle = $("#partage-etat");
+    majLien();
+    try {
+      await navigator.clipboard.writeText(location.href);
+      bulle.textContent = sim.tropLong ? "Lien copié sans les tronçons (trop nombreux) : exportez-les en GeoJSON" : "Lien de cette vue copié";
+    } catch { bulle.textContent = sim.tropLong ? "Tronçons trop nombreux pour un lien : exportez-les en GeoJSON" : "Copiez l'adresse de la page"; }
+    bulle.hidden = false;
+    clearTimeout(minuteurPartage);
+    minuteurPartage = setTimeout(() => { bulle.hidden = true; }, sim.tropLong ? 4000 : 2200);
+  });
+
+  // ---------- Démarrage ----------
+  // Légende bivariée : 3 lignes (confort) × 7 colonnes (temps)
+  $("#grille-bivariee").innerHTML = `<div style="display:grid;grid-template-columns:5.5em repeat(7,1fr);gap:2px;font-size:.72rem;color:var(--ardoise);align-items:center">`
+    + ["≤ +20 %", "+20 à 50 %", "> +50 %"].map((nom, q) => `<span>${nom}</span>` + MAQ_PAL[q].map(c => `<span style="height:16px;background:${c.formatHex()}"></span>`).join("")).join("")
+    + `<span></span>` + MAQ_PALIERS.map(s => `<span style="text-align:center">${s}</span>`).join("") + `</div>`;
+  $("#legende").innerHTML = COULEURS.map(c => `<span class="case" style="background:${c}"></span>`).join("")
+    + `<div class="graduations">${SEUILS.map(s => `<span><i>${s}</i></span>`).join("")}<span></span></div>`;
+  const NOMS_REGIONS = { "poitou-charentes": "Poitou-Charentes", "aquitaine": "Aquitaine", "pays-de-la-loire": "Pays de la Loire",
+    "guadeloupe": "Guadeloupe", "martinique": "Martinique", "guyane": "Guyane", "reunion": "La Réunion", "mayotte": "Mayotte" };
+  const regions = index.sources.map(s => s.replace(".parquet", "")).map(s => NOMS_REGIONS[s] || s);
+  $("#meta").textContent = `Extraits Geofabrik ${regions.join(", ")} ; tuiles générées le ${index.genere.slice(0, 10).split("-").reverse().join("/")}.`;
+  afficherCouverture(null);
+
+  const lien = lireLien();
+  etat.mode = lien.mode; etat.symbo = lien.symbo;
+  // Scénario : le lien fait foi ; sinon reprise de la dernière visite (message avec « Effacer »). Avant le premier
+  // placerDepart : installerFenetre construit alors P′ avec ces tronçons
+  let reprise = 0;
+  if (lien.troncons) sim.troncons = lien.troncons;
+  else if (!lien.tronconsIllisibles) {
+    try {
+      const s = JSON.parse(localStorage.getItem(CLE_SAUVEGARDE) || "[]");
+      if (Array.isArray(s)) sim.troncons = s.filter(t => Array.isArray(t) && t.length >= 2 && t.every(p => Array.isArray(p) && isFinite(p[0]) && isFinite(p[1])));
+      reprise = sim.troncons.length;
+    } catch { sim.troncons = []; }
+  }
+  majSymbo();
+  document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === etat.mode)));
+  $("#note-mode").textContent = NOTES[etat.mode];
+  if (lien.arrivee) { etat.arrivee = lien.arrivee; marqueurArrivee.setLatLng(lien.arrivee).addTo(carte); }
+  etat.suivre = survolPossible && (!lien.depart || lien.suivi);
+  // Territoire trop grand pour la vue d'ensemble (métropole ; Guyane, 84 000 km² dont seul le littoral est habité) : la
+  // carte s'ouvre sur le départ, à l'échelle d'un département (centré dans la partie que le panneau ne cache pas)
+  if ((contourDep.departs?.length || ZONE === "973") && !terr) centrerVisible(lien.depart || DEPART_DEFAUT, 10);
+  await placerDepart(lien.depart || DEPART_DEFAUT, true);
+  suivre(etat.suivre);
+  selectionner(-1); majLegendeGain();
+  allerA(lien.q);          // tronçons du lien ou repris : dessinés et listés
+  if (lien.q === 2) lien.crx.forEach(c => basculerCrx(c, true));   // croisements du lien (x=rd,autres), onglet Confort seulement
+  if (lien.tronconsIllisibles) montrerInfo("Les tronçons du lien sont illisibles (lien incomplet ?) : carte sans tronçon simulé.");
+  else if (reprise) {
+    const alerte = $("#sim-info").hidden ? "" : ` ${echapper($("#sim-info").textContent)}`;   // extrémités libres, tronçons isolés
+    montrerInfo(`${reprise} tronçon${reprise > 1 ? "s" : ""} repris de votre dernière visite. <button type="button" class="lien-action" id="sim-oublier">Effacer</button>${alerte}`, true);
+    $("#sim-oublier").addEventListener("click", () => { sim.troncons = []; sim.selection = -1; majSimulation(); });
+  }
+})();
+</script>
+</body>
+</html>
