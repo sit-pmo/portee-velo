@@ -364,10 +364,9 @@ dialog.apropos .fermer{position:absolute;top:10px;right:10px;width:34px;height:3
         <option value="973">Guyane</option>
         <option value="974">La Réunion</option>
         <option value="976">Mayotte</option>
+        <option value="marennes-oleron">Marennes-Oléron (réseau des collectivités)</option>
       </select>
     </label>
-    <!-- Copie SIT seulement (20/10/2026) : lien vers la carte au réseau des collectivités -->
-    <a href="marennes-oleron/" style="display:block;margin-top:.35rem;color:#c9edf5;font-size:.82rem">Marennes-Oléron : réseau cyclable des collectivités →</a>
     <p>Jusqu'où va-t-on à vélo depuis chaque point du territoire, et dans quel confort, d'après OpenStreetMap</p>
     <!-- Lien et crédits en icônes (13/10/2026) : ils tenaient le bas de chaque onglet -->
     <div class="outils">
@@ -634,6 +633,7 @@ document.getElementById("replier").addEventListener("click", e => {
   // n'ont pas de sens ailleurs). Branché avant le chargement, pour rester utilisable si les données manquent.
   $("#zone").value = ZONE;
   $("#zone").addEventListener("change", ev => {
+    if (ev.target.value === "marennes-oleron") { location.href = "marennes-oleron/"; return; }   // copie SIT seulement
     location.href = location.pathname + (ev.target.value === "fr" ? "" : `?zone=${ev.target.value}`);
   });
   let index, contourDep;
