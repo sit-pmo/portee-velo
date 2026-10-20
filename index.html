@@ -8,7 +8,7 @@
 <meta name="donnees" content="https://portee-velo.aurelienchaumet17.workers.dev/">
 <!-- Vitrine sit-pmo (20/10/2026) : les anciens liens ?territoire=oleron|pmo ouvrent la carte Marennes-Oléron
      (réseau des collectivités), désormais dans marennes-oleron/ -->
-<script>if (/[?&]territoire=(oleron|pmo)/.test(location.search)) location.replace("marennes-oleron/" + location.search + location.hash);</script>
+<script>if (/[?&]territoire=(oleron|pmo)(&|$)/.test(location.search)) location.replace("marennes-oleron/" + location.search + location.hash);</script>
 <title>À portée de vélo</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
