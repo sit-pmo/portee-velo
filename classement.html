@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <!-- Base d'URL des données, comme dans index.html : vide = même site -->
 <meta name="donnees" content="https://portee-velo.aurelienchaumet17.workers.dev/">
+<!-- Mesure d'audience GoatCounter (20/10/2026) : code du compte, vide = rien n'est compté (cas de ce site) ;
+     la copie de sit-pmo.github.io/portee-velo y met « portee-velo » -->
+<meta name="goatcounter" content="portee-velo">
 <title>À portée de vélo – Classement des départements</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -114,6 +117,30 @@ ol.classement .chiffre{font-variant-numeric:tabular-nums;font-weight:600}
     </div>
   </div>
 </aside>
+<script>
+// Mesure d'audience : GoatCounter (sans cookie ni donnée personnelle, pas de bandeau de consentement), comme la carte
+// Marennes-Oléron du SIT. Compte lu dans <meta name="goatcounter"> (vide : rien n'est envoyé). Pages vues classées
+// par territoire ; usages comptés comme événements, une fois par visite. Rien depuis les aperçus ni en local.
+const GOATCOUNTER = document.querySelector('meta[name="goatcounter"]')?.content || "";
+const mesureActive = !!GOATCOUNTER && !/\/pr-preview\//.test(location.pathname) && !/^(localhost|127\.|\[::1\]|$)/.test(location.hostname);
+const dejaMesure = new Set(), enAttenteMesure = [];
+function mesurer(nom) {
+  if (!mesureActive || dejaMesure.has(nom)) return;
+  dejaMesure.add(nom);
+  const ev = { path: nom, title: nom, event: true };
+  if (window.goatcounter && window.goatcounter.count) window.goatcounter.count(ev);
+  else enAttenteMesure.push(ev);   // script pas encore chargé : envoyé à son arrivée
+}
+if (mesureActive) {
+  window.goatcounter = { path: () => "/classement" };
+  const s = document.createElement("script");
+  s.async = true;
+  s.dataset.goatcounter = `https://${GOATCOUNTER}.goatcounter.com/count`;
+  s.src = "https://gc.zgo.at/count.js";
+  s.onload = () => { while (enAttenteMesure.length) window.goatcounter.count(enAttenteMesure.shift()); };
+  document.head.appendChild(s);
+}
+</script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
