@@ -4,7 +4,7 @@
 
 👉 **https://sit-pmo.github.io/portee-velo/** : toute la France, DROM compris, d'après OpenStreetMap ([code et méthode](https://github.com/aurelienchaumet/portee-velo-france), données servies depuis Cloudflare).
 
-👉 **https://sit-pmo.github.io/portee-velo/marennes-oleron/** : la Charente-Maritime avec, sur les 14 communes du Pôle Marennes-Oléron, le réseau cyclable des collectivités (CCIO, CCBM). C'est la carte décrite ci-dessous.
+👉 **https://sit-pmo.github.io/portee-velo/marennes-oleron/** : la Charente-Maritime avec, sur les 14 communes du Pôle Marennes-Oléron, le réseau cyclable des collectivités (CCIO, CCBM). C'est la carte décrite ci-dessous. On y passe depuis la carte France par le sélecteur de territoire (« Marennes-Oléron »), et on en revient par « ← Toute la France ».
 
 ## Objectif
 
@@ -84,7 +84,7 @@ Dans l'onglet Confort, deux boutons (combinables) affichent les points où une p
 
 La couleur donne la limitation de vitesse de la route croisée : 30 km/h ou moins, 50, 70, 80, 90 et plus, gris pour un chemin. Une grande pastille marque une piste ou une voie verte, une petite une bande. Pour une bande, la chaussée qui la porte n'est pas comptée, seules les voies qui la coupent le sont. Une piste qui longe une route sans en suivre exactement le tracé (piste des collectivités dessinée à côté d'un chemin OSM) la recoupe en zigzag : ces faux croisements sont écartés (route qui part à moins de 40° de la piste, ou qui reste à moins de 12 m de son tracé), sauf si la piste passe d'un côté à l'autre de la route (à plus de 8 m de chaque côté, 80 m avant et après) : elle la longe puis la traverse en biais. Le contour est plein quand la vitesse vient d'OpenStreetMap (`maxspeed`, `zone:maxspeed`), pointillé quand elle est présumée : 20 km/h en zone de rencontre, 50 km/h en agglomération, 80 km/h hors agglomération, l'agglomération étant devinée à la densité de rues (au moins 800 m de rues à moins de 200 m). Les croisements de même catégorie à moins de 15 m sont fusionnés (le plus rapide est gardé). Un clic sur une pastille donne la route et l'origine de la vitesse. Le bloc compte les croisements du territoire, et ceux à 70 km/h ou plus.
 
-Préparation : `departement17/marquer_rd.py` marque dans les tuiles les arêtes qui portent une RD du Département (milieu à moins de 12 m d'une RD et même direction, à 30° près ; hors du département, routes tertiaires et secondaires d'OpenStreetMap), puis `departement17/intersections.py --parquet <les 3 régions>` lit le graphe dans les tuiles du site et les tags des routes dans les GeoParquet OpenStreetMap, et produit `tuiles/intersections.json` (environ 40 secondes). Les deux sont à relancer après chaque tuilage.
+Préparation : `departement17/marquer_rd.py` marque dans les tuiles les arêtes qui portent une RD du Département (milieu à moins de 12 m d'une RD et même direction, à 30° près ; hors du département, routes tertiaires et secondaires d'OpenStreetMap), puis `departement17/intersections.py --parquet <les 3 régions>` lit le graphe dans les tuiles du site et les tags des routes dans les GeoParquet OpenStreetMap, et produit `marennes-oleron/tuiles/intersections.json` (environ 40 secondes). Les deux sont à relancer après chaque tuilage.
 
 ## 4. Et si on aménageait ici ?
 
@@ -125,7 +125,7 @@ Pour chaque habitant et chaque fonction, trois cas :
 
 L'onglet Services ouvre « Le territoire de la demi-heure » : sur la carte du département, celui de l'intercommunalité (EPCI) où se trouve le départ D, parmi les 13 de la Charente-Maritime ; en vue territoire (`?territoire=oleron` ou `pmo`), celui de l'île ou des 14 communes. Il donne le constat par fonction et par commune, colore les lieux habités sur la carte selon leur cas, et classe les **maillons à aménager** : les routes exposées des trajets les plus rapides des habitants « route seulement », par nombre d'habitants concernés. « Aménager et voir le gain » simule la voie en piste (question 4). Depuis un départ, le bloc « À portée » donne le cas de chaque fonction, et compte habitants et équipements atteints à 15 ou 30 min selon trois mesures : pistes seules, tranquille, tous trajets.
 
-Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `tuiles/accessibilite.json` ; les équipements y sont à leur position exacte (au mètre près), et ceux que l'Insee localise mal (qualité « acceptable » ou « mauvaise ») sont repositionnés par géocodage BAN vérifié (`departement17/corriger_bpe.py` → `corrections_bpe.csv`, option `--corrections`) ; `departement17/diagnostic.js` produit `tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. Pour les EPCI : `departement17/epci_contours.py` (contours des communes + composition des EPCI, `epci17.json`, tirée de `@etalab/decoupage-administratif`) produit `tuiles/epci.json`, et `departement17/diagnostic_epci.js` produit `tuiles/diagnostic_epci_<siren>.json` (environ 1 h 30 de calcul pour les 13 EPCI ; les équipements des EPCI et départements voisins comptent). À relancer après chaque tuilage.
+Préparation : `departement17/comptages.py` (BPE avec son fichier de modalités, Filosofi carroyé, communes) produit `marennes-oleron/tuiles/accessibilite.json` ; les équipements y sont à leur position exacte (au mètre près), et ceux que l'Insee localise mal (qualité « acceptable » ou « mauvaise ») sont repositionnés par géocodage BAN vérifié (`departement17/corriger_bpe.py` → `corrections_bpe.csv`, option `--corrections`) ; `departement17/diagnostic.js` produit `marennes-oleron/tuiles/diagnostic_<territoire>.json`, plus un GeoJSON par cellule habitée pour QGIS. Pour les EPCI : `departement17/epci_contours.py` (contours des communes + composition des EPCI, `epci17.json`, tirée de `@etalab/decoupage-administratif`) produit `marennes-oleron/tuiles/epci.json`, et `departement17/diagnostic_epci.js` produit `marennes-oleron/tuiles/diagnostic_epci_<siren>.json` (environ 1 h 30 de calcul pour les 13 EPCI ; les équipements des EPCI et départements voisins comptent). À relancer après chaque tuilage.
 
 ## Données
 
@@ -149,7 +149,9 @@ Ni vent ni relief. Le territoire est découpé en cellules de 100 m ; pour chaqu
 
 ## Comment
 
-La page est statique : `index.html` (Leaflet et d3, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme), `coeur.js` (le calcul) et le dossier `tuiles/` : le graphe du réseau et la grille, découpés en 380 tuiles d'environ 10 km (22 Mo en tout). La page ne charge que les 5 × 5 tuiles autour du départ. Pas de serveur, pas de base de données : GitHub Pages sert les fichiers.
+La page est statique : `marennes-oleron/index.html` (Leaflet et d3, fond Plan IGN de la Géoplateforme, recherche d'adresses Géoplateforme), `marennes-oleron/coeur.js` (le calcul) et le dossier `marennes-oleron/tuiles/` : le graphe du réseau et la grille, découpés en 380 tuiles d'environ 10 km (22 Mo en tout). La page ne charge que les 5 × 5 tuiles autour du départ. Pas de serveur, pas de base de données : GitHub Pages sert les fichiers.
+
+La carte France, à la racine (`index.html`, `classement.html`, `coeur.js`, `tuiles-worker.js`, `osm-contrib.js`), est une copie de [portee-velo-france](https://github.com/aurelienchaumet/portee-velo-france), dont le README décrit la méthode. Ses tuiles (environ 1 Go, trop pour GitHub Pages) sont servies par Cloudflare Workers (`portee-velo.aurelienchaumet17.workers.dev`), et la page les lit grâce à `<meta name="donnees">`.
 
 Publication : à chaque push sur `main`, un workflow copie les fichiers publiés sur la branche `gh-pages`, que sert GitHub Pages. Chaque pull request a son aperçu, publié sous `https://sit-pmo.github.io/portee-velo/pr-preview/pr-<numéro>/` (lien en commentaire de la PR) et retiré à sa fermeture.
 
@@ -157,12 +159,12 @@ Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB,
 
 ## Mesure d'audience
 
-[GoatCounter](https://www.goatcounter.com/) compte les visites sans cookie ni donnée personnelle (pas de bandeau de consentement). Tableau de bord : https://portee-velo.goatcounter.com.
+Sur la carte Marennes-Oléron (`marennes-oleron/`) seulement, [GoatCounter](https://www.goatcounter.com/) compte les visites sans cookie ni donnée personnelle (pas de bandeau de consentement). Tableau de bord : https://portee-velo.goatcounter.com.
 
 - Pages vues classées par vue : `/departement`, `/oleron`, `/pmo`.
 - Usages comptés une fois par visite, comme événements : `onglet-…`, `depart-sur-carte`, `recherche-adresse`, `simuler-tracer`, `simuler-amenager-voie`, `simuler-import-geojson`, `simuler-export-geojson`, `simuler-vue-gain`, `maillons-ile`, `maillons-ile-amenager`, `croisements-rd`, `croisements-autres-routes`, `diagnostic-territoire`, `diagnostic-amenager`, `partager-lien`, `a-propos`.
 - Rien n'est envoyé depuis les aperçus de PR (`/pr-preview/`) ni en local. Aucun tracé, adresse ni point de départ ne quitte le navigateur.
-- Le code du compte est la constante `GOATCOUNTER` en tête de `index.html`.
+- Le code du compte est la constante `GOATCOUNTER` en tête de `marennes-oleron/index.html`.
 
 ## Sources et licences
 
@@ -174,11 +176,11 @@ Les tuiles sont préparées en amont par le SIT avec des scripts Python (DuckDB,
 - Fond de carte et recherche d'adresses : [Géoplateforme IGN](https://geoservices.ign.fr).
 - Bibliothèques : [Leaflet](https://leafletjs.com), [d3](https://d3js.org).
 
-Les données dérivées d'OpenStreetMap contenues dans `tuiles/` sont diffusées sous ODbL.
+Les données dérivées d'OpenStreetMap contenues dans `marennes-oleron/tuiles/` sont diffusées sous ODbL.
 
 ## Licence
 
-Le code (`index.html`, `coeur.js`) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron et © Aurélien Chaumet. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
+Le code de la carte Marennes-Oléron (`marennes-oleron/index.html`, `marennes-oleron/coeur.js`) est diffusé sous [licence MIT](LICENSE), © PETR Pôle Marennes-Oléron et © Aurélien Chaumet. Le code de la carte France (fichiers à la racine) vient de [portee-velo-france](https://github.com/aurelienchaumet/portee-velo-france), sous licence MIT © Aurélien Chaumet. Les données ne sont pas couvertes par cette licence : voir ci-dessus.
 
 ## Inspiration
 
