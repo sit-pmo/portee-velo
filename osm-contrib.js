@@ -343,7 +343,7 @@ function installerContribOsm(o) {
       boutons(lat, lon, voie, carteTexte));
   }
 
-  bouton.addEventListener("click", () => (insp.actif ? arreter() : commencer()));
+  bouton.addEventListener("click", () => { if (!insp.actif && typeof mesurer === "function") mesurer("verifier-voie-osm"); insp.actif ? arreter() : commencer(); });
   document.addEventListener("keydown", ev => { if (insp.actif && ev.key === "Escape") arreter(); });
   return { get actif() { return insp.actif; }, clic, arreter };
 }
