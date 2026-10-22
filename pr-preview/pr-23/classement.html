@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!-- Base d'URL des données, comme dans index.html : vide = même site -->
+<meta name="donnees" content="https://portee-velo.aurelienchaumet17.workers.dev/">
+<!-- Mesure d'audience GoatCounter (20/10/2026) : code du compte, vide = rien n'est compté (cas de ce site) ;
+     la copie de sit-pmo.github.io/portee-velo y met « portee-velo » -->
+<meta name="goatcounter" content="portee-velo">
+<title>À portée de vélo – Classement des départements</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:wght@400;700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<!-- Classement des 101 départements (phase 4, 16/10/2026) : surface atteinte en 15 min depuis la mairie du
+     chef-lieu (tuiles/classement.json, chaine/scores.js, recalculé à chaque déploiement). Un clic ouvre la carte
+     (index.html) sur ce départ. Remplace à terme la vue France de france.html (anciennes tuiles).
+     17/10/2026 : « Toutes les communes » : médiane par département des scores des ~35 000 communes depuis leur mairie
+     (tuiles/scores/communes.json, chaine/scores_communes.js) ; communes en aplats (tuiles/scores/contours/ : france.json allégé, puis par département à partir du zoom 9). -->
+<style>
+:root{
+  --abysse:#005267;
+  --lagon:#08B8DC;
+  --encre:#13252B;
+  --ardoise:#4F6268;
+  --brume:#E4EDEF;
+  --papier:#FFFFFF;
+  --serif:"Libre Baskerville", Georgia, "Times New Roman", serif;
+  --sans:"Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:var(--sans);color:var(--encre);background:#d5dfe2;font-size:15px;line-height:1.45}
+#carte{position:fixed;inset:0}
+.leaflet-container{font-family:var(--sans);background:#cfdbdf}
+.leaflet-tile-pane{filter:grayscale(1) contrast(.9) brightness(1.07)}
+.leaflet-control-attribution{font-size:11px}
+
+.panneau{position:absolute;z-index:1000;top:16px;left:16px;bottom:16px;width:min(380px,calc(100vw - 32px));
+  background:var(--papier);border-radius:12px;box-shadow:0 12px 32px rgba(0,40,52,.2);display:flex;flex-direction:column;overflow:hidden}
+.entete{padding:20px 22px 16px;background:var(--abysse);color:#fff}
+.entete h1{font-family:var(--serif);font-weight:700;font-size:1.6rem;line-height:1.15;margin:0;letter-spacing:-.01em}
+.entete p{margin:.45rem 0 0;color:#c9edf5;font-size:.9rem}
+.entete a{color:#fff}
+.defile{overflow-y:auto;padding:2px 22px 18px;flex:1}
+.bloc{padding:14px 0;border-bottom:1px solid var(--brume)}
+h2{font-size:.85rem;font-weight:600;color:var(--ardoise);margin:0 0 8px}
+.note{font-size:.83rem;color:var(--ardoise);margin:8px 0 0}
+.modes{display:flex;gap:4px;background:var(--brume);border-radius:10px;padding:4px}
+.modes button{flex:1;border:0;background:transparent;border-radius:7px;padding:8px 6px;font:600 .85rem var(--sans);color:var(--ardoise);cursor:pointer}
+.modes + .modes{margin-top:6px}
+.modes button[aria-pressed="true"]{background:var(--papier);color:var(--encre);box-shadow:0 1px 3px rgba(0,40,52,.18)}
+.legende{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:4px}
+.legende .case{height:12px;border-radius:2px}
+.graduations{display:grid;grid-template-columns:repeat(7,1fr);font-size:.75rem;color:var(--ardoise);font-variant-numeric:tabular-nums}
+.graduations i{font-style:normal;display:block;text-align:right}
+ol.classement{list-style:none;margin:0;padding:0}
+ol.classement button{display:grid;grid-template-columns:2.2em 1fr auto;gap:8px;align-items:baseline;width:100%;border:0;background:transparent;
+  padding:6px 4px;border-radius:6px;font:inherit;color:inherit;text-align:left;cursor:pointer}
+ol.classement button:hover,ol.classement button:focus-visible{background:var(--brume)}
+ol.classement .rang{color:var(--ardoise);font-variant-numeric:tabular-nums;text-align:right}
+ol.classement small{color:var(--ardoise)}
+ol.classement .chiffre{font-variant-numeric:tabular-nums;font-weight:600}
+/* Encarts DROM : petites cartes sans fond, mêmes couleurs que la métropole */
+.encarts{position:absolute;z-index:900;right:16px;bottom:28px;display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;max-width:calc(100vw - 440px)}
+.encart{background:rgba(255,255,255,.92);border-radius:10px;box-shadow:0 4px 14px rgba(0,40,52,.18);padding:6px 8px 4px;cursor:pointer;border:0;font:inherit;color:inherit}
+.encart:hover,.encart:focus-visible{outline:2px solid var(--abysse)}
+.encart svg{display:block;width:96px;height:72px}
+.encart span{display:block;font-size:.72rem;color:var(--ardoise);text-align:center}
+.infobulle{font-size:.85rem}
+#erreur{position:absolute;z-index:2000;top:16px;left:50%;transform:translateX(-50%);background:#fff3cd;padding:10px 14px;border-radius:8px}
+@media (max-width:720px){
+  .panneau{top:auto;left:0;right:0;bottom:0;width:auto;max-height:50vh;border-radius:14px 14px 0 0}
+  .entete{padding:12px 18px 10px}
+  .entete h1{font-size:1.25rem}
+  .defile{padding:0 18px 14px}
+  .encarts{top:10px;bottom:auto;left:10px;right:10px;max-width:none;flex-wrap:nowrap;gap:5px;justify-content:space-between}
+  .encart{flex:1;min-width:0;padding:4px 3px 2px}
+  .encart svg{width:100%;height:38px}
+  .encart span{font-size:.62rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .leaflet-control-zoom{display:none}          /* zoom au pincement ; les encarts prennent le haut de l'écran */
+}
+</style>
+</head>
+<body>
+<div id="carte" role="application" aria-label="Carte des départements colorés selon la surface atteinte à vélo en 15 minutes"></div>
+<div class="encarts" id="encarts" aria-label="Départements d'outre-mer"></div>
+<div id="erreur" hidden></div>
+<aside class="panneau" aria-label="Classement">
+  <header class="entete">
+    <h1>À portée de vélo</h1>
+    <p><span id="chapeau">Surface atteinte à vélo en 15 minutes depuis la mairie du chef-lieu de chaque département.</span> <a href="index.html">Ouvrir la carte</a></p>
+  </header>
+  <div class="defile">
+    <div class="bloc">
+      <div class="modes" role="group" aria-label="Réseau">
+        <button type="button" data-mode="tout" aria-pressed="true">Avec les routes</button>
+        <button type="button" data-mode="amenage" aria-pressed="false">Sans les routes</button>
+      </div>
+      <div class="modes" role="group" aria-label="Départ" id="departs" hidden>
+        <button type="button" data-depart="chef" aria-pressed="true">Chef-lieu</button>
+        <button type="button" data-depart="communes" aria-pressed="false">Toutes les communes</button>
+      </div>
+      <p class="note" id="note-mode"></p>
+    </div>
+    <div class="bloc">
+      <h2>Surface atteinte en 15 min (km²)</h2>
+      <div class="legende" id="legende"></div>
+      <div class="graduations" id="graduations"></div>
+      <p class="note" id="note-clic">Cliquez sur un département pour ouvrir la carte sur la mairie de son chef-lieu.</p>
+    </div>
+    <div class="bloc">
+      <h2 id="titre-classement">Classement</h2>
+      <ol class="classement" id="classement"></ol>
+      <p class="note" id="sources"></p>
+    </div>
+  </div>
+</aside>
+<script>
+// Mesure d'audience : GoatCounter (sans cookie ni donnée personnelle, pas de bandeau de consentement), comme la carte
+// Marennes-Oléron du SIT. Compte lu dans <meta name="goatcounter"> (vide : rien n'est envoyé). Pages vues classées
+// par territoire ; usages comptés comme événements, une fois par visite. Rien depuis les aperçus ni en local.
+const GOATCOUNTER = document.querySelector('meta[name="goatcounter"]')?.content || "";
+const mesureActive = !!GOATCOUNTER && !/\/pr-preview\//.test(location.pathname) && !/^(localhost|127\.|\[::1\]|$)/.test(location.hostname);
+const dejaMesure = new Set(), enAttenteMesure = [];
+function mesurer(nom) {
+  if (!mesureActive || dejaMesure.has(nom)) return;
+  dejaMesure.add(nom);
+  const ev = { path: nom, title: nom, event: true };
+  if (window.goatcounter && window.goatcounter.count) window.goatcounter.count(ev);
+  else enAttenteMesure.push(ev);   // script pas encore chargé : envoyé à son arrivée
+}
+if (mesureActive) {
+  window.goatcounter = { path: () => "/classement" };
+  const s = document.createElement("script");
+  s.async = true;
+  s.dataset.goatcounter = `https://${GOATCOUNTER}.goatcounter.com/count`;
+  s.src = "https://gc.zgo.at/count.js";
+  s.onload = () => { while (enAttenteMesure.length) window.goatcounter.count(enAttenteMesure.shift()); };
+  document.head.appendChild(s);
+}
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(async function () {
+  const $ = s => document.querySelector(s);
+  const BASE_DONNEES = (document.querySelector('meta[name="donnees"]')?.content || "").replace(/([^/])$/, "$1/");
+  const DROM = { "971": "Guadeloupe", "972": "Martinique", "973": "Guyane", "974": "La Réunion", "976": "Mayotte" };
+  const NOTES = {
+    tout: "Pistes, bandes, rues et routes, au temps réel (comme « Avec les routes » sur la carte).",
+    amenage: "Pistes, voies vertes et bandes cyclables seulement, reliées par de courtes liaisons (comme « Sans les routes »).",
+  };
+  const echapper = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const fmtKm2 = v => v.toLocaleString("fr-FR", { maximumFractionDigits: 1 });
+
+  // Données : scores (chaine/scores.js), contours des 96 départements, contours des DROM (un par dossier de tuiles)
+  let classement, departements, contoursDrom;
+  try {
+    const lire = u => fetch(u).then(r => { if (!r.ok) throw new Error(`${u} : ${r.status}`); return r.json(); });
+    [classement, departements, ...contoursDrom] = await Promise.all([BASE_DONNEES + "tuiles/classement.json", BASE_DONNEES + "tuiles/departements.json",
+      ...Object.keys(DROM).map(z => `${BASE_DONNEES}tuiles/${z}/contour.json`)].map(u => lire(u).catch(e => (u.includes("/97") ? null : Promise.reject(e)))));
+  } catch (e) {
+    $("#erreur").hidden = false;
+    $("#erreur").textContent = `Données indisponibles (${e.message}).`;
+    return;
+  }
+  const scores = new Map(classement.departements.map(d => [d.dep, d]));
+  const H = new URLSearchParams(location.hash.slice(1));
+  let mode = H.get("m") === "amenage" ? "amenage" : "tout";
+  // Scores des communes (facultatif : sans le fichier, seul le classement des chefs-lieux est proposé)
+  const communes = await fetch(BASE_DONNEES + "tuiles/scores/communes.json").then(r => (r.ok ? r.json() : null)).catch(() => null);
+  let depart = communes && H.get("d") === "communes" ? "communes" : "chef";
+  const C = communes && communes.communes;
+  const nCommunes = n => `${n.toLocaleString("fr-FR")} commune${n > 1 ? "s" : ""}`;
+  const mediane = v => { const t = [...v].sort((a, b) => a - b), n = t.length; return n ? (n % 2 ? t[(n - 1) / 2] : (t[n / 2 - 1] + t[n / 2]) / 2) : NaN; };
+  // Médiane par département (DROM : code à 3 chiffres), pour chaque réseau
+  const parDep = new Map();
+  if (C) {
+    C.code.forEach((_, i) => { const d = C.dep[i]; (parDep.get(d) || parDep.set(d, []).get(d)).push(i); });
+    for (const [d, idx] of parDep) parDep.set(d, { n: idx.length, tout: mediane(idx.map(i => C.tout[i])), amenage: mediane(idx.map(i => C.amenage[i])),
+      nuls: idx.filter(i => C.amenage[i] === 0).length });
+  }
+  // Valeur affichée d'un département : score du chef-lieu, ou médiane de ses communes
+  const valeur = dep => (depart === "communes" ? parDep.get(dep)?.[mode] : scores.get(dep)?.[mode].km2);
+  $("#departs").hidden = !C;
+
+  // Lien vers la carte, départ à la mairie du chef-lieu
+  const lienCarte = d => `index.html${d.zone && d.zone !== "fr" ? `?zone=${d.zone}` : ""}#q=1&m=${mode}&d=${d.lat.toFixed(5)},${d.lon.toFixed(5)}`;
+  const ouvrir = dep => { const d = scores.get(dep); if (d) location.href = lienCarte(d); };
+
+  // ---------- Carte de la métropole ----------
+  const carte = L.map("carte", { zoomControl: false, minZoom: 5, zoomSnap: 0.25 });
+  L.control.zoom({ position: "topright" }).addTo(carte);
+  L.tileLayer("https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}",
+    { maxZoom: 12, attribution: "Fond © IGN | Réseau © contributeurs OpenStreetMap" }).addTo(carte);
+  const PALETTE = d3.quantize(d3.interpolateRgb("#E4F3F6", "#005267"), 7);
+  let echelle = null;
+  const couche = L.geoJSON(departements, {
+    style: () => ({ color: "#fff", weight: .8, fillOpacity: .85 }),
+    onEachFeature: (f, c) => {
+      c.bindTooltip(() => {
+        const s = scores.get(f.properties.dep);
+        const m = parDep.get(f.properties.dep);
+        const ligne = depart === "communes" && m ? `Médiane de ${nCommunes(m.n)} : ${fmtKm2(m[mode])} km²<br>Chef-lieu, ${echapper(s.commune)} : ${fmtKm2(s[mode].km2)} km²`
+          : `${echapper(s.commune)} : ${fmtKm2(s[mode].km2)} km² en 15 min`;
+        return s ? `<div class="infobulle"><strong>${echapper(f.properties.nom)} (${f.properties.dep})</strong><br>${ligne}</div>` : "";
+      }, { sticky: true });
+      c.on("click", () => ouvrir(f.properties.dep));
+    },
+  }).addTo(carte);
+  const etroit = () => window.matchMedia("(max-width:720px)").matches;
+  carte.fitBounds(couche.getBounds(), etroit() ? { paddingBottomRight: [0, window.innerHeight * .5] } : { paddingTopLeft: [400, 20], paddingBottomRight: [20, 110] });
+
+  // ---------- Encarts DROM (d3, sans fond de carte) ----------
+  const encarts = Object.keys(DROM).map((z, i) => {
+    const c = contoursDrom[i];
+    if (!c || !scores.has(z)) return null;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "encart";
+    const s = scores.get(z);
+    b.title = `${DROM[z]} – ${s.commune} : ${fmtKm2(s[mode].km2)} km² en 15 min`;
+    const svg = d3.select(b).append("svg").attr("viewBox", "0 0 96 72");
+    const proj = d3.geoMercator().fitExtent([[3, 3], [93, 69]], c.geometrie);
+    const chemin = svg.append("path").attr("d", d3.geoPath(proj)(c.geometrie)).attr("stroke", "#fff").attr("stroke-width", .6);
+    d3.select(b).append("span").text(DROM[z]);
+    b.addEventListener("click", () => ouvrir(z));
+    $("#encarts").append(b);
+    return { z, b, chemin };
+  }).filter(Boolean);
+
+  // ---------- Communes en aplats (mode « Toutes les communes ») ----------
+  // Vue d'ensemble : toutes les communes d'un fichier allégé (tuiles/scores/contours/france.json, ~400 m) ; à partir du
+  // zoom 9, contours détaillés par département (<dep>.json, ~50 m), lus seulement pour les départements visibles.
+  // Couleur = score de la commune, même échelle que la légende ; limites des départements tracées par-dessus.
+  const ZOOM_DETAIL = 9, rendu = L.canvas({ padding: 0.3 }), aplats = L.layerGroup(), detail = L.layerGroup();
+  const limites = L.geoJSON(departements, { interactive: false, style: { color: "#fff", weight: 1.6, opacity: .9, fill: false } });
+  const zoneDe = code => (/^97[1-46]/.test(code) ? code.slice(0, 3) : "fr");
+  const indice = C ? new Map(C.code.map((c, i) => [c, i])) : new Map();
+  let national = null, contoursIndex, contoursLus = new Map();
+  const styleCommune = f => { const i = indice.get(f.properties.c);
+    return { fillColor: i >= 0 ? echelle(C[mode][i]) : "#ccc", fillOpacity: .9, color: "#fff", weight: .3, opacity: .7 }; };
+  // Vue d'ensemble sans trait entre communes : à cette échelle, 35 000 liserés blancs délavaient la carte
+  const styleNational = f => ({ ...styleCommune(f), stroke: false });
+  const surCommune = (f, c) => {
+    const i = indice.get(f.properties.c);
+    if (!(i >= 0)) return;
+    c.bindTooltip(() => `<div class="infobulle"><strong>${echapper(C.nom[i])}</strong><br>${fmtKm2(C[mode][i])} km² en 15 min depuis la mairie</div>`, { sticky: true });
+    c.on("click", () => { const z = zoneDe(C.code[i]); location.href = `index.html${z !== "fr" ? `?zone=${z}` : ""}#q=1&m=${mode}&d=${C.lat[i].toFixed(5)},${C.lon[i].toFixed(5)}`; });
+  };
+  const lire = u => fetch(u).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  async function majPoints() {
+    const voir = depart === "communes" && C;
+    if (!voir) { aplats.remove(); limites.remove(); couche.addTo(carte); return; }
+    couche.remove(); aplats.addTo(carte); limites.addTo(carte);
+    const fin = carte.getZoom() >= ZOOM_DETAIL;
+    if (!fin) {
+      detail.remove();
+      if (national === null) {                 // une seule lecture ; false si le fichier manque
+        national = "en cours";
+        $("#note-clic").textContent = "Chargement des 35 000 communes…";
+        const G = await lire(BASE_DONNEES + "tuiles/scores/contours/france.json");
+        national = G ? L.geoJSON(G, { renderer: rendu, style: styleNational, onEachFeature: surCommune }) : false;
+        majModes();
+        return;
+      }
+      if (national && national !== "en cours") national.addTo(aplats);
+      return;
+    }
+    if (national && national !== "en cours") national.remove();
+    detail.addTo(aplats);
+    if (contoursIndex === undefined) contoursIndex = await lire(BASE_DONNEES + "tuiles/scores/contours/index.json");
+    if (!contoursIndex) return;
+    const b = carte.getBounds();
+    for (const [dep, [w, sud, e, n]] of Object.entries(contoursIndex)) {
+      if (contoursLus.has(dep) || e < b.getWest() || w > b.getEast() || n < b.getSouth() || sud > b.getNorth()) continue;
+      contoursLus.set(dep, null);
+      lire(`${BASE_DONNEES}tuiles/scores/contours/${dep}.json`).then(G => {
+        if (G) contoursLus.set(dep, L.geoJSON(G, { renderer: rendu, style: styleCommune, onEachFeature: surCommune }).addTo(detail));
+      });
+    }
+  }
+  const recolorer = () => { contoursLus.forEach(l => l && l.setStyle(styleCommune)); if (national && national !== "en cours") national.setStyle(styleNational); };
+  carte.on("zoomend moveend", majPoints);
+
+  function majModes() {
+    document.querySelectorAll("[data-mode]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mode === mode)));
+    document.querySelectorAll("[data-depart]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.depart === depart)));
+    const parCommunes = depart === "communes";
+    $("#note-mode").textContent = NOTES[mode] + (parCommunes ? " Valeur d'un département : médiane des scores de ses communes, chacune depuis sa mairie (geo.api.gouv.fr)." : "");
+    $("#chapeau").textContent = parCommunes ? "Surface atteinte à vélo en 15 minutes depuis la mairie de chaque commune ; départements classés par leur médiane."
+      : "Surface atteinte à vélo en 15 minutes depuis la mairie du chef-lieu de chaque département.";
+    $("#note-clic").textContent = parCommunes ? `Chaque commune est colorée selon la surface atteinte depuis sa mairie ; zoomez pour des contours plus précis. Un clic ouvre la carte depuis la mairie.`
+      : "Cliquez sur un département pour ouvrir la carte sur la mairie de son chef-lieu.";
+    // Échelle : quantiles des départements (chefs-lieux), ou de toutes les communes (mêmes couleurs pour les points)
+    const v = parCommunes ? C[mode] : classement.departements.map(d => d[mode].km2);
+    echelle = d3.scaleQuantile(v, PALETTE);
+    couche.setStyle(f => ({ fillColor: valeur(f.properties.dep) >= 0 ? echelle(valeur(f.properties.dep)) : "#ccc" }));
+    for (const e of encarts) {
+      const s = scores.get(e.z), m = parDep.get(e.z);
+      e.chemin.attr("fill", valeur(e.z) >= 0 ? echelle(valeur(e.z)) : "#ccc");
+      e.b.title = parCommunes && m ? `${DROM[e.z]} – médiane de ${nCommunes(m.n)} : ${fmtKm2(m[mode])} km²`
+        : `${DROM[e.z]} – ${s.commune} : ${fmtKm2(s[mode].km2)} km² en 15 min`;
+    }
+    recolorer(); majPoints();
+    $("#legende").innerHTML = PALETTE.map(c => `<span class="case" style="background:${c}"></span>`).join("");
+    const bornes = [...echelle.quantiles(), d3.max(v)];
+    $("#graduations").innerHTML = bornes.map(b => `<span><i>${fmtKm2(Math.round(b))}</i></span>`).join("");
+    const tries = classement.departements.filter(d => valeur(d.dep) >= 0).sort((a, b) => valeur(b.dep) - valeur(a.dep));
+    $("#titre-classement").textContent = `Classement des ${tries.length} départements`;
+    $("#classement").innerHTML = tries.map((d, i) => {
+      const lib = parCommunes ? `${echapper(d.departement)} <small>(${nCommunes(parDep.get(d.dep).n)})</small>` : `${echapper(d.commune)} <small>(${echapper(d.departement)})</small>`;
+      return `<li><button type="button" data-dep="${d.dep}"><span class="rang">${i + 1}</span><span>${lib}</span><span class="chiffre">${fmtKm2(valeur(d.dep))} km²</span></button></li>`;
+    }).join("");
+    const h = [mode === "amenage" ? "m=amenage" : "", parCommunes ? "d=communes" : ""].filter(Boolean).join("&");
+    history.replaceState(null, "", h ? `#${h}` : location.pathname);
+  }
+  document.querySelectorAll("[data-mode]").forEach(b => b.addEventListener("click", () => { mode = b.dataset.mode; majModes(); }));
+  document.querySelectorAll("[data-depart]").forEach(b => b.addEventListener("click", () => { depart = b.dataset.depart; majModes(); }));
+  $("#classement").addEventListener("click", ev => { const b = ev.target.closest("[data-dep]"); if (b) ouvrir(b.dataset.dep); });
+  $("#sources").textContent = `Départ : mairie du chef-lieu (en Guadeloupe, Les Abymes, commune la plus peuplée, et non Basse-Terre). `
+    + `Réseau OpenStreetMap, tuiles du ${String(classement.tuiles || "").slice(0, 10).split("-").reverse().join("/")} ; calcul du ${classement.genere.slice(0, 10).split("-").reverse().join("/")}.`;
+  majModes();
+})();
+</script>
+</body>
+</html>
