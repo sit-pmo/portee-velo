@@ -1,0 +1,204 @@
+# Tuilage sur GitHub Actions (spec §5 : calcul lourd sur Actions, serveur de Marennes en secours).
+# Déclenché par un push qui modifie chaine/a_tuiler.json, ou à la main (une fois sur main). Déploie ensuite
+# sur Cloudflare (deployer.yml).
+# Un job par tuilage (matrice lue dans a_tuiler.json), puis un job qui recopie les tuiles et les pousse en
+# commit sur la branche (le push avec GITHUB_TOKEN ne relance pas de workflow).
+name: Tuilage
+
+on:
+  push:
+    # Branches publiées seulement : un push sur une branche de travail (par exemple la fusion de france-entiere
+    # qui y apporte ce fichier) relançait le calcul, republiait les releases et déployait cette branche en ligne
+    branches: [france-entiere, main]
+    paths:
+      - chaine/a_tuiler.json     # seul déclencheur : modifier le workflow ne relance pas les tuilages
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tuilage-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrice: ${{ steps.lire.outputs.matrice }}
+      comparaisons: ${{ steps.lire.outputs.comparaisons }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: lire
+        run: |
+          echo "matrice=$(jq -c '.tuilages' chaine/a_tuiler.json)" >> "$GITHUB_OUTPUT"
+          echo "comparaisons=$(jq -c '.comparaisons // []' chaine/a_tuiler.json)" >> "$GITHUB_OUTPUT"
+
+  tuiler:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        t: ${{ fromJson(needs.plan.outputs.matrice) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: chaine/requirements.txt
+      - run: pip install -r chaine/requirements.txt
+      # Polygones terrestres OSM (~800 Mo) : gardés en cache d'une semaine à l'autre
+      - id: semaine
+        run: echo "n=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: chaine/cache/land-polygons-split-4326.zip
+          key: terre-${{ steps.semaine.outputs.n }}
+          restore-keys: terre-
+      - name: Polygones terrestres
+        run: |
+          mkdir -p chaine/cache/regions
+          [ -f chaine/cache/land-polygons-split-4326.zip ] || curl -sSfL --retry 4 -o chaine/cache/land-polygons-split-4326.zip \
+            https://osmdata.openstreetmap.de/download/land-polygons-split-4326.zip
+      - name: Extraits Geofabrik → GeoParquet
+        working-directory: chaine
+        run: |
+          for r in $(echo '${{ toJson(matrix.t.regions) }}' | jq -r '.[]'); do
+            curl -sSfL --retry 4 -o cache/regions/$r.osm.pbf https://download.geofabrik.de/europe/france/$r-latest.osm.pbf
+            python -I -X utf8 extraire.py cache/regions/$r.osm.pbf cache/regions/$r.parquet --ram-go 8
+            rm cache/regions/$r.osm.pbf
+          done
+      - name: Tuilage
+        working-directory: chaine
+        env:
+          T: ${{ toJson(matrix.t) }}
+        run: |
+          rm -rf "../$(jq -r .sortie <<< "$T")"
+          # Emprise : un département et sa marge (contour, nom, départ), un contour GeoJSON, ou des boîtes
+          # lon_min,lat_min,lon_max,lat_max
+          if [ "$(jq -r '.departement // empty' <<< "$T")" ]; then
+            zone=(--departement "$(jq -r .departement <<< "$T")" --marge-km "$(jq -r .marge_km <<< "$T")")
+          elif [ "$(jq -r '.contour // empty' <<< "$T")" ]; then
+            # Métropole : tuiles qui touchent les contours des départements (chemin relatif à chaine/)
+            zone=(--contour "$(jq -r .contour <<< "$T")" --marge-km "$(jq -r .marge_km <<< "$T")")
+          else
+            zone=(); for e in $(jq -r '.emprises[]' <<< "$T"); do zone+=("--emprise=$e"); done   # « = » : sinon « -5.15,… » est pris pour une option
+          fi
+          # /usr/bin/time -v : mémoire maximale, pour extrapoler à la métropole (phase 4)
+          # Bandes de N lignes de tuiles (métropole, phase 4 : mémoire d'une bande au lieu de la France entière)
+          /usr/bin/time -v -o ../mesure.txt python -I -X utf8 tuiler.py --grille "$(jq -r .grille <<< "$T")" \
+            --parquet 'cache/regions/*.parquet' "${zone[@]}" --sortie "../$(jq -r .sortie <<< "$T")" \
+            --bande-lignes "$(jq -r '.bande_lignes // 0' <<< "$T")"
+          grep -E "Maximum resident|Elapsed" ../mesure.txt
+          echo "RAM max : $(awk '/Maximum resident/ {printf "%.1f Go", $NF / 1048576}' ../mesure.txt), durée : $(awk -F': ' '/Elapsed/ {print $2}' ../mesure.txt), $(find "../$(jq -r .sortie <<< "$T")" -name '*.bin' | wc -l) tuiles, $(du -sh "../$(jq -r .sortie <<< "$T")" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+      # Croisements réseau cyclable × routes par blocs de tuiles (croisements.py, phase 5) : crx/ dans les tuiles
+      - name: Croisements
+        if: ${{ matrix.t.croisements }}
+        continue-on-error: true            # sans croisements, les tuiles restent publiables
+        working-directory: chaine
+        run: python -I -X utf8 croisements.py --tuiles "../${{ matrix.t.sortie }}" --parquet 'cache/regions/*.parquet'
+      # Équipements (BPE 2025, Insee, France entière) et habitants (Filosofi 2021 carroyé 200 m, métropole seule)
+      # par blocs de tuiles (comptages_blocs.py, phase 6) : acces/ dans les tuiles. Sources : sondage du 16/10/2026.
+      - name: Équipements et habitants
+        if: ${{ matrix.t.acces }}
+        continue-on-error: true
+        working-directory: chaine
+        run: |
+          mkdir -p cache/insee
+          curl -sSfL --retry 4 -o cache/insee/BPE25.parquet https://www.insee.fr/fr/statistiques/fichier/8217525/BPE25.parquet
+          curl -sSfL --retry 4 -o cache/insee/BPE25_varmod.csv https://www.insee.fr/fr/metadonnees/source/fichier/BPE25_anonymisee_varmod.csv
+          fil=()
+          if [ "${{ matrix.t.grille }}" = fr ]; then
+            curl -sSfL --retry 4 -o cache/insee/filosofi2021.parquet \
+              https://static.data.gouv.fr/resources/revenus-pauvrete-et-niveau-de-vie-donnees-carroyees-dispositif-fichier-localise-social-et-fiscal-filosofi/20260309-120901/carreaux-200m-met-3035-2021.parquet
+            fil=(--filosofi cache/insee/filosofi2021.parquet --millesime-filosofi 2021)
+          fi
+          # Martinique et Réunion : Filosofi 2019 seulement (zip Insee → 7z → carreaux_200m_<mart|reun>.csv, carreaux
+          # en EPSG 5490 / 2975, lus d'après leur identifiant). Guadeloupe, Guyane, Mayotte : pas de carroyage.
+          drom=$(case "${{ matrix.t.grille }}" in 972) echo mart;; 974) echo reun;; esac)
+          if [ -n "$drom" ]; then
+            curl -sSfL --retry 4 -o cache/insee/filosofi2019.zip \
+              https://www.insee.fr/fr/statistiques/fichier/7655475/Filosofi2019_carreaux_200m_csv.zip
+            (cd cache/insee && unzip -oq filosofi2019.zip && 7z x -y Filosofi2019_carreaux_200m_csv.7z "carreaux_200m_$drom.csv" >/dev/null)
+            fil=(--filosofi "cache/insee/carreaux_200m_$drom.csv" --millesime-filosofi 2019)
+          fi
+          /usr/bin/time -v -o ../mesure-acces.txt python -I -X utf8 comptages_blocs.py --tuiles "../${{ matrix.t.sortie }}" \
+            --bpe cache/insee/BPE25.parquet --millesime-bpe 2025 "${fil[@]}"
+          grep -E "Maximum resident|Elapsed" ../mesure-acces.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tuiles-${{ matrix.t.nom }}
+          path: ${{ matrix.t.sortie }}
+          retention-days: 7
+
+  # Comparaisons de deux tuilages d'une même zone (a_tuiler.json → comparaisons : [nom A, nom B, "lon,lat"…])
+  comparer:
+    needs: [plan, tuiler]
+    if: ${{ !cancelled() && needs.plan.outputs.comparaisons != '[]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+      - name: Comparer
+        working-directory: chaine
+        run: |
+          code=0
+          while read -r ligne; do
+            a=$(jq -r '.[0]' <<< "$ligne"); b=$(jq -r '.[1]' <<< "$ligne")
+            node --max-old-space-size=12000 test/comparer_tuilages.js "../artefacts/tuiles-$a" "../artefacts/tuiles-$b" \
+              $(jq -r '.[2:][]' <<< "$ligne") || code=1
+          done < <(echo '${{ needs.plan.outputs.comparaisons }}' | jq -c '.[]')
+          exit $code
+
+  pousser:
+    needs: [plan, tuiler]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}   # les tuilages réussis passent même si un autre échoue
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artefacts
+      # Tuilages "publication": "release" (métropole, ~400 Mo) : hors de l'historique git, dans la release
+      # tuiles-<nom> (un fichier tar, remplacé à chaque tuilage) ; deployer.yml l'y reprend
+      - name: Tuiles → releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for t in $(echo '${{ needs.plan.outputs.matrice }}' | jq -r '.[] | select(.essai != true and .publication == "release") | .nom'); do
+            [ -d "artefacts/tuiles-$t" ] || { echo "::warning::tuilage $t absent (échec ?)"; continue; }
+            tar -cf "tuiles-$t.tar" -C "artefacts/tuiles-$t" .
+            gh release view "tuiles-$t" > /dev/null 2>&1 || gh release create "tuiles-$t" --target "$GITHUB_REF_NAME" \
+              --title "Tuiles $t" --notes "Tuiles du territoire $t, produites par tuiler.yml ; déployées par deployer.yml."
+            gh release upload "tuiles-$t" "tuiles-$t.tar" --clobber
+            echo "Release tuiles-$t : $(du -h "tuiles-$t.tar" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+            rm -rf "artefacts/tuiles-$t" "tuiles-$t.tar"
+          done
+      - name: Tuiles → dépôt
+        run: |
+          # Les essais ("essai": true) ne reviennent pas dans le dépôt : mesures seulement
+          for t in $(echo '${{ needs.plan.outputs.matrice }}' | jq -r '.[] | select(.essai != true and .publication != "release") | "\(.nom)=\(.sortie)"'); do
+            nom=${t%%=*}; sortie=${t#*=}
+            [ -d "artefacts/tuiles-$nom" ] || { echo "::warning::tuilage $nom absent (échec ?)"; continue; }
+            rm -rf "$sortie" && mkdir -p "$sortie" && cp -r "artefacts/tuiles-$nom/." "$sortie/"
+          done
+          rm -rf artefacts
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A tuiles
+          git diff --cached --quiet && { echo "Aucune tuile modifiée"; exit 0; }
+          git commit -m "Tuiles recalculées par GitHub Actions ($(jq -r '[.tuilages[].nom] | join(", ")' chaine/a_tuiler.json))"
+          for i in 1 2 3 4; do git pull --rebase origin "$GITHUB_REF_NAME" && git push origin "HEAD:$GITHUB_REF_NAME" && exit 0; sleep $((2 ** i)); done
+          exit 1
+
+  # Les tuiles poussées par le bot ne déclenchent pas deployer.yml : on l'appelle ici
+  deployer:
+    needs: pousser
+    if: ${{ !cancelled() && needs.pousser.result == 'success' }}
+    uses: ./.github/workflows/deployer.yml
+    secrets: inherit

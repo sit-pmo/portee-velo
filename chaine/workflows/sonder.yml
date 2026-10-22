@@ -1,0 +1,13 @@
+# Sondage des sources de données (phase 6) : lancé à la main, résultats dans les logs.
+name: Sondage
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - deploiement/sonder.sh
+jobs:
+  sonder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./deploiement/sonder.sh

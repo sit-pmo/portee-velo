@@ -1,0 +1,13 @@
+// Cloudflare Workers, ressources statiques seules (spec §4, offre gratuite sans carte bancaire) :
+// pas de script, pas de R2. dist/ est construit par deploiement/construire.sh.
+// Déploiement : .github/workflows/deployer.yml (wrangler deploy, jeton d'API en secret).
+{
+  "name": "portee-velo",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist"
+  },
+  "workers_dev": true,
+  // Aperçus des branches de travail (apercu.yml) : <branche>-portee-velo.<compte>.workers.dev
+  "preview_urls": true
+}

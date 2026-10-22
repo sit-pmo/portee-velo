@@ -1,0 +1,4 @@
+{
+ "_note": "Scores des ~35 000 communes (chaine/scores_communes.js) à recalculer par GitHub Actions (.github/workflows/scores_communes.yml) : modifier ce fichier et pousser sur france-entiere relance le calcul. parts : nombre de jobs parallèles. Résultat : release diag-scores (communes.json), placée dans tuiles/scores/ par deployer.yml, lue par classement.html. 17/10 : premier calcul ; relancé sans les collectivités du Pacifique et des TAAF (codes 98x, calculées à tort sur les tuiles de métropole). Puis contours des communes pour les aplats du classement, et france.json allégé pour la vue d'ensemble.",
+ "parts": 6
+}

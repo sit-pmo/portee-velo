@@ -1,0 +1,133 @@
+# Scores des ~35 000 communes (17/10/2026) : surface atteinte à vélo en 15 min depuis chaque mairie, avec et sans les
+# routes (chaine/scores_communes.js, même calcul que scores.js et la page). Mairies : geo.api.gouv.fr.
+# Déclenché par un push qui modifie chaine/a_scores_communes.json sur une branche publiée, ou à la main.
+# Résultat : release diag-scores (communes.json, contours/ des communes par département), que deployer.yml place dans
+# tuiles/scores/ (classement.html).
+name: Scores des communes
+
+on:
+  push:
+    branches: [france-entiere, main]
+    paths:
+      - chaine/a_scores_communes.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: scores-communes-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      parts: ${{ steps.lire.outputs.parts }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: lire
+        run: |
+          echo "parts=$(jq -c '[range(.parts) as $i | {part: $i, parts: .parts}]' chaine/a_scores_communes.json)" >> "$GITHUB_OUTPUT"
+      - name: Mairies (geo.api.gouv.fr)
+        run: |
+          mkdir -p geo
+          curl -sSf --retry 4 --max-time 300 -o geo/communes_mairies.json \
+            "https://geo.api.gouv.fr/communes?fields=code,nom,codeDepartement,population,mairie"
+          jq 'length' geo/communes_mairies.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mairies
+          path: geo/communes_mairies.json
+          retention-days: 2
+
+  calculer:
+    needs: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        p: ${{ fromJson(needs.plan.outputs.parts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tuiles de la métropole (release)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download tuiles-fr -p tuiles-fr.tar -O /tmp/t.tar
+          rm -rf tuiles/fr && mkdir -p tuiles/fr && tar -xf /tmp/t.tar -C tuiles/fr
+      - uses: actions/download-artifact@v4
+        with:
+          name: mairies
+          path: chaine/cache/geo
+      - name: Calcul (part ${{ matrix.p.part }} sur ${{ matrix.p.parts }})
+        working-directory: chaine
+        run: |
+          /usr/bin/time -v -o ../mesure.txt node --max-old-space-size=8000 scores_communes.js calculer \
+            --communes cache/geo/communes_mairies.json --tuiles ../tuiles --part "${{ matrix.p.part }}/${{ matrix.p.parts }}"
+          grep -E "Maximum resident|Elapsed" ../mesure.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scores-${{ matrix.p.part }}
+          path: chaine/cache/scores/part_${{ matrix.p.part }}.json
+          retention-days: 2
+
+  assembler:
+    needs: [plan, calculer]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/download-artifact@v4
+        with:
+          name: mairies
+          path: chaine/cache/geo
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: scores-*
+          path: chaine/cache/scores
+          merge-multiple: true
+      - name: Assemblage
+        working-directory: chaine
+        run: |
+          parts=$(ls cache/scores/part_*.json | wc -l)
+          attendu=$(jq '.parts' a_scores_communes.json)
+          [ "$parts" = "$attendu" ] || { echo "::error::$parts parts sur $attendu (calcul échoué ?)"; exit 1; }
+          node scores_communes.js assembler --communes cache/geo/communes_mairies.json --sortie /tmp/scores
+          ls -l /tmp/scores
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Contours des communes (aplats du classement)
+        working-directory: chaine
+        run: |
+          pip install shapely==2.2.0
+          api=https://geo.api.gouv.fr
+          mkdir -p cache/geo/contours
+          for d in $(curl -sSf --retry 4 "$api/departements?fields=code" | jq -r '.[].code' | grep -Ev '^97[578]'); do
+            curl -sSf --retry 4 -o "cache/geo/contours/communes_$d.geojson" \
+              "$api/communes?codeDepartement=$d&fields=code&format=geojson&geometry=contour"
+          done
+          python -I -X utf8 contours_communes.py --communes 'cache/geo/contours/communes_*.geojson' --sortie /tmp/scores/contours
+          du -sh /tmp/scores/contours; ls -S -l /tmp/scores/contours | head -3
+      - name: Release diag-scores
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tar -cf diag-scores.tar -C /tmp/scores .
+          gh release view diag-scores > /dev/null 2>&1 || gh release create diag-scores --target "$GITHUB_REF_NAME" \
+            --title "Scores des communes" --notes "Scores des communes, produits par scores_communes.yml ; déployés par deployer.yml dans tuiles/scores/."
+          gh release upload diag-scores diag-scores.tar --clobber
+
+  deployer:
+    needs: assembler
+    if: ${{ !cancelled() && needs.assembler.result == 'success' }}
+    uses: ./.github/workflows/deployer.yml
+    secrets: inherit

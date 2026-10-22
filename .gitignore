@@ -24,3 +24,16 @@
 # Animations de démonstration, affichées dans le README sur GitHub (non copiées sur le site)
 !demo/
 !demo/*.gif
+# Chaîne de préparation des données (scripts seulement : jamais les couches CCIO/CCBM, ni les caches)
+!build_graph_velo.py
+!consolider_reseau.py
+!osm_hors_cdc.py
+!wrangler.jsonc
+!deploiement/
+!deploiement/*
+!chaine/
+!chaine/*
+!chaine/workflows/
+!chaine/workflows/*.yml
+!chaine-charente-maritime/
+!chaine-charente-maritime/*

@@ -1,0 +1,8 @@
+{
+ "_note": "Diagnostics par EPCI à (re)calculer par GitHub Actions (.github/workflows/diagnostiquer.yml) : modifier ce fichier et pousser relance le calcul. Territoires avec habitants seulement (Filosofi) : métropole, Martinique, Réunion. parts : nombre de jobs parallèles du calcul. Résultat : release diag-<zone> (diagnostic_epci_<code>.json, epci.json), ajoutée aux tuiles par deployer.yml.",
+ "zones": [
+  {"zone": "fr", "parts": 6},
+  {"zone": "972", "parts": 1},
+  {"zone": "974", "parts": 1}
+ ]
+}
