@@ -1,8 +1,8 @@
-# À portée de vélo — Charente-Maritime : symbologie et analyse (dossier de travail)
+# À portée de vélo — Charente-Maritime : chaîne de préparation
 
 Dossier de travail sur la représentation du **confort** des trajets à vélo, à partir des tuiles OSM de la Charente-Maritime (et 25 km autour) : temps de trajet réels, part des trajets faite sur aménagement cyclable, maillons manquants.
 
-La version **France entière** (choroplèthe des 96 chefs-lieux, scores, site publié) est en pause dans un dossier à part : `D:/Documents/Projets/ia/perso/portee-velo-france`, publiée sur https://aurelienchaumet.github.io/portee-velo-france/. Ce dossier-ci n'est relié à aucun dépôt distant.
+Ces scripts produisent les tuiles de la carte https://sit-pmo.github.io/portee-velo/marennes-oleron/ (dossier `../marennes-oleron/tuiles`), avec le réseau des collectivités (`../reseau_cyclable.geojson`, `consolider_reseau.py`) sur les 14 communes du Pôle Marennes-Oléron. La chaîne de la carte France est dans `../chaine/`.
 
 La méthode (chaîne PBF → tuiles, format, calcul dans le navigateur) est décrite dans le README de la version France ; elle n'a pas changé.
 
@@ -14,7 +14,7 @@ Classes des tuiles : 0 piste, 1 bande, 2 rues et voies de service, 3 secondaire,
 
 - Par défaut (option A) : exposé = tertiaire, très exposé = secondaire et principale ; rues, voies communales et chemins = calmes.
 
-Tester : `python -m http.server 8765` puis http://localhost:8765/
+Tester la page : depuis la racine du dépôt, `python -m http.server 8765` puis http://localhost:8765/marennes-oleron/
 
 ## Licence
 
