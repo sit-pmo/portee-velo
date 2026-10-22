@@ -29,7 +29,7 @@ ID_PONT = 5013034      # pont de l'Île d'Oléron, traité à part par build_gra
 
 def main():
     couche, epci, sortie = sys.argv[1:4]
-    dossier = Path(__file__).resolve().parent
+    dossier = Path(__file__).resolve().parents[2]   # cache/ local à la racine du dépôt
     vers_l93 = Transformer.from_crs(4326, 2154, always_xy=True)
     l93 = lambda g: shapely.transform(g, lambda xy: np.column_stack(vers_l93.transform(xy[:, 0], xy[:, 1])))
 

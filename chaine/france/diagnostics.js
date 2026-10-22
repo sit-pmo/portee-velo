@@ -24,7 +24,7 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
-const C = require("../coeur.js");
+const C = require("../../coeur.js");
 
 const BLOC = 4;
 const MODES = ["tout", "amenage", "confort"];

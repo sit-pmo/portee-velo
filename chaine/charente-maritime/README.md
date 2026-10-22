@@ -2,7 +2,7 @@
 
 Dossier de travail sur la représentation du **confort** des trajets à vélo, à partir des tuiles OSM de la Charente-Maritime (et 25 km autour) : temps de trajet réels, part des trajets faite sur aménagement cyclable, maillons manquants.
 
-Ces scripts produisent les tuiles de la carte https://sit-pmo.github.io/portee-velo/marennes-oleron/ (dossier `../marennes-oleron/tuiles`), avec le réseau des collectivités (`../reseau_cyclable.geojson`, `../consolider_reseau.py`) sur les 14 communes du Pôle Marennes-Oléron. La chaîne de la carte France est dans `../chaine/`.
+Ces scripts produisent les tuiles de la carte https://sit-pmo.github.io/portee-velo/marennes-oleron/ (dossier `../../marennes-oleron/tuiles`), avec le réseau des collectivités (`../../reseau_cyclable.geojson`, `../marennes-oleron/consolider_reseau.py`) sur les 14 communes du Pôle Marennes-Oléron. La chaîne de la carte France est dans `../france/`.
 
 La méthode (chaîne PBF → tuiles, format, calcul dans le navigateur) est décrite dans le README de la version France ; elle n'a pas changé.
 

@@ -15,8 +15,8 @@ Règle d'une arête (voies 2 à 7 hors chemins ; pistes, bandes et chemins jamai
 Les identifiants de nœuds et d'arêtes ne changent pas : maillons, diagnostics et croisements restent valides.
 À relancer après chaque tuilage (avant intersections.py).
 
-Usage (depuis departement17/) :
-  .venv/Scripts/python.exe -I -X utf8 marquer_rd.py [--tuiles ../marennes-oleron/tuiles] [--rd cache/geosir-routes.geojson]
+Usage (depuis chaine/charente-maritime/) :
+  .venv/Scripts/python.exe -I -X utf8 marquer_rd.py [--tuiles ../../marennes-oleron/tuiles] [--rd cache/geosir-routes.geojson]
 """
 import argparse
 import gzip
@@ -104,7 +104,7 @@ def dezz(u):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--tuiles", default=str(ICI.parent / "marennes-oleron" / "tuiles"))
+    ap.add_argument("--tuiles", default=str(ICI.parents[1] / "marennes-oleron" / "tuiles"))
     ap.add_argument("--rd", default=str(ICI / "cache" / "geosir-routes.geojson"))
     args = ap.parse_args()
     t0 = time.time()

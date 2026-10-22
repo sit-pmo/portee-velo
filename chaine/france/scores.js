@@ -9,7 +9,7 @@
 //   → <dossier>/classement.json (lancé par deployer.yml après la récupération des tuiles)
 const fs = require("fs");
 const path = require("path");
-const C = require("../coeur.js");
+const C = require("../../coeur.js");
 
 const DOSSIER = process.argv[2] || path.join(__dirname, "..", "tuiles");
 const MINUTES = 15;

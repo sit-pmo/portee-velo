@@ -18,7 +18,7 @@ Méthode :
   6. croisements d'une même catégorie à moins de FUSION_M fusionnés (route à chaussées séparées, raccords des
      collectivités) : on garde le plus rapide.
 
-Usage (depuis departement17/) :
+Usage (depuis chaine/charente-maritime/) :
   .venv/Scripts/python.exe -I -X utf8 intersections.py --parquet cache/tmp/zones.parquet
   (sans --parquet : vitesses toutes présumées et RD devinées par la classe, pour essai)
 """
@@ -289,7 +289,7 @@ def vitesse_osm(t):
 # ---------------------------------------------------------------- principal
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    ap.add_argument("--tuiles", default=str(ICI.parent / "marennes-oleron" / "tuiles"), help="dossier des tuiles du site (défaut ../marennes-oleron/tuiles)")
+    ap.add_argument("--tuiles", default=str(ICI.parents[1] / "marennes-oleron" / "tuiles"), help="dossier des tuiles du site (défaut ../../marennes-oleron/tuiles)")
     ap.add_argument("--parquet", action="append", default=[], help="GeoParquet OSM (extraire.py, ou cache/tmp/zones.parquet)")
     ap.add_argument("--sortie", help="fichier de sortie (défaut <tuiles>/intersections.json)")
     ap.add_argument("--rd", default=str(ICI / "cache" / "geosir-routes.geojson"), help="RD du Département (numéros)")

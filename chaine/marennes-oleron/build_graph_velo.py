@@ -543,7 +543,7 @@ class UnionFind:
 # Programme principal
 # --------------------------------------------------------------------------
 def main():
-    dossier = Path(__file__).resolve().parent
+    dossier = Path(__file__).resolve().parents[2]   # données locales (non publiées) à la racine du dépôt
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cache", help="dossier de cache des téléchargements (contour + OSM)")
     ap.add_argument("--pas", type=float, default=PAS_GRILLE_M, help="pas de la grille en mètres (défaut 100)")
