@@ -11,7 +11,7 @@
 "use strict";
 const fs = require("fs");
 const path = require("path");
-const C = require("../coeur.js");
+const C = require("../../coeur.js");
 
 const MINUTES = 15;
 const RAYON_TUILES = 1;                   // 15 min à 20 km/h = 5 km (+ 2 km d'accès au plus) : sous la marge de 10 km

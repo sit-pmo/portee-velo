@@ -5,11 +5,11 @@ Produit tuiles/accessibilite.json, lu par index.html : pour chaque départ, la p
 les cellules atteintes à 15 et 30 min (même grille de 100 m que les temps).
 
 Exemple :
-    python comptages.py --tuiles ../marennes-oleron/tuiles \
+    python comptages.py --tuiles ../../marennes-oleron/tuiles \
         --bpe BPE24.zip \
         --filosofi Filosofi2019_carreaux_200m_gpkg.zip \
         --points "Emplacements de camping=campings.csv:emplacements" \
-        --sortie ../marennes-oleron/tuiles/accessibilite.json
+        --sortie ../../marennes-oleron/tuiles/accessibilite.json
 
 Entrées acceptées
 - BPE : le zip téléchargé sur insee.fr (fichier « ensemble géolocalisé » + son fichier de modalités varmod),

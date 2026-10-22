@@ -19,7 +19,7 @@ Sortie : reseau_cyclable.geojson (EPSG:2154), une LineString par entité, champs
   origine     ccio / ccbm / osm
   nom, id_source
 
-Usage : python consolider_reseau.py   (fichiers lus et écrits dans le dossier du script)
+Usage : python consolider_reseau.py   (fichiers lus et écrits à la racine du dépôt)
 """
 
 import json
@@ -71,7 +71,7 @@ def entite(geom, **props):
 
 
 def main():
-    dossier = Path(__file__).resolve().parent
+    dossier = Path(__file__).resolve().parents[2]   # couches des collectivités (non publiées) à la racine du dépôt
     sortie = []
 
     # Collectivités : font foi (même nomenclature pcy_* pour la CCIO et la CCBM)

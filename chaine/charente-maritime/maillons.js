@@ -1,11 +1,11 @@
 // maillons.js : classement des maillons manquants d'un territoire (D4, 12/10/2026).
 // Départs sur une grille régulière (sans pondération), traits noirs de chaque départ (règle de la page), cumulés par
 // voie entre carrefours. Seule la fenêtre fixe du territoire est chargée (RAM du poste).
-// Usage (depuis departement17/) :
-//   node maillons.js --territoire oleron --pas 250 --comparer 500 --sortie ../marennes-oleron/tuiles/maillons_oleron.json
+// Usage (depuis chaine/charente-maritime/) :
+//   node maillons.js --territoire oleron --pas 250 --comparer 500 --sortie ../../marennes-oleron/tuiles/maillons_oleron.json
 const fs = require("fs");
 const path = require("path");
-const C = require("../marennes-oleron/coeur.js");
+const C = require("../../marennes-oleron/coeur.js");
 
 const arg = (nom, defaut) => { const i = process.argv.indexOf(`--${nom}`); return i > 0 ? process.argv[i + 1] : defaut; };
 const TERRITOIRE = arg("territoire", "oleron"), PAS = Number(arg("pas", 250)), COMPARER = arg("comparer", null);
