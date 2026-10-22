@@ -1,0 +1,962 @@
+[
+ {
+  "dep": "01",
+  "departement": "Ain",
+  "code": "01053",
+  "commune": "Bourg-en-Bresse",
+  "lon": 5.22503,
+  "lat": 46.205176,
+  "choix": "hôtel de ville : Hôtel de ville de Bourg-en-Bresse",
+  "candidats": 1
+ },
+ {
+  "dep": "02",
+  "departement": "Aisne",
+  "code": "02408",
+  "commune": "Laon",
+  "lon": 3.620616,
+  "lat": 49.565055,
+  "choix": "hôtel de ville : Hôtel de ville de Laon",
+  "candidats": 1
+ },
+ {
+  "dep": "03",
+  "departement": "Allier",
+  "code": "03190",
+  "commune": "Moulins",
+  "lon": 3.333366,
+  "lat": 46.566172,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "04",
+  "departement": "Alpes-de-Haute-Provence",
+  "code": "04070",
+  "commune": "Digne-les-Bains",
+  "lon": 6.235341,
+  "lat": 44.093491,
+  "choix": "hôtel de ville : Hôtel de ville de Digne-les-Bains",
+  "candidats": 3
+ },
+ {
+  "dep": "05",
+  "departement": "Hautes-Alpes",
+  "code": "05061",
+  "commune": "Gap",
+  "lon": 6.079445,
+  "lat": 44.558765,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 5
+ },
+ {
+  "dep": "06",
+  "departement": "Alpes-Maritimes",
+  "code": "06088",
+  "commune": "Nice",
+  "lon": 7.271482,
+  "lat": 43.696086,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 11
+ },
+ {
+  "dep": "07",
+  "departement": "Ardèche",
+  "code": "07186",
+  "commune": "Privas",
+  "lon": 4.599136,
+  "lat": 44.735216,
+  "choix": "hôtel de ville : Hôtel de Ville Privas",
+  "candidats": 1
+ },
+ {
+  "dep": "08",
+  "departement": "Ardennes",
+  "code": "08105",
+  "commune": "Charleville-Mézières",
+  "lon": 4.719443,
+  "lat": 49.760172,
+  "choix": "hôtel de ville : Hôtel de Ville de Mézières",
+  "candidats": 4
+ },
+ {
+  "dep": "09",
+  "departement": "Ariège",
+  "code": "09122",
+  "commune": "Foix",
+  "lon": 1.605361,
+  "lat": 42.964062,
+  "choix": "hôtel de ville : Hôtel de ville de Foix",
+  "candidats": 1
+ },
+ {
+  "dep": "10",
+  "departement": "Aube",
+  "code": "10387",
+  "commune": "Troyes",
+  "lon": 4.074041,
+  "lat": 48.297609,
+  "choix": "hôtel de ville : Hôtel de ville de Troyes",
+  "candidats": 6
+ },
+ {
+  "dep": "11",
+  "departement": "Aude",
+  "code": "11069",
+  "commune": "Carcassonne",
+  "lon": 2.353018,
+  "lat": 43.211961,
+  "choix": "townhall:type=city : Mairie de Carcassonne",
+  "candidats": 2
+ },
+ {
+  "dep": "12",
+  "departement": "Aveyron",
+  "code": "12202",
+  "commune": "Rodez",
+  "lon": 2.576027,
+  "lat": 44.34942,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "13",
+  "departement": "Bouches-du-Rhône",
+  "code": "13055",
+  "commune": "Marseille",
+  "lon": 5.369847,
+  "lat": 43.296508,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 21
+ },
+ {
+  "dep": "14",
+  "departement": "Calvados",
+  "code": "14118",
+  "commune": "Caen",
+  "lon": -0.373141,
+  "lat": 49.181119,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 2
+ },
+ {
+  "dep": "15",
+  "departement": "Cantal",
+  "code": "15014",
+  "commune": "Aurillac",
+  "lon": 2.445471,
+  "lat": 44.929963,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "16",
+  "departement": "Charente",
+  "code": "16015",
+  "commune": "Angoulême",
+  "lon": 0.156184,
+  "lat": 45.648457,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 1
+ },
+ {
+  "dep": "17",
+  "departement": "Charente-Maritime",
+  "code": "17300",
+  "commune": "La Rochelle",
+  "lon": -1.151302,
+  "lat": 46.159504,
+  "choix": "hôtel de ville : Hôtel de ville de La Rochelle",
+  "candidats": 5
+ },
+ {
+  "dep": "18",
+  "departement": "Cher",
+  "code": "18033",
+  "commune": "Bourges",
+  "lon": 2.398936,
+  "lat": 47.080564,
+  "choix": "hôtel de ville : Hôtel de ville de Bourges",
+  "candidats": 4
+ },
+ {
+  "dep": "19",
+  "departement": "Corrèze",
+  "code": "19272",
+  "commune": "Tulle",
+  "lon": 1.771622,
+  "lat": 45.265711,
+  "choix": "mairie : Mairie de Tulle",
+  "candidats": 1
+ },
+ {
+  "dep": "21",
+  "departement": "Côte-d'Or",
+  "code": "21231",
+  "commune": "Dijon",
+  "lon": 5.041057,
+  "lat": 47.321905,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 6
+ },
+ {
+  "dep": "22",
+  "departement": "Côtes-d'Armor",
+  "code": "22278",
+  "commune": "Saint-Brieuc",
+  "lon": -2.76411,
+  "lat": 48.513712,
+  "choix": "mairie : Mairie de Saint-Brieuc",
+  "candidats": 1
+ },
+ {
+  "dep": "23",
+  "departement": "Creuse",
+  "code": "23096",
+  "commune": "Guéret",
+  "lon": 1.87158,
+  "lat": 46.169383,
+  "choix": "mairie : Mairie de Guéret",
+  "candidats": 1
+ },
+ {
+  "dep": "24",
+  "departement": "Dordogne",
+  "code": "24322",
+  "commune": "Périgueux",
+  "lon": 0.715671,
+  "lat": 45.18382,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "25",
+  "departement": "Doubs",
+  "code": "25056",
+  "commune": "Besançon",
+  "lon": 6.021777,
+  "lat": 47.236062,
+  "choix": "plus grand (aucun nom clair) : sans nom",
+  "candidats": 1
+ },
+ {
+  "dep": "26",
+  "departement": "Drôme",
+  "code": "26362",
+  "commune": "Valence",
+  "lon": 4.892116,
+  "lat": 44.933272,
+  "choix": "hôtel de ville : Hôtel de ville de Valence",
+  "candidats": 4
+ },
+ {
+  "dep": "27",
+  "departement": "Eure",
+  "code": "27229",
+  "commune": "Évreux",
+  "lon": 1.151514,
+  "lat": 49.027028,
+  "choix": "mairie : Mairie d'Évreux",
+  "candidats": 1
+ },
+ {
+  "dep": "28",
+  "departement": "Eure-et-Loir",
+  "code": "28085",
+  "commune": "Chartres",
+  "lon": 1.511232,
+  "lat": 48.448029,
+  "choix": "à vérifier : aucune mairie OSM, point intérieur de la commune",
+  "candidats": 0
+ },
+ {
+  "dep": "29",
+  "departement": "Finistère",
+  "code": "29232",
+  "commune": "Quimper",
+  "lon": -4.102034,
+  "lat": 47.996208,
+  "choix": "hôtel de ville : Hôtel de ville et de communauté",
+  "candidats": 4
+ },
+ {
+  "dep": "2A",
+  "departement": "Corse-du-Sud",
+  "code": "2A004",
+  "commune": "Ajaccio",
+  "lon": 8.739127,
+  "lat": 41.919351,
+  "choix": "hôtel de ville : Hôtel de ville d’Ajaccio",
+  "candidats": 4
+ },
+ {
+  "dep": "2B",
+  "departement": "Haute-Corse",
+  "code": "2B033",
+  "commune": "Bastia",
+  "lon": 9.451911,
+  "lat": 42.702299,
+  "choix": "mairie : Mairie de Bastia",
+  "candidats": 3
+ },
+ {
+  "dep": "30",
+  "departement": "Gard",
+  "code": "30189",
+  "commune": "Nîmes",
+  "lon": 4.360286,
+  "lat": 43.836715,
+  "choix": "hôtel de ville : Hôtel de Ville de Nîmes",
+  "candidats": 2
+ },
+ {
+  "dep": "31",
+  "departement": "Haute-Garonne",
+  "code": "31555",
+  "commune": "Toulouse",
+  "lon": 1.44405,
+  "lat": 43.604438,
+  "choix": "hôtel de ville : Hôtel de Ville Toulouse",
+  "candidats": 11
+ },
+ {
+  "dep": "32",
+  "departement": "Gers",
+  "code": "32013",
+  "commune": "Auch",
+  "lon": 0.583086,
+  "lat": 43.646888,
+  "choix": "mairie : Mairie d'Auch",
+  "candidats": 1
+ },
+ {
+  "dep": "33",
+  "departement": "Gironde",
+  "code": "33063",
+  "commune": "Bordeaux",
+  "lon": -0.579466,
+  "lat": 44.838001,
+  "choix": "plus grand (aucun nom clair) : Palais Rohan",
+  "candidats": 11
+ },
+ {
+  "dep": "34",
+  "departement": "Hérault",
+  "code": "34172",
+  "commune": "Montpellier",
+  "lon": 3.896853,
+  "lat": 43.598493,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 8
+ },
+ {
+  "dep": "35",
+  "departement": "Ille-et-Vilaine",
+  "code": "35238",
+  "commune": "Rennes",
+  "lon": -1.680029,
+  "lat": 48.111352,
+  "choix": "hôtel de ville : Hôtel-de-Ville de Rennes",
+  "candidats": 3
+ },
+ {
+  "dep": "36",
+  "departement": "Indre",
+  "code": "36044",
+  "commune": "Châteauroux",
+  "lon": 1.691375,
+  "lat": 46.811195,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 2
+ },
+ {
+  "dep": "37",
+  "departement": "Indre-et-Loire",
+  "code": "37261",
+  "commune": "Tours",
+  "lon": 0.689321,
+  "lat": 47.390616,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 5
+ },
+ {
+  "dep": "38",
+  "departement": "Isère",
+  "code": "38185",
+  "commune": "Grenoble",
+  "lon": 5.736447,
+  "lat": 45.186429,
+  "choix": "hôtel de ville : Hôtel de ville de Grenoble",
+  "candidats": 3
+ },
+ {
+  "dep": "39",
+  "departement": "Jura",
+  "code": "39300",
+  "commune": "Lons-le-Saunier",
+  "lon": 5.558799,
+  "lat": 46.671779,
+  "choix": "mairie : Mairie de Lons-le-Saunier",
+  "candidats": 1
+ },
+ {
+  "dep": "40",
+  "departement": "Landes",
+  "code": "40192",
+  "commune": "Mont-de-Marsan",
+  "lon": -0.500933,
+  "lat": 43.890822,
+  "choix": "hôtel de ville : Hôtel de Ville de Mont-de-Marsan",
+  "candidats": 1
+ },
+ {
+  "dep": "41",
+  "departement": "Loir-et-Cher",
+  "code": "41018",
+  "commune": "Blois",
+  "lon": 1.337126,
+  "lat": 47.588588,
+  "choix": "hôtel de ville : Hôtel de ville de Blois",
+  "candidats": 1
+ },
+ {
+  "dep": "42",
+  "departement": "Loire",
+  "code": "42218",
+  "commune": "Saint-Étienne",
+  "lon": 4.387288,
+  "lat": 45.44018,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 8
+ },
+ {
+  "dep": "43",
+  "departement": "Haute-Loire",
+  "code": "43157",
+  "commune": "Le Puy-en-Velay",
+  "lon": 3.88334,
+  "lat": 45.0431,
+  "choix": "mairie : Mairie du Puy-En-Velay",
+  "candidats": 1
+ },
+ {
+  "dep": "44",
+  "departement": "Loire-Atlantique",
+  "code": "44109",
+  "commune": "Nantes",
+  "lon": -1.554521,
+  "lat": 47.218388,
+  "choix": "hôtel de ville : Hôtel de ville de Nantes",
+  "candidats": 13
+ },
+ {
+  "dep": "45",
+  "departement": "Loiret",
+  "code": "45234",
+  "commune": "Orléans",
+  "lon": 1.908029,
+  "lat": 47.902639,
+  "choix": "hôtel de ville : Hôtel Groslot, actuellement Hôtel de ville pour la célébration des mariages",
+  "candidats": 8
+ },
+ {
+  "dep": "46",
+  "departement": "Lot",
+  "code": "46042",
+  "commune": "Cahors",
+  "lon": 1.441131,
+  "lat": 44.446832,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 1
+ },
+ {
+  "dep": "47",
+  "departement": "Lot-et-Garonne",
+  "code": "47001",
+  "commune": "Agen",
+  "lon": 0.61636,
+  "lat": 44.203079,
+  "choix": "hôtel de ville : Hôtel de ville d'Agen",
+  "candidats": 1
+ },
+ {
+  "dep": "48",
+  "departement": "Lozère",
+  "code": "48095",
+  "commune": "Mende",
+  "lon": 3.501638,
+  "lat": 44.517646,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "49",
+  "departement": "Maine-et-Loire",
+  "code": "49007",
+  "commune": "Angers",
+  "lon": -0.548046,
+  "lat": 47.471287,
+  "choix": "mairie : Mairie d'Angers",
+  "candidats": 5
+ },
+ {
+  "dep": "50",
+  "departement": "Manche",
+  "code": "50502",
+  "commune": "Saint-Lô",
+  "lon": -1.090928,
+  "lat": 49.116093,
+  "choix": "mairie : Mairie de Saint-Lô",
+  "candidats": 1
+ },
+ {
+  "dep": "51",
+  "departement": "Marne",
+  "code": "51108",
+  "commune": "Châlons-en-Champagne",
+  "lon": 4.362818,
+  "lat": 48.956696,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 2
+ },
+ {
+  "dep": "52",
+  "departement": "Haute-Marne",
+  "code": "52121",
+  "commune": "Chaumont",
+  "lon": 5.139518,
+  "lat": 48.110913,
+  "choix": "plus grand (aucun nom clair) : sans nom",
+  "candidats": 1
+ },
+ {
+  "dep": "53",
+  "departement": "Mayenne",
+  "code": "53130",
+  "commune": "Laval",
+  "lon": -0.773733,
+  "lat": 48.070637,
+  "choix": "hôtel de ville : Hôtel de ville de Laval",
+  "candidats": 2
+ },
+ {
+  "dep": "54",
+  "departement": "Meurthe-et-Moselle",
+  "code": "54395",
+  "commune": "Nancy",
+  "lon": 6.183701,
+  "lat": 48.692933,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 5
+ },
+ {
+  "dep": "55",
+  "departement": "Meuse",
+  "code": "55029",
+  "commune": "Bar-le-Duc",
+  "lon": 5.162446,
+  "lat": 48.771144,
+  "choix": "mairie : Mairie de Bar-le-Duc",
+  "candidats": 1
+ },
+ {
+  "dep": "56",
+  "departement": "Morbihan",
+  "code": "56260",
+  "commune": "Vannes",
+  "lon": -2.760928,
+  "lat": 47.658373,
+  "choix": "mairie : Mairie de Vannes",
+  "candidats": 1
+ },
+ {
+  "dep": "57",
+  "departement": "Moselle",
+  "code": "57463",
+  "commune": "Metz",
+  "lon": 6.176651,
+  "lat": 49.119678,
+  "choix": "hôtel de ville : Hôtel de ville de Metz",
+  "candidats": 12
+ },
+ {
+  "dep": "58",
+  "departement": "Nièvre",
+  "code": "58194",
+  "commune": "Nevers",
+  "lon": 3.157604,
+  "lat": 46.987883,
+  "choix": "mairie : Mairie de Nevers",
+  "candidats": 1
+ },
+ {
+  "dep": "59",
+  "departement": "Nord",
+  "code": "59350",
+  "commune": "Lille",
+  "lon": 3.071056,
+  "lat": 50.630453,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 13
+ },
+ {
+  "dep": "60",
+  "departement": "Oise",
+  "code": "60057",
+  "commune": "Beauvais",
+  "lon": 2.081811,
+  "lat": 49.429584,
+  "choix": "hôtel de ville : Hôtel de ville de Beauvais",
+  "candidats": 1
+ },
+ {
+  "dep": "61",
+  "departement": "Orne",
+  "code": "61001",
+  "commune": "Alençon",
+  "lon": 0.082049,
+  "lat": 48.430148,
+  "choix": "mairie : Mairie d'Alençon",
+  "candidats": 1
+ },
+ {
+  "dep": "62",
+  "departement": "Pas-de-Calais",
+  "code": "62041",
+  "commune": "Arras",
+  "lon": 2.776983,
+  "lat": 50.291175,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 2
+ },
+ {
+  "dep": "63",
+  "departement": "Puy-de-Dôme",
+  "code": "63113",
+  "commune": "Clermont-Ferrand",
+  "lon": 3.086495,
+  "lat": 45.779717,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 3
+ },
+ {
+  "dep": "64",
+  "departement": "Pyrénées-Atlantiques",
+  "code": "64445",
+  "commune": "Pau",
+  "lon": -0.370798,
+  "lat": 43.294603,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "65",
+  "departement": "Hautes-Pyrénées",
+  "code": "65440",
+  "commune": "Tarbes",
+  "lon": 0.078099,
+  "lat": 43.233075,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 2
+ },
+ {
+  "dep": "66",
+  "departement": "Pyrénées-Orientales",
+  "code": "66136",
+  "commune": "Perpignan",
+  "lon": 2.89466,
+  "lat": 42.699401,
+  "choix": "hôtel de ville : Hôtel de Ville de Perpignan",
+  "candidats": 11
+ },
+ {
+  "dep": "67",
+  "departement": "Bas-Rhin",
+  "code": "67482",
+  "commune": "Strasbourg",
+  "lon": 7.750638,
+  "lat": 48.584678,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 13
+ },
+ {
+  "dep": "68",
+  "departement": "Haut-Rhin",
+  "code": "68066",
+  "commune": "Colmar",
+  "lon": 7.358312,
+  "lat": 48.07933,
+  "choix": "hôtel de ville : Hôtel de Ville de Colmar",
+  "candidats": 2
+ },
+ {
+  "dep": "69",
+  "departement": "Rhône",
+  "code": "69123",
+  "commune": "Lyon",
+  "lon": 4.835063,
+  "lat": 45.767638,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 11
+ },
+ {
+  "dep": "70",
+  "departement": "Haute-Saône",
+  "code": "70550",
+  "commune": "Vesoul",
+  "lon": 6.154279,
+  "lat": 47.619779,
+  "choix": "mairie : Mairie de Vesoul",
+  "candidats": 1
+ },
+ {
+  "dep": "71",
+  "departement": "Saône-et-Loire",
+  "code": "71270",
+  "commune": "Mâcon",
+  "lon": 4.832591,
+  "lat": 46.303293,
+  "choix": "mairie : Mairie de Mâcon",
+  "candidats": 5
+ },
+ {
+  "dep": "72",
+  "departement": "Sarthe",
+  "code": "72181",
+  "commune": "Le Mans",
+  "lon": 0.19735,
+  "lat": 48.00749,
+  "choix": "mairie : Mairie du Mans",
+  "candidats": 2
+ },
+ {
+  "dep": "73",
+  "departement": "Savoie",
+  "code": "73065",
+  "commune": "Chambéry",
+  "lon": 5.920676,
+  "lat": 45.566468,
+  "choix": "hôtel de ville : Hôtel de ville de Chambéry",
+  "candidats": 7
+ },
+ {
+  "dep": "74",
+  "departement": "Haute-Savoie",
+  "code": "74010",
+  "commune": "Annecy",
+  "lon": 6.092022,
+  "lat": 45.915644,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 6
+ },
+ {
+  "dep": "75",
+  "departement": "Paris",
+  "code": "75056",
+  "commune": "Paris",
+  "lon": 2.35256,
+  "lat": 48.856435,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 19
+ },
+ {
+  "dep": "76",
+  "departement": "Seine-Maritime",
+  "code": "76540",
+  "commune": "Rouen",
+  "lon": 1.100046,
+  "lat": 49.4434,
+  "choix": "hôtel de ville : Hôtel de ville de Rouen",
+  "candidats": 3
+ },
+ {
+  "dep": "77",
+  "departement": "Seine-et-Marne",
+  "code": "77288",
+  "commune": "Melun",
+  "lon": 2.660799,
+  "lat": 48.53986,
+  "choix": "hôtel de ville : Hôtel de ville de Melun",
+  "candidats": 2
+ },
+ {
+  "dep": "78",
+  "departement": "Yvelines",
+  "code": "78646",
+  "commune": "Versailles",
+  "lon": 2.130072,
+  "lat": 48.801222,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "79",
+  "departement": "Deux-Sèvres",
+  "code": "79191",
+  "commune": "Niort",
+  "lon": -0.464804,
+  "lat": 46.323724,
+  "choix": "mairie : Mairie de Niort",
+  "candidats": 7
+ },
+ {
+  "dep": "80",
+  "departement": "Somme",
+  "code": "80021",
+  "commune": "Amiens",
+  "lon": 2.295722,
+  "lat": 49.894139,
+  "choix": "hôtel de ville : Hôtel de Ville d'Amiens",
+  "candidats": 7
+ },
+ {
+  "dep": "81",
+  "departement": "Tarn",
+  "code": "81004",
+  "commune": "Albi",
+  "lon": 2.146404,
+  "lat": 43.927293,
+  "choix": "mairie : Mairie d'Albi",
+  "candidats": 1
+ },
+ {
+  "dep": "82",
+  "departement": "Tarn-et-Garonne",
+  "code": "82121",
+  "commune": "Montauban",
+  "lon": 1.352618,
+  "lat": 44.01621,
+  "choix": "hôtel de ville : Hôtel de ville de Montauban",
+  "candidats": 1
+ },
+ {
+  "dep": "83",
+  "departement": "Var",
+  "code": "83137",
+  "commune": "Toulon",
+  "lon": 5.932522,
+  "lat": 43.120332,
+  "choix": "mairie : Mairie de Toulon",
+  "candidats": 10
+ },
+ {
+  "dep": "84",
+  "departement": "Vaucluse",
+  "code": "84007",
+  "commune": "Avignon",
+  "lon": 4.805363,
+  "lat": 43.949299,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 11
+ },
+ {
+  "dep": "85",
+  "departement": "Vendée",
+  "code": "85191",
+  "commune": "La Roche-sur-Yon",
+  "lon": -1.428579,
+  "lat": 46.670273,
+  "choix": "hôtel de ville : Hôtel de ville de la Roche-sur-Yon",
+  "candidats": 6
+ },
+ {
+  "dep": "86",
+  "departement": "Vienne",
+  "code": "86194",
+  "commune": "Poitiers",
+  "lon": 0.341022,
+  "lat": 46.580147,
+  "choix": "mairie : Mairie de Poitiers",
+  "candidats": 7
+ },
+ {
+  "dep": "87",
+  "departement": "Haute-Vienne",
+  "code": "87085",
+  "commune": "Limoges",
+  "lon": 1.260514,
+  "lat": 45.826335,
+  "choix": "mairie : Mairie de Limoges",
+  "candidats": 9
+ },
+ {
+  "dep": "88",
+  "departement": "Vosges",
+  "code": "88160",
+  "commune": "Épinal",
+  "lon": 6.454647,
+  "lat": 48.147147,
+  "choix": "plus grand (aucun nom clair) : sans nom",
+  "candidats": 2
+ },
+ {
+  "dep": "89",
+  "departement": "Yonne",
+  "code": "89024",
+  "commune": "Auxerre",
+  "lon": 3.570581,
+  "lat": 47.795742,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 8
+ },
+ {
+  "dep": "90",
+  "departement": "Territoire de Belfort",
+  "code": "90010",
+  "commune": "Belfort",
+  "lon": 6.862846,
+  "lat": 47.637768,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 1
+ },
+ {
+  "dep": "91",
+  "departement": "Essonne",
+  "code": "91228",
+  "commune": "Évry-Courcouronnes",
+  "lon": 2.429489,
+  "lat": 48.623799,
+  "choix": "hôtel de ville : Hôtel de Ville d’Évry-Courcouronnes",
+  "candidats": 7
+ },
+ {
+  "dep": "92",
+  "departement": "Hauts-de-Seine",
+  "code": "92050",
+  "commune": "Nanterre",
+  "lon": 2.207169,
+  "lat": 48.892003,
+  "choix": "hôtel de ville : Hôtel de ville",
+  "candidats": 6
+ },
+ {
+  "dep": "93",
+  "departement": "Seine-Saint-Denis",
+  "code": "93008",
+  "commune": "Bobigny",
+  "lon": 2.445028,
+  "lat": 48.90609,
+  "choix": "hôtel de ville : Hôtel de Ville de Bobigny",
+  "candidats": 4
+ },
+ {
+  "dep": "94",
+  "departement": "Val-de-Marne",
+  "code": "94028",
+  "commune": "Créteil",
+  "lon": 2.45313,
+  "lat": 48.777822,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 5
+ },
+ {
+  "dep": "95",
+  "departement": "Val-d'Oise",
+  "code": "95500",
+  "commune": "Pontoise",
+  "lon": 2.100783,
+  "lat": 49.050896,
+  "choix": "hôtel de ville : Hôtel de Ville",
+  "candidats": 2
+ }
+]

@@ -1,0 +1,9 @@
+# Chaîne de tuilage (extraire.py, tuiler.py, chefs_lieux.py) ; versions vérifiées le 16/10/2026
+duckdb==1.5.6
+quackosm==0.19.0
+numpy==2.5.3
+scipy==1.18.1
+shapely==2.2.0
+pyproj==3.8.0
+pyogrio==0.13.0
+psutil==7.2.2

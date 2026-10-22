@@ -1,0 +1,5 @@
+# En-têtes des ressources statiques (Cloudflare Workers). Les tuiles sont lisibles depuis un autre site
+# (base d'URL configurable : <meta name="donnees"> dans index.html), par exemple la vitrine GitHub Pages.
+/tuiles/*
+  Access-Control-Allow-Origin: *
+  Cache-Control: public, max-age=3600

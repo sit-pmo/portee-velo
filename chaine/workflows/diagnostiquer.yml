@@ -1,0 +1,180 @@
+# Diagnostics « territoire de la demi-heure » par EPCI (phase 6, 17/10/2026) : chaine/communes_epci.py puis
+# chaine/diagnostics.js (calcul par blocs de tuiles, en parts parallèles, puis assemblage par EPCI).
+# Déclenché par un push qui modifie chaine/a_diagnostiquer.json, ou à la main. Les tuiles (et leurs blocs acces/,
+# habitants et équipements) sont celles publiées : release tuiles-<zone> (métropole) ou dépôt (DROM).
+# Résultat : release diag-<zone> (diagnostic_epci_<code>.json, epci.json), que deployer.yml ajoute aux tuiles.
+name: Diagnostics
+
+on:
+  push:
+    # Branches publiées seulement : un push sur une branche de travail (par exemple la fusion de france-entiere
+    # qui y apporte ce fichier) relançait le calcul, republiait les releases et déployait cette branche en ligne
+    branches: [france-entiere, main]
+    paths:
+      - chaine/a_diagnostiquer.json
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: diagnostics-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      zones: ${{ steps.lire.outputs.zones }}
+      parts: ${{ steps.lire.outputs.parts }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: lire
+        run: |
+          echo "zones=$(jq -c '[.zones[].zone]' chaine/a_diagnostiquer.json)" >> "$GITHUB_OUTPUT"
+          echo "parts=$(jq -c '[.zones[] as $z | range($z.parts) | {zone: $z.zone, part: ., parts: $z.parts}]' chaine/a_diagnostiquer.json)" >> "$GITHUB_OUTPUT"
+
+  # Communes et EPCI (geo.api.gouv.fr) → commune de chaque cellule habitée, contours des EPCI
+  communes:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        zone: ${{ fromJson(needs.plan.outputs.zones) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -r chaine/requirements.txt
+      - name: Tuiles publiées
+        env:
+          GH_TOKEN: ${{ github.token }}
+          Z: ${{ matrix.zone }}
+        run: |
+          if gh release view "tuiles-$Z" > /dev/null 2>&1; then
+            gh release download "tuiles-$Z" -p "tuiles-$Z.tar" -O /tmp/t.tar
+            rm -rf "tuiles/$Z" && mkdir -p "tuiles/$Z" && tar -xf /tmp/t.tar -C "tuiles/$Z"
+          fi
+          ls "tuiles/$Z/acces/index.json"
+      - name: geo.api.gouv.fr
+        working-directory: chaine
+        env:
+          Z: ${{ matrix.zone }}
+        run: |
+          api=https://geo.api.gouv.fr
+          mkdir -p cache/geo
+          curl -sSf --retry 4 "$api/epcis?fields=code,nom" -o cache/geo/epcis.json
+          if [ "$Z" = fr ]; then deps=$(curl -sSf --retry 4 "$api/departements?fields=code" | jq -r '.[].code' | grep -v '^97'); else deps=$Z; fi
+          for d in $deps; do
+            curl -sSf --retry 4 -o "cache/geo/communes_$d.geojson" \
+              "$api/communes?codeDepartement=$d&fields=code,nom,codeEpci&format=geojson&geometry=contour"
+          done
+          ls cache/geo | wc -l; du -sh cache/geo
+      - name: Communes des cellules, contours des EPCI
+        working-directory: chaine
+        run: |
+          python -I -X utf8 communes_epci.py --tuiles "../tuiles/${{ matrix.zone }}" --communes 'cache/geo/communes_*.geojson' \
+            --epci cache/geo/epcis.json --sortie "cache/diag/${{ matrix.zone }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: communes-${{ matrix.zone }}
+          path: chaine/cache/diag/${{ matrix.zone }}
+          retention-days: 2
+
+  calculer:
+    needs: [plan, communes]
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        p: ${{ fromJson(needs.plan.outputs.parts) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Tuiles publiées
+        env:
+          GH_TOKEN: ${{ github.token }}
+          Z: ${{ matrix.p.zone }}
+        run: |
+          if gh release view "tuiles-$Z" > /dev/null 2>&1; then
+            gh release download "tuiles-$Z" -p "tuiles-$Z.tar" -O /tmp/t.tar
+            rm -rf "tuiles/$Z" && mkdir -p "tuiles/$Z" && tar -xf /tmp/t.tar -C "tuiles/$Z"
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: communes-${{ matrix.p.zone }}
+          path: chaine/cache/diag/${{ matrix.p.zone }}
+      - name: Calcul (part ${{ matrix.p.part }} sur ${{ matrix.p.parts }})
+        working-directory: chaine
+        run: |
+          /usr/bin/time -v -o ../mesure.txt node --max-old-space-size=12000 diagnostics.js calculer \
+            --tuiles "../tuiles/${{ matrix.p.zone }}" --diag "cache/diag/${{ matrix.p.zone }}" --part "${{ matrix.p.part }}/${{ matrix.p.parts }}"
+          grep -E "Maximum resident|Elapsed" ../mesure.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: part-${{ matrix.p.zone }}-${{ matrix.p.part }}
+          path: chaine/cache/diag/${{ matrix.p.zone }}/part_${{ matrix.p.part }}.json
+          retention-days: 2
+
+  assembler:
+    needs: [plan, calculer]
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        zone: ${{ fromJson(needs.plan.outputs.zones) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Grille des tuiles publiées
+        env:
+          GH_TOKEN: ${{ github.token }}
+          Z: ${{ matrix.zone }}
+        run: |
+          if gh release view "tuiles-$Z" > /dev/null 2>&1; then
+            gh release download "tuiles-$Z" -p "tuiles-$Z.tar" -O /tmp/t.tar
+            mkdir -p "tuiles/$Z" && tar -xf /tmp/t.tar -C "tuiles/$Z" ./tuiles.json
+          fi
+      - uses: actions/download-artifact@v4
+        with:
+          name: communes-${{ matrix.zone }}
+          path: chaine/cache/diag/${{ matrix.zone }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: part-${{ matrix.zone }}-*
+          path: chaine/cache/diag/${{ matrix.zone }}
+          merge-multiple: true
+      - name: Assemblage par EPCI
+        working-directory: chaine
+        run: |
+          parts=$(ls cache/diag/${{ matrix.zone }}/part_*.json | wc -l)
+          attendu=$(jq --arg z "${{ matrix.zone }}" '.zones[] | select(.zone == $z) | .parts' a_diagnostiquer.json)
+          [ "$parts" = "$attendu" ] || { echo "::error::$parts parts sur $attendu (calcul échoué ?)"; exit 1; }
+          node --max-old-space-size=12000 diagnostics.js assembler --tuiles "../tuiles/${{ matrix.zone }}" \
+            --diag "cache/diag/${{ matrix.zone }}" --sortie /tmp/diag
+          du -sh /tmp/diag; ls -S -l /tmp/diag | head -4
+      - name: Release diag-${{ matrix.zone }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          T: diag-${{ matrix.zone }}
+        run: |
+          tar -cf "$T.tar" -C /tmp/diag .
+          gh release view "$T" > /dev/null 2>&1 || gh release create "$T" --target "$GITHUB_REF_NAME" \
+            --title "Diagnostics ${{ matrix.zone }}" --notes "Diagnostics par EPCI, produits par diagnostiquer.yml ; déployés par deployer.yml."
+          gh release upload "$T" "$T.tar" --clobber
+          echo "Release $T : $(du -h "$T.tar" | cut -f1)" >> "$GITHUB_STEP_SUMMARY"
+
+  deployer:
+    needs: assembler
+    if: ${{ !cancelled() && needs.assembler.result == 'success' }}
+    uses: ./.github/workflows/deployer.yml
+    secrets: inherit

@@ -1,0 +1,89 @@
+# Déploiement sur Cloudflare Workers, ressources statiques seules (spec §4, phase 3).
+# Secrets du dépôt : CLOUDFLARE_API_TOKEN (modèle « Edit Cloudflare Workers ») et CLOUDFLARE_ACCOUNT_ID.
+# Sans eux, le job s'arrête sans erreur (rien à déployer tant que le compte n'est pas branché).
+# Déclenché par un push qui touche le site, à la main, ou par tuiler.yml après le commit des tuiles
+# (un push du bot avec GITHUB_TOKEN ne déclenche aucun workflow).
+name: Déploiement
+
+on:
+  push:
+    branches: [france-entiere]
+    paths:
+      - index.html
+      - coeur.js
+      - tuiles-worker.js
+      - osm-contrib.js
+      - chaine/contour_fr.json
+      - classement.html
+      - tuiles/**
+      - deploiement/**
+      - wrangler.jsonc
+      - .github/workflows/deployer.yml
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploiement
+  cancel-in-progress: false
+
+jobs:
+  deployer:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - id: secrets
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::Secrets CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID absents : pas de déploiement"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+      # Tête de la branche (et non le commit déclencheur) : après un tuilage, le commit du bot
+      - uses: actions/checkout@v4
+        if: steps.secrets.outputs.ok == 'true'
+        with:
+          ref: ${{ github.ref_name }}
+      # Territoires publiés en release (tuiles-<zone>, métropole) : remplacent tuiles/<zone> du dépôt
+      - if: steps.secrets.outputs.ok == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tag in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^tuiles-' || true); do
+            zone=${tag#tuiles-}
+            gh release download "$tag" -p "$tag.tar" -O "/tmp/$tag.tar"
+            rm -rf "tuiles/$zone" && mkdir -p "tuiles/$zone" && tar -xf "/tmp/$tag.tar" -C "tuiles/$zone"
+            echo "tuiles/$zone : release $tag ($(ls "tuiles/$zone" | wc -l) fichiers)"
+          done
+          # Diagnostics par EPCI (diagnostiquer.yml) : release diag-<zone>, ajoutée aux tuiles du territoire
+          for tag in $(gh release list --limit 100 --json tagName -q '.[].tagName' | grep '^diag-' || true); do
+            zone=${tag#diag-}
+            gh release download "$tag" -p "$tag.tar" -O "/tmp/$tag.tar"
+            mkdir -p "tuiles/$zone" && tar -xf "/tmp/$tag.tar" -C "tuiles/$zone"
+            echo "tuiles/$zone : diagnostics $tag ($(tar -tf "/tmp/$tag.tar" | wc -l) fichiers)"
+          done
+          # Contour de la métropole pour la page (chaine/contour_fr.json, contour_metropole.py, 20/10/2026) : remplace
+          # celui de la release, simplifié à ~500 m, qui refusait les départs sur les caps et dans les ports
+          if [ -f tuiles/fr/contour.json ] && [ -f chaine/contour_fr.json ]; then
+            jq -c --slurpfile g chaine/contour_fr.json '.geometrie = $g[0]' tuiles/fr/contour.json > /tmp/contour.json
+            mv /tmp/contour.json tuiles/fr/contour.json && echo "tuiles/fr/contour.json : contour de chaine/contour_fr.json"
+          fi
+      # Scores des 101 chefs-lieux sur les tuiles qu'on publie (classement.html) : ~1 min
+      - if: steps.secrets.outputs.ok == 'true'
+        run: node chaine/scores.js tuiles
+      - if: steps.secrets.outputs.ok == 'true'
+        run: ./deploiement/construire.sh
+      - if: steps.secrets.outputs.ok == 'true'
+        # Jusqu'à 3 essais : l'API Cloudflare a déjà répondu 504 à l'ouverture de la session d'envoi (16/10/2026,
+        # 7 900 fichiers), puis accepté le même envoi à la relance
+        run: for i in 1 2 3; do npx --yes wrangler@4.151.1 deploy && exit 0; echo "essai $i échoué"; sleep $((30 * i)); done; exit 1
